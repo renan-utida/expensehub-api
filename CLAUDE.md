@@ -49,7 +49,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 
 - One branch per backlog issue, named like `i06-ownership`; PR title like `I06: Ownership e matriz de acesso`.
 - PR description references the central issue as `Racass/checkpoint-csharpracass-expensehub#N` and must **not** use `Closes`/`Fixes`/`Resolves`.
-- Conventional commit messages (e.g. `feat(expenses): ...`, `test(expenses): ...`, `docs: ...`). Commits are used to assess each member's participation.
+- Conventional commit messages (e.g. `feat(expenses): ...`, `test(expenses): ...`, `docs: ...`). Commits are used to assess each member's participation. Commit messages in English.
 
 ## Working rules (added by the team)
 
