@@ -12,6 +12,7 @@ internal static class Program
     public static void Main(string[] args)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddControllers();
         builder.Services.AddOpenApi();
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddExpenseHubIdentity();
@@ -25,6 +26,8 @@ internal static class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapControllers();
 
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
             .WithName("GetHealth");
