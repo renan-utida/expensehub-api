@@ -1,6 +1,7 @@
 using System;
 using ExpenseHub.Api.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ExpenseHub.Api.Identity;
@@ -31,6 +32,27 @@ public static class IdentityServiceCollectionExtensions
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ExpenseHubDbContext>()
             .AddSignInManager();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the startup seed of the required roles and the single initial Admin.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The application configuration.</param>
+    /// <returns>The same service collection.</returns>
+    public static IServiceCollection AddExpenseHubIdentitySeed(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.Configure<AdminSeedOptions>(configuration.GetSection(AdminSeedOptions.SectionName));
+        services.AddScoped<IIdentitySeedStore, IdentitySeedStore>();
+        services.AddScoped<IdentitySeeder>();
+        services.AddHostedService<IdentitySeedHostedService>();
 
         return services;
     }

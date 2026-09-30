@@ -17,6 +17,7 @@ internal static class Program
         builder.Services.AddOpenApi();
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddExpenseHubIdentity();
+        builder.Services.AddExpenseHubIdentitySeed(builder.Configuration);
 
         WebApplication app = builder.Build();
 
