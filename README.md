@@ -35,7 +35,7 @@ Estado atual: a fundação está pronta (solução, persistência com SQLite, en
 
 | Issue | Título | Peso | Status | Responsável | PR |
 |---|---|---:|---|---|---|
-| I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | a preencher |
+| I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
 | I02 | Identity, Admin e autenticação | 9% | A implementar | Pedro | - |
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | A implementar | Pedro | - |
 | I04 | Criar e editar rascunho | 7% | A implementar | Pedro | - |
@@ -170,6 +170,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 ```
 
 - Nesta rodada: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
+- Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto

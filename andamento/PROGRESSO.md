@@ -2,6 +2,13 @@
 
 Registro temporário do andamento por issue. Esta pasta será removida antes do SHA final. Leia este arquivo antes de começar uma issue e atualize-o ao terminar (junto com a linha "Estado atual", a tabela de status, a tabela de endpoints e a seção da issue no README).
 
+## Prazo e decisões do professor
+
+- **Prazo:** quarta-feira, 14/10/2026, às 23:59, no Teams (confirmado pelo professor; o ENUNCIADO e o README dele ainda dizem 13/10). Vale planejar para fechar antes e deixar folga para o score, o README e o SHA final.
+- **ExpenseCategory:** nenhuma issue cobra categoria. Fica só a entidade mínima (`Id` e `Name`), sem endpoint, seed nem vínculo com `Expense`.
+- **Testes unitários:** sem EF Core InMemory e sem SQLite em memória. O acesso a dados é simulado por interface de repositório injetada, com fakes ou mocks. O banco em si seria coberto por testes funcionais, que são opcionais e não pontuam.
+- **Códigos de status:** o professor pediu que a equipe decida pelo significado de cada código (401 é autenticação, 403 é autorização, 404 é recurso inexistente ou fora do escopo, 409 é conflito de estado). As escolhas atuais estão na seção Decisions do `CLAUDE.md`. Documentar o raciocínio no README quando a I06 for concluída.
+
 ## Avisos para a I02 a I06
 
 Estes pontos vêm da I01 e evitam retrabalho:
@@ -12,10 +19,12 @@ Estes pontos vêm da I01 e evitam retrabalho:
 - (d) **Rotas:** `Expense.Id` é `Guid`. Use `{id:guid}` nas rotas de `/api/expenses/{id}`.
 - (e) **Instantes:** qualquer novo `DateTimeOffset` persistido precisa de `UtcDateTimeOffsetConverter` (ticks UTC em `INTEGER`), senão `OrderBy`, `Max` e `Where` falham no SQLite. Atenção na I02: `IdentityUser.LockoutEnd` é `DateTimeOffset?`; só precisa de conversor se alguma consulta ordenar ou filtrar por ele.
 - (f) **Testes unitários:** sem banco, sem EF Core InMemory e sem SQLite em memória. Use fakes escritos à mão dos repositórios.
+- (g) **Commits:** em inglês, no padrão convencional, com o identificador da issue entre parênteses no fim da primeira linha, por exemplo `feat(identity): add login endpoint (I02)`. Não use `#2` no texto, porque o GitHub liga a um item do repositório da equipe. Acrescente a frase "Commit messages in English" ao `CLAUDE.md` na primeira edição que fizer nele.
+- (h) **Merge da PR:** escolha "Create a merge commit". Não use Squash nem Rebase, porque o professor avalia os commits de cada integrante. Mantenha as branches das issues depois do merge.
 
 ## I01: Fundação da solução e Entity Framework Core
 
-**Status:** concluída. Faltam só os commits, a PR e o preenchimento do número da PR (ver Pendências).
+**Status:** concluída; PR #1 (pipeline oficial 100/100, com Gitleaks).
 
 **Branch:** `i01-foundation-ef`.
 
@@ -29,6 +38,7 @@ Estes pontos vêm da I01 e evitam retrabalho:
 - `appsettings.json` com `ConnectionStrings:ExpenseHub = "Data Source=expensehub.db"`; `.gitignore` com `*.db`, `*.db-shm`, `*.db-wal` e `*.sqlite*`.
 - README novo na raiz; o README original do professor foi movido para esta pasta.
 - Regras novas no `CLAUDE.md` (leitura e atualização deste arquivo; dinheiro em centavos).
+- 10 commits com `(I01)` no fim da primeira linha, reunidos na PR #1 do repositório da equipe.
 
 ### Decisões que afetam as próximas issues
 
@@ -55,21 +65,27 @@ Estes pontos vêm da I01 e evitam retrabalho:
 
 ### Desvios do plano
 
-- O SDK 10 criou o manifesto em `dotnet-tools.json` na raiz, e não em `.config/dotnet-tools.json`. `dotnet tool list --local` reconhece.
+- O SDK 10 criou o manifesto em `dotnet-tools.json` na raiz, e não em `.config/dotnet-tools.json`. `dotnet tool list --local` reconhece, e o `dotnet tool restore` também procura na raiz.
 - `--idempotent` foi trocado por um `migrations script` comum, porque o provider não suporta.
 
-### Evidências desta rodada
+### Evidências
 
 - `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 13 aprovados.
 - `dotnet run` e `GET /health`: HTTP 200 `{"status":"ok"}`, sem criar o `.db` (conferido com `find` no repositório).
-- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes; único finding é o informativo FIAP0002 (Gitleaks ignorado). A execução analisou o `HEAD` `16c8e97` com a árvore de trabalho ainda sem commit; as checagens de arquivos rastreados só passam a valer depois dos commits.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`, antes dos commits: 100/100, 20 em cada categoria, sem bloqueantes; único finding é o informativo FIAP0002 (Gitleaks ignorado).
+- O mesmo script, repetido depois dos 10 commits (com os arquivos já rastreados): 100/100, árvore de trabalho limpa.
+- Pipeline oficial na PR #1 (workflow `code-quality`, execução #5, evento pull_request): 100/100, 20 em cada categoria, sem bloqueantes e sem achados, com Gitleaks 8.30.1 e dotnet 10.0.401.
+
+### Observações do pipeline
+
+- O job traz uma anotação informativa: o rótulo `ubuntu-latest` passa a apontar para o Ubuntu 26 a partir de 19/10/2026, depois do prazo. Não editar o workflow.
+- O relatório do professor sai com o campo "Commit" vazio e com linhas de "Projetos" mal formatadas (`$(@{path=...})`). É um defeito do script dele e não afeta a pontuação. Não editar `scripts/`.
 
 ### Pendências
 
-- **Número da PR:** a coluna PR da I01 na tabela de issues do README está como "a preencher". Preencher com o número real depois de abrir a PR.
-- **Commits e PR:** o desenvolvedor revisa o diff, commita e abre a PR (sugestão abaixo). Claude Code não faz commit nem push.
-- **Gitleaks:** só roda no CI. Conferir o resultado do workflow `code-quality` na PR.
+- **Merge da PR #1:** depois de marcar "Pipeline analisado" na descrição e conferir o check verde, fazer o merge com "Create a merge commit". Depois, `git switch main` e `git pull`, e conferir que o workflow também passou na `main`.
 - **Remover `andamento/`** antes do SHA final. O README não cita nem linka esta pasta; o `CLAUDE.md` cita, e a regra correspondente deve ser removida junto.
+- **Feitos:** número da PR preenchido no README; Gitleaks conferido no CI.
 
 ### Como validar
 
@@ -92,7 +108,7 @@ unset ConnectionStrings__ExpenseHub
 
 Depois, `dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj` e `curl http://localhost:5245/health`, e `git status` sem nenhum `.db`.
 
-### Sugestão de PR
+### Modelo de PR (usado na PR #1)
 
 Título: `I01: Fundação da solução e Entity Framework Core`
 
@@ -120,7 +136,8 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ## Evidências
 - Build com 0 avisos e 0 erros; 13 testes unitários aprovados.
-- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks).
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks), medido também depois dos commits.
+- Pipeline code-quality na PR: 100/100, com Gitleaks 8.30.1.
 - Experimento descartável com a migration aplicada: OrderBy e Where em Amount e em instantes com offsets diferentes corretos; CHECK, índice único de pagamento e FK RESTRICT rejeitaram dados inválidos.
 
 ## Impacto em segurança e autorização
@@ -136,3 +153,17 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [ ] Pipeline analisado
 - [x] Documentação atualizada
 ```
+
+## Próximo passo: I02 (Pedro)
+
+Depois do merge da PR #1:
+
+```shell
+git switch main
+git pull
+dotnet tool restore
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+git switch -c i02-identity-auth
+```
+
+Antes de codar: ler os avisos (a) a (h) acima, a seção Decisions do `CLAUDE.md` e os critérios da I02 no backlog central (Racass/checkpoint-csharpracass-expensehub#2). A senha inicial do Admin vem de configuração segura (user-secrets ou variável de ambiente) e nunca de arquivo versionado.
