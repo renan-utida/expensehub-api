@@ -1,3 +1,4 @@
+using ExpenseHub.Api.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,7 @@ internal static class Program
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Services.AddOpenApi();
+        builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
 
         WebApplication app = builder.Build();
 
