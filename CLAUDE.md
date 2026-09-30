@@ -68,6 +68,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 - Every issue that adds a business rule must include MSTest unit tests for valid and invalid cases. Test names state the rule being checked.
 - Services depend on repository interfaces (for example `IExpenseRepository`) implemented with EF Core and registered in DI. Services never take `DbContext` directly, so unit tests can replace the repositories with fakes or mocks. Create these interfaces in the first issue that needs a service (I04), not in I01.
 - Keep business rules (state transitions, ownership, validation) in plain classes or service methods that can be tested without EF Core. Prefer hand-written fakes. Ask before adding a mocking package.
+- Read `andamento/PROGRESSO.md` before starting an issue. When an issue is finished, update `andamento/PROGRESSO.md` and, in the README, the 'Estado atual' line, the status table, the endpoints table and the issue section. Never mark an issue as done unless every acceptance criterion is met. The `andamento/` folder is temporary and will be removed before the final SHA.
+- Money is stored as integer cents (`MoneyConversion`) and `ToCents` rounds. DTOs must reject amounts with more than two decimal places. Never rely on the converter to round user input.
 
 ## Decisions (keep status-code logic in one place and document the reasoning in the README)
 
