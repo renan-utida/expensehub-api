@@ -1,14 +1,16 @@
 using System;
 using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Persistence.Configurations;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace ExpenseHub.Api.Persistence;
 
 /// <summary>
-/// Entity Framework Core context of ExpenseHub.
+/// Entity Framework Core context of ExpenseHub, including the ASP.NET Core Identity tables.
 /// </summary>
-public class ExpenseHubDbContext : DbContext
+public class ExpenseHubDbContext : IdentityDbContext<IdentityUser>
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="ExpenseHubDbContext"/> class.
@@ -32,13 +34,15 @@ public class ExpenseHubDbContext : DbContext
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
 
     /// <inheritdoc />
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(modelBuilder);
+        ArgumentNullException.ThrowIfNull(builder);
 
-        modelBuilder.ApplyConfiguration(new ExpenseConfiguration());
-        modelBuilder.ApplyConfiguration(new ExpenseCategoryConfiguration());
-        modelBuilder.ApplyConfiguration(new ExpenseHistoryConfiguration());
-        modelBuilder.ApplyConfiguration(new PaymentRecordConfiguration());
+        base.OnModelCreating(builder);
+
+        builder.ApplyConfiguration(new ExpenseConfiguration());
+        builder.ApplyConfiguration(new ExpenseCategoryConfiguration());
+        builder.ApplyConfiguration(new ExpenseHistoryConfiguration());
+        builder.ApplyConfiguration(new PaymentRecordConfiguration());
     }
 }
