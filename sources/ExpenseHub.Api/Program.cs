@@ -1,3 +1,4 @@
+using ExpenseHub.Api.Identity;
 using ExpenseHub.Api.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +14,7 @@ internal static class Program
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Services.AddOpenApi();
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
+        builder.Services.AddExpenseHubIdentity();
 
         WebApplication app = builder.Build();
 
@@ -20,6 +22,9 @@ internal static class Program
         {
             app.MapOpenApi();
         }
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
             .WithName("GetHealth");
