@@ -9,6 +9,13 @@ Registro temporário do andamento por issue. Esta pasta será removida antes do 
 - **Testes unitários:** sem EF Core InMemory e sem SQLite em memória. O acesso a dados é simulado por interface de repositório injetada, com fakes ou mocks. O banco em si seria coberto por testes funcionais, que são opcionais e não pontuam.
 - **Códigos de status:** o professor pediu que a equipe decida pelo significado de cada código (401 é autenticação, 403 é autorização, 404 é recurso inexistente ou fora do escopo, 409 é conflito de estado). As escolhas atuais estão na seção Decisions do `CLAUDE.md`. Documentar o raciocínio no README quando a I06 for concluída.
 
+## Divisão e marcos
+
+- **Responsáveis previstos** (tabela do README): Renan fica com a I01 e da I07 à I10; Pedro fica com da I02 à I06.
+- **Meta proposta, a confirmar entre os dois:** Pedro fecha da I02 à I06 até domingo, 04/10, que serve de ponto de controle. A I07 e a I08 dependem do desenho de autorização da I06, então quem terminar a I06 avisa o outro na hora. Se a I06 atrasar, dividir o restante em vez de esperar.
+- **Reta final:** funcionalidades prontas até domingo, 11/10; segunda e terça (12 e 13/10) para score, README e SHA final; entrega até quarta, 14/10, com folga.
+- Quem sentir aperto avisa cedo. Cada issue mergeada na `main` libera a seguinte.
+
 ## Avisos para a I02 a I06
 
 Estes pontos vêm da I01 e evitam retrabalho:
@@ -24,7 +31,7 @@ Estes pontos vêm da I01 e evitam retrabalho:
 
 ## I01: Fundação da solução e Entity Framework Core
 
-**Status:** concluída; PR #1 (pipeline oficial 100/100, com Gitleaks).
+**Status:** concluída e mergeada na `main` pela PR #1 (pipeline oficial 100/100, com Gitleaks).
 
 **Branch:** `i01-foundation-ef`.
 
@@ -38,7 +45,7 @@ Estes pontos vêm da I01 e evitam retrabalho:
 - `appsettings.json` com `ConnectionStrings:ExpenseHub = "Data Source=expensehub.db"`; `.gitignore` com `*.db`, `*.db-shm`, `*.db-wal` e `*.sqlite*`.
 - README novo na raiz; o README original do professor foi movido para esta pasta.
 - Regras novas no `CLAUDE.md` (leitura e atualização deste arquivo; dinheiro em centavos).
-- 10 commits com `(I01)` no fim da primeira linha, reunidos na PR #1 do repositório da equipe.
+- Commits com `(I01)` no fim da primeira linha, reunidos na PR #1 do repositório da equipe (o último preenche o número da PR e registra o score).
 
 ### Decisões que afetam as próximas issues
 
@@ -83,9 +90,8 @@ Estes pontos vêm da I01 e evitam retrabalho:
 
 ### Pendências
 
-- **Merge da PR #1:** depois de marcar "Pipeline analisado" na descrição e conferir o check verde, fazer o merge com "Create a merge commit". Depois, `git switch main` e `git pull`, e conferir que o workflow também passou na `main`.
 - **Remover `andamento/`** antes do SHA final. O README não cita nem linka esta pasta; o `CLAUDE.md` cita, e a regra correspondente deve ser removida junto.
-- **Feitos:** número da PR preenchido no README; Gitleaks conferido no CI.
+- **Feitos:** número da PR preenchido no README; Gitleaks conferido no CI; merge da PR #1 na `main` com "Create a merge commit".
 
 ### Como validar
 
@@ -108,7 +114,9 @@ unset ConnectionStrings__ExpenseHub
 
 Depois, `dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj` e `curl http://localhost:5245/health`, e `git status` sem nenhum `.db`.
 
-### Modelo de PR (usado na PR #1)
+### Modelo de PR (texto da PR #1)
+
+Este é o texto da PR #1, com o checklist como ficou no fim (todas as caixas marcadas, inclusive "Pipeline analisado", que foi marcada depois de ler o resultado do workflow). Use-o como modelo nas próximas PRs, trocando o conteúdo pelo da sua issue. Ao abrir a sua PR, comece com as caixas desmarcadas e marque cada uma só depois de cumprir o item.
 
 Título: `I01: Fundação da solução e Entity Framework Core`
 
@@ -150,20 +158,33 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [x] Autorização revisada (não se aplica: sem endpoints)
 - [x] Testes unitários adicionados
 - [x] Build sem erros
-- [ ] Pipeline analisado
+- [x] Pipeline analisado
 - [x] Documentação atualizada
 ```
 
-## Próximo passo: I02 (Pedro)
+## Roteiro por issue
 
-Depois do merge da PR #1:
+Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
+
+1. **Ler, nesta ordem:** o README (estado atual e tabela de issues), este arquivo, o `CLAUDE.md`, a issue no backlog central (`Racass/checkpoint-csharpracass-expensehub#N`) e, em `docs/`, `REQUISITOS.md`, `MATRIZ-AUTORIZACAO.md` e `code-quality-rules.md`.
+2. **Preparar a branch** a partir da `main` atualizada:
 
 ```shell
 git switch main
 git pull
 dotnet tool restore
 dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
-git switch -c i02-identity-auth
+git switch -c iNN-nome-curto
 ```
 
-Antes de codar: ler os avisos (a) a (h) acima, a seção Decisions do `CLAUDE.md` e os critérios da I02 no backlog central (Racass/checkpoint-csharpracass-expensehub#2). A senha inicial do Admin vem de configuração segura (user-secrets ou variável de ambiente) e nunca de arquivo versionado.
+   Nomes sugeridos nas issues: `i02-identity-auth`, `i03-user-roles`, `i04-expense-draft`, `i05-submit-query`, `i06-ownership-access`, `i07-approve-reject`, `i08-payment-history`, `i09-unit-tests`, `i10-code-quality`.
+3. **Com o Claude Code** (recomendação da equipe): abrir na raiz, na branch da issue; começar em modo Plan e ler o plano antes de aprovar; aprovar as edições uma a uma ou com o modo de aceitar edições, sem auto mode; exigir zero avisos sem supressão. O agente não faz commit nem push (o `CLAUDE.md` proíbe).
+4. **Revisar e commitar:** ler o `git diff`, usar `git add` arquivo por arquivo (nunca `git add .`) e fazer commits pequenos, em inglês, com `(I0N)` no fim da primeira linha.
+5. **Antes do push:** `dotnet build ./sources/ExpenseHub.slnx --no-incremental` sem avisos, `dotnet test ./sources/ExpenseHub.slnx` e `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks` com 100/100, medido depois dos commits.
+6. **Atualizar a documentação na própria branch:** a linha "Estado atual", a tabela de issues, a tabela de endpoints e a seção da issue no README, além deste arquivo. O número da PR só existe depois de abri-la, então preencha-o num commit seguinte, na mesma branch.
+7. **PR:** título `I0N: Título da issue`, descrição no modelo acima, citando `Racass/checkpoint-csharpracass-expensehub#N` sem `Closes`, `Fixes` ou `Resolves`. Esperar o workflow `code-quality` ficar verde. O score oficial está na aba Actions, na execução da PR, em Summary e no artefato `code-quality-report`.
+8. **Merge:** marcar "Pipeline analisado" na descrição, escolher "Create a merge commit" (nunca Squash nem Rebase) e não apagar a branch.
+
+## Primeira issue do Pedro: I02
+
+Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#2`). Atenção aos avisos (a), (e) e (g). A senha inicial do Admin vem de configuração segura (user-secrets ou variável de ambiente) e nunca de arquivo versionado; o `.gitignore` já ignora `appsettings.Development.json`, `appsettings.Local.json` e `secrets.json`.
