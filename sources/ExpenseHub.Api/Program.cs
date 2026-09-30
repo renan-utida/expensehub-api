@@ -13,6 +13,7 @@ internal static class Program
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Services.AddControllers();
+        builder.Services.AddProblemDetails();
         builder.Services.AddOpenApi();
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddExpenseHubIdentity();
@@ -24,6 +25,7 @@ internal static class Program
             app.MapOpenApi();
         }
 
+        app.UseStatusCodePages();
         app.UseAuthentication();
         app.UseAuthorization();
 
