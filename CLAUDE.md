@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-ExpenseHub is a FIAP C# checkpoint (group assignment, due 2026-10-13): a corporate expense-reimbursement REST API built with ASP.NET Core (.NET 10), ASP.NET Core Identity, EF Core on a relational provider, bearer auth, and role-based authorization. The repo starts as a skeleton (only `GET /health` in `sources/ExpenseHub.Api/Program.cs`); everything else is implemented incrementally, one backlog issue per branch.
+ExpenseHub is a FIAP C# checkpoint (group assignment, due 2026-10-14 at 23:59 on Teams, confirmed by the professor): a corporate expense-reimbursement REST API built with ASP.NET Core (.NET 10), ASP.NET Core Identity, EF Core on a relational provider, bearer auth, and role-based authorization. The repo starts as a skeleton (only `GET /health` in `sources/ExpenseHub.Api/Program.cs`); everything else is implemented incrementally, one backlog issue per branch.
 
 The spec lives in `docs/` (in Portuguese) and is the contract. Read it before implementing a feature:
 - `docs/REQUISITOS.md`: roles, entities, field validations, state machine, required endpoints, HTTP status contract.
@@ -32,7 +32,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 - `Directory.Build.props` applies to all projects: `Nullable` enabled, **`ImplicitUsings` disabled** (every file needs explicit `using` directives), `GenerateDocumentationFile`, `AnalysisMode=Recommended`, `EnforceCodeStyleInBuild`, StyleCop.Analyzers.
 - Warnings are not errors, but full Code Quality score requires **zero warnings**. The CI script (`.github/workflows/build.yml` -> `scripts/Invoke-CodeQuality.ps1`) deducts per distinct `IDE*`/`CA*` ID and per FIAP rule. Notable FIAP rules to avoid: tracked `bin/obj/.vs`/binaries, secrets or connection strings with credentials in versioned config, plaintext passwords, `CountAsync() > 0` (use `AnyAsync`), `Thread.Sleep`, synchronous DB queries in controllers, entities bound directly as API input (use DTOs), DTOs without data-annotation validation, leftover `WeatherForecast` scaffolding, failing tests.
 - `.editorconfig` style highlights: file-scoped namespaces, braces always required, no `this.` qualification, `_camelCase` private fields, explicit accessibility modifiers, usings outside namespace with `System` first, explicit types for built-ins (`var` elsewhere). `**/Migrations/*.cs` is treated as generated code.
-- Unit tests (MSTest 4, `ExpenseHub.UnitTests`, method-level parallelization) must run without a database, network, or external services. Only unit tests count toward the grade.
+- Unit tests (MSTest 4, `ExpenseHub.UnitTests`, method-level parallelization) must run without a database, network, or external services. Only unit tests count toward the grade. Never use EF Core InMemory or SQLite in-memory in unit tests (professor's guidance): data access sits behind repository interfaces and unit tests use fakes or mocks of them. The database itself is covered by functional tests.
 
 ## Architecture rules from the spec
 
@@ -66,11 +66,12 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 - Use async/await for all I/O and never `.Result` or `.Wait()`.
 - Ask before adding any NuGet package that is not part of the approved plan.
 - Every issue that adds a business rule must include MSTest unit tests for valid and invalid cases. Test names state the rule being checked.
-- Keep business rules (state transitions, ownership, validation) in plain classes that do not need a `DbContext`, so they can be unit-tested without a database.
+- Services depend on repository interfaces (for example `IExpenseRepository`) implemented with EF Core and registered in DI. Services never take `DbContext` directly, so unit tests can replace the repositories with fakes or mocks. Create these interfaces in the first issue that needs a service (I04), not in I01.
+- Keep business rules (state transitions, ownership, validation) in plain classes or service methods that can be tested without EF Core. Prefer hand-written fakes. Ask before adding a mocking package.
 
-## Provisional decisions (until the professor answers; keep status-code logic in one place so it is easy to change)
+## Decisions (keep status-code logic in one place and document the reasoning in the README)
 
-- `ExpenseCategory`: keep it minimal (Id, Name) and do not link it to `Expense` yet.
-- Check order for expense operations: 401, then 400 (DTO validation), then 404 (missing or outside the caller's read scope), then 403 (role or ownership forbids the action), then 409 (wrong state or repeated transition).
-- Approver or Finance acting on their own expense: 403. Employee touching another Employee's expense: 404.
-- Unit tests must not touch any database, including EF InMemory or SQLite in-memory, until the professor confirms it is allowed.
+- `ExpenseCategory` (professor confirmed no issue requires it): map only the minimal entity (Id, Name). No endpoints, no seed and no link to `Expense`.
+- The professor asked the team to choose status codes by their meaning: 401 is about authentication (who am I), 403 about authorization (what may I do), 404 not found, 409 conflict.
+- Order for expense operations: 401 (not authenticated), then 403 from the role attribute (authenticated but without the role), then 400 (DTO validation). Inside the service: 404 (missing or outside the caller's read scope), then 403 (ownership rule forbids the action), then 409 (state does not accept the transition or it was repeated).
+- Approver or Finance acting on their own expense: 403. Employee sending or editing another Employee's expense: 404, because the resource is not visible to them.
