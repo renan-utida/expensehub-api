@@ -14,7 +14,7 @@ namespace ExpenseHub.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin/users")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = AppRoles.Admin)]
 public sealed class AdminUsersController : ControllerBase
 {
     private readonly UserManager<IdentityUser> _userManager;

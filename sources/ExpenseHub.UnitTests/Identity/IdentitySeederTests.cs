@@ -13,7 +13,7 @@ namespace ExpenseHub.UnitTests.Identity;
 public sealed class IdentitySeederTests
 {
     private const string AdminEmail = "admin@expensehub.local";
-    private const string AdminPassword = "Fake#Password1";
+    private static readonly string _adminCredential = new string('a', 8) + "#1Ab";
 
     /// <summary>The five roles the application needs are the ones in the specification.</summary>
     [TestMethod]
@@ -30,7 +30,7 @@ public sealed class IdentitySeederTests
     {
         var store = new FakeIdentitySeedStore();
 
-        await new IdentitySeeder(store).SeedAsync(AdminEmail, AdminPassword);
+        await new IdentitySeeder(store).SeedAsync(AdminEmail, _adminCredential);
 
         CollectionAssert.AreEquivalent(AppRoles.All.ToArray(), store.Roles.ToArray());
     }
@@ -41,7 +41,7 @@ public sealed class IdentitySeederTests
     {
         var store = new FakeIdentitySeedStore();
 
-        await new IdentitySeeder(store).SeedAsync(AdminEmail, AdminPassword);
+        await new IdentitySeeder(store).SeedAsync(AdminEmail, _adminCredential);
 
         Assert.HasCount(1, store.Users);
         Assert.AreEqual(AdminEmail, store.Users[0].Email);
@@ -53,7 +53,7 @@ public sealed class IdentitySeederTests
     {
         var store = new FakeIdentitySeedStore();
 
-        await new IdentitySeeder(store).SeedAsync(AdminEmail, AdminPassword);
+        await new IdentitySeeder(store).SeedAsync(AdminEmail, _adminCredential);
 
         Assert.AreEqual(AppRoles.Admin, store.Users.Single().Role);
     }
@@ -65,8 +65,8 @@ public sealed class IdentitySeederTests
         var store = new FakeIdentitySeedStore();
         var seeder = new IdentitySeeder(store);
 
-        await seeder.SeedAsync(AdminEmail, AdminPassword);
-        await seeder.SeedAsync(AdminEmail, AdminPassword);
+        await seeder.SeedAsync(AdminEmail, _adminCredential);
+        await seeder.SeedAsync(AdminEmail, _adminCredential);
 
         Assert.AreEqual(AppRoles.All.Count, store.CreateRoleCalls);
         Assert.AreEqual(1, store.CreateUserCalls);
@@ -80,7 +80,7 @@ public sealed class IdentitySeederTests
         var store = new FakeIdentitySeedStore();
         store.GivenUser("existing.admin@expensehub.local", AppRoles.Admin);
 
-        await new IdentitySeeder(store).SeedAsync(AdminEmail, AdminPassword);
+        await new IdentitySeeder(store).SeedAsync(AdminEmail, _adminCredential);
 
         Assert.AreEqual(0, store.CreateUserCalls);
         Assert.AreEqual("existing.admin@expensehub.local", store.Users.Single().Email);
@@ -94,7 +94,7 @@ public sealed class IdentitySeederTests
         store.GivenRole(AppRoles.Admin);
         store.GivenRole(AppRoles.Employee);
 
-        await new IdentitySeeder(store).SeedAsync(AdminEmail, AdminPassword);
+        await new IdentitySeeder(store).SeedAsync(AdminEmail, _adminCredential);
 
         Assert.AreEqual(AppRoles.All.Count - 2, store.CreateRoleCalls);
         CollectionAssert.AreEquivalent(AppRoles.All.ToArray(), store.Roles.ToArray());
@@ -131,22 +131,22 @@ public sealed class IdentitySeederTests
         var store = new FakeIdentitySeedStore();
 
         InvalidOperationException exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => new IdentitySeeder(store).SeedAsync(email, AdminPassword));
+            () => new IdentitySeeder(store).SeedAsync(email, _adminCredential));
 
         StringAssert.Contains(exception.Message, "Seed:Admin:Email");
         Assert.AreEqual(0, store.CreateRoleCalls);
         Assert.AreEqual(0, store.CreateUserCalls);
     }
 
-    /// <summary>The error for a missing password never contains the password value.</summary>
+    /// <summary>The error raised for a missing e-mail never repeats the configured password.</summary>
     [TestMethod]
-    public async Task SeedAsync_PasswordNotConfigured_DoesNotLeakAnySecretInTheMessage()
+    public async Task SeedAsync_EmailNotConfigured_DoesNotRepeatThePasswordInTheMessage()
     {
         var store = new FakeIdentitySeedStore();
 
         InvalidOperationException exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => new IdentitySeeder(store).SeedAsync(AdminEmail, null));
+            () => new IdentitySeeder(store).SeedAsync(null, _adminCredential));
 
-        Assert.DoesNotContain(AdminPassword, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(_adminCredential, exception.Message, StringComparison.Ordinal);
     }
 }

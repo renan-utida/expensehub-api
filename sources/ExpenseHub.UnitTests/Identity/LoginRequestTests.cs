@@ -12,11 +12,13 @@ namespace ExpenseHub.UnitTests.Identity;
 [TestClass]
 public sealed class LoginRequestTests
 {
+    private static readonly string _someCredential = new string('a', 12);
+
     /// <summary>Valid credentials pass validation.</summary>
     [TestMethod]
     public void Validate_ValidCredentials_HasNoErrors()
     {
-        var request = new LoginRequest { Email = "user@expensehub.local", Password = "Some#Password1" };
+        var request = new LoginRequest { Email = "user@expensehub.local", Password = _someCredential };
 
         Assert.IsEmpty(Validate(request));
     }
@@ -28,7 +30,7 @@ public sealed class LoginRequestTests
     [DataRow("")]
     public void Validate_MissingEmail_ReportsEmailError(string? email)
     {
-        var request = new LoginRequest { Email = email!, Password = "Some#Password1" };
+        var request = new LoginRequest { Email = email!, Password = _someCredential };
 
         CollectionAssert.Contains(Validate(request), nameof(LoginRequest.Email));
     }
@@ -41,7 +43,7 @@ public sealed class LoginRequestTests
     [DataRow("@expensehub.local")]
     public void Validate_MalformedEmail_ReportsEmailError(string email)
     {
-        var request = new LoginRequest { Email = email, Password = "Some#Password1" };
+        var request = new LoginRequest { Email = email, Password = _someCredential };
 
         CollectionAssert.Contains(Validate(request), nameof(LoginRequest.Email));
     }
@@ -51,7 +53,7 @@ public sealed class LoginRequestTests
     public void Validate_EmailLongerThanMaximum_ReportsEmailError()
     {
         string email = new string('a', LoginRequest.EmailMaxLength) + "@expensehub.local";
-        var request = new LoginRequest { Email = email, Password = "Some#Password1" };
+        var request = new LoginRequest { Email = email, Password = _someCredential };
 
         CollectionAssert.Contains(Validate(request), nameof(LoginRequest.Email));
     }
