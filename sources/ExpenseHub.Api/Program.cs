@@ -28,6 +28,7 @@ internal static class Program
 
         app.UseStatusCodePages();
         app.UseAuthentication();
+        app.UseSecurityStampValidation();
         app.UseAuthorization();
 
         app.MapControllers();
