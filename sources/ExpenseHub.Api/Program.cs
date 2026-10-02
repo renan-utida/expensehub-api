@@ -1,3 +1,4 @@
+using ExpenseHub.Api.Expenses;
 using ExpenseHub.Api.Identity;
 using ExpenseHub.Api.Persistence;
 using Microsoft.AspNetCore.Builder;
@@ -18,6 +19,7 @@ internal static class Program
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddExpenseHubIdentity();
         builder.Services.AddExpenseHubIdentitySeed(builder.Configuration);
+        builder.Services.AddExpenseHubExpenses();
 
         WebApplication app = builder.Build();
 
