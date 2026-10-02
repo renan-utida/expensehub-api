@@ -396,6 +396,132 @@ dotnet test ./sources/ExpenseHub.slnx
 - [ ] Documentação atualizada
 ```
 
+## I04: Criar e editar rascunho
+
+**Status:** implementada na branch `i04-expense-draft`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+
+**Branch:** `i04-expense-draft`.
+
+### O que foi feito
+
+- `POST /api/expenses` e `PUT /api/expenses/{id:guid}` (`ExpensesController`, `[Authorize(Roles = AppRoles.Employee)]`). `201` na criação (sem `Location`) e `200` na edição, com `ExpenseResponse`.
+- `ExpenseRequest`, um DTO só para os dois endpoints, com `Description`, `Amount` e `ExpenseDate` obrigatórios e anotações de dados (`Required`, `StringLength` e `[MoneyAmount]`). Sem dono, estado, ator nem horários: o que vier a mais no corpo é ignorado.
+- `ExpenseRules` (regras puras): descrição de 10 a 500 caracteres depois de aparada, valor de 0,01 a `Int32.MaxValue` com no máximo duas casas decimais (rejeita, nunca arredonda) e data não posterior a hoje.
+- `BrazilTime`: a "data de hoje" é a de Brasília (`America/Sao_Paulo`, com o nome do Windows como alternativa).
+- `ExpenseService` (`IExpenseRepository` e `TimeProvider`): criar gera o `Guid`, define dono e ator pelo token, estado `Draft`, horário do relógio e o histórico `Created` na mesma gravação; editar valida, procura a despesa do dono, exige `Draft` e grava o histórico `Edited` com o resumo (`Changes`).
+- `IExpenseRepository` e `ExpenseRepository` (EF Core), criados nesta issue como o `CLAUDE.md` manda. `FindOwnedAsync(id, ownerId)` filtra o dono na consulta. O serviço nunca recebe `DbContext`.
+- `AddExpenseHubExpenses()` registra `TimeProvider.System`, o repositório e o serviço.
+- 110 testes unitários novos (42 `ExpenseRules`, 4 `BrazilTime`, 26 serviço na criação, 20 na edição, 18 `ExpenseRequest`), com `FakeExpenseRepository` e `FixedTimeProvider` escritos à mão. Total: 196.
+- Nenhuma migration nova e nenhum pacote novo.
+- README: estado atual, tabelas de issues e endpoints, arquitetura, testes, qualidade, decisões, solução de problemas e o detalhe da I04.
+
+### Decisões que afetam as próximas issues
+
+- **Quem cria despesa:** só `Employee`. Um usuário cadastrado nasce sem role; um Admin concede `Employee` e o usuário faz login de novo. O Admin sozinho não cria despesa (`403`).
+- **Decisões do Pedro nesta issue:** (1) o `PUT` com os mesmos valores grava histórico `Edited` com `No field changed.`; (2) `201` sem `Location`; (3) a data não futura é comparada com a data do Brasil, e não a UTC; (4) o `PUT` substitui os três campos, todos obrigatórios.
+- **I05:** crie o `GET /api/expenses/{id}` e, se quiser, passe a devolver `Location` no `201` da criação. O filtro de visibilidade (Employee: próprias; Approver: `Submitted`; Finance: `Approved` e `Paid`; Auditor: todas) deve ir na consulta do repositório, antes de materializar, como `FindOwnedAsync` já faz para o dono. `ExpenseResponse` já existe e serve para o detalhe e para a lista.
+- **I05 e I07: concorrência.** Hoje a edição lê o estado e grava depois, sem proteção contra uma transição simultânea (por exemplo editar enquanto outro pedido envia). Para as transições, avalie um token de concorrência no estado (`IsConcurrencyToken` no `Status`, que muda o snapshot do modelo e pede uma migration vazia de esquema) ou um `UPDATE` condicional (`WHERE Status = 'Draft'`).
+- **I06:** a despesa de outro usuário responde `404` porque `FindOwnedAsync` só enxerga as do dono. Um usuário com `Employee` e outra role (por exemplo `Auditor`) que tente editar a despesa de outra pessoa também recebe `404` aqui; a I06 deve refinar para `403` quando a despesa é visível por outra role.
+- **Histórico:** o padrão é adicionar a linha em `expense.History` e salvar uma vez, e não gravar o histórico em outra operação. As transições da I05, I07 e I08 devem seguir o mesmo padrão (a atomicidade lógica é critério da I08).
+- **Dinheiro:** as validações de valor estão em `ExpenseRules` e no atributo `[MoneyAmount]`. Reaproveite-os se outro DTO receber valor.
+- **Relógio:** injete `TimeProvider` e use o fake `FixedTimeProvider` dos testes. Não use `DateTime.UtcNow` direto nos serviços.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+Script descartável no diretório temporário da sessão, 60 verificações, todas conforme o esperado depois da correção da leitura do banco no próprio script:
+
+- Criação: sem token `401`; usuário sem role e o Admin `403`; Employee `201`, `Draft`, dono igual ao usuário do token, sem cabeçalho `Location`.
+- Mass assignment: corpo com `ownerId` (de outro usuário), `status` `Approved`, `createdAtUtc` antigo, `actorId`, `id` e `payment` resulta em despesa do dono do token, `Draft`, com id e horário gerados pelo servidor.
+- Valor: `0`, `0.009`, `12.345`, `-1` e `2147483647.01` dão `400`; `0.01` e `2147483647` dão `201`. O erro de casas decimais aponta o campo `Amount`.
+- Descrição: 9 caracteres, 501 e só espaços dão `400`; 10 e 500 dão `201`. Data: amanhã em Brasília `400`, hoje `201`, `2026-02-30` `400`. Corpo vazio e `amount` como texto: `400`.
+- Banco: valor 87,50 gravado como 8750 centavos; um histórico `Created` com ator igual ao dono, anterior nulo e novo `Draft`; toda despesa criada tem exatamente 1 histórico.
+- Edição: dono `200`; campos substituídos; dono, estado e `createdAtUtc` intactos; histórico `Created` e `Edited` (de `Draft` para `Draft`) com `Changes` listando descrição e valor; 120,4 gravado como 12040 centavos.
+- Negativas: outro Employee `404` e a despesa intacta; `id` inexistente e `id` que não é Guid `404`; mass assignment no `PUT` não muda dono nem estado; valor inválido, data futura e campo ausente `400` sem gravar histórico; `PUT` com os mesmos valores `200` com `No field changed.`.
+- Fora de `Draft` (estado mudado direto no banco temporário, só para a evidência): `Submitted`, `Approved`, `Rejected` e `Paid` dão `409` sem gravar histórico; a despesa `Submitted` de outro usuário dá `404`, e não `409`.
+- A senha e os tokens usados não aparecem no log da aplicação.
+
+### Desvios e cuidados
+
+- **Atributo próprio e nome do campo:** `MoneyAmountAttribute` primeiro devolvia o erro sem o nome do campo (`MemberNames` vazio); o MVC atribui a propriedade, mas o teste com `Validator.TryValidateObject` falhou. Corrigido informando `validationContext.MemberName`.
+- **`DataRow` e `decimal`:** atributos não aceitam `decimal` como constante; os testes passam o valor como texto e convertem com `CultureInfo.InvariantCulture` (`ExpenseTestData.Dec`).
+- **Script de validação:** `ConvertFrom-Json` achata o resultado de uma consulta de uma só linha; use `-NoEnumerate`. Cinco verificações falharam por causa disso, e não por defeito do código. No PowerShell 7, `Invoke-WebRequest` devolve o corpo de `application/problem+json` como `byte[]`.
+- **Porta do executável:** rodar `ExpenseHub.Api.exe` direto sobe em `http://localhost:5000`; defina `ASPNETCORE_URLS=http://localhost:5245` para testar na `5245`.
+- **Lições anteriores seguidas:** nenhum literal atribuído a nome com `password`, campos privados `static readonly` com `_`, arrays constantes em campos (CA1861), um tipo por arquivo. O pipeline local deu 100/100 de primeira.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 196 aprovados.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, medido com os arquivos novos ainda sem commit (o script também analisa arquivos não rastreados). Repetir depois de commitar, com a árvore limpa.
+
+### Pendências
+
+- **Commits:** nada commitado. Sugestão de divisão: regras e relógio, repositório, serviço, DTOs e controller, testes, documentação.
+- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
+- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
+- **Linhas da I02 e da I03 no README:** continuam "Implementada, aguardando PR" e as seções de qualidade da I02 e da I03 não trazem o score oficial. As duas PRs já foram mergeadas; trocar para "Concluída" e registrar os scores oficiais num commit à parte.
+- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+
+### Modelo de PR
+
+Título: `I04: Criar e editar rascunho`
+
+```text
+Implementa a criação e a edição de rascunhos de despesa pelo Employee.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#4
+
+## Resumo técnico
+- POST /api/expenses (Employee) cria um rascunho (Draft) cujo dono vem do token; PUT /api/expenses/{id} substitui descrição, valor e data de um rascunho do próprio usuário.
+- O DTO tem só descrição, valor e data, todos obrigatórios: dono, estado, ator e horários são do servidor, e o que o cliente enviar a mais é ignorado (mass assignment impedido).
+- Contrato de validação: descrição de 10 a 500 caracteres (aparada), valor de 0,01 até Int32.MaxValue com no máximo duas casas decimais (rejeita, nunca arredonda) e data não posterior a hoje em Brasília.
+- Edição: dono e Draft. Despesa de outro usuário responde 404 (o filtro de dono está na consulta) e fora de Draft responde 409, sem alterar nada nem gravar histórico.
+- A criação e cada edição gravam a linha de histórico (Created e Edited, com o resumo das alterações) na mesma gravação da despesa.
+- IExpenseRepository nasce nesta issue; ExpenseService e ExpenseRules são classes simples testadas com fake do repositório e relógio fixo, sem banco.
+- 110 testes unitários novos (total de 196). Nenhuma migration nem pacote novo.
+
+## Decisões e concessões
+- O PUT é uma substituição completa: campo ausente é 400, e nunca "mantém o valor antigo".
+- Editar com os mesmos valores grava histórico com "No field changed.".
+- A data não futura usa a data do Brasil, e não a UTC.
+- 201 da criação sem cabeçalho Location, porque o GET por id nasce na I05.
+- Usuário com Employee e outra role que edita a despesa de outra pessoa recebe 404; a visibilidade completa por role é da I06.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+(configurar a senha do Admin, aplicar a migration, conceder Employee a um usuário e fazer login de novo; detalhes no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 196 testes unitários aprovados.
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks).
+- Criação: 201 com Draft e dono do token, mesmo com ownerId e status no corpo; sem token 401; sem a role 403.
+- Valor 0, 0.009, 12.345, -1 e 2147483647.01: 400; 0.01 e 2147483647: 201. Descrição de 9 e 501 caracteres, data futura e data inválida: 400.
+- Banco: valor gravado em centavos (87,50 vira 8750); um histórico Created por despesa e um Edited por edição.
+- Outro Employee edita o rascunho: 404 e a despesa continua igual. Submitted, Approved, Rejected e Paid: 409 sem histórico novo.
+- A senha e os tokens usados não aparecem no log da aplicação.
+- Pipeline code-quality na PR: (preencher com o score depois de ler o resultado, com Gitleaks)
+
+## Limitações conhecidas
+- Ainda não há GET de despesas (I05); a gravação foi conferida direto no banco, e o 409 foi provado mudando o estado no banco temporário.
+- Edição e envio simultâneos podem disputar o estado; a proteção de concorrência é avaliada nas transições da I05 e da I07.
+- O criar, o editar e a gravação dependem do host e do banco, então foram validados à mão, e não por teste unitário.
+
+## Impacto em segurança e autorização
+- Só Employee cria e edita; o Admin não ganha acesso funcional a despesas.
+- O dono vem sempre do token; o filtro de dono vai na consulta, e a despesa de outro usuário nunca é carregada.
+- Dono, estado, ator e horários nunca vêm do cliente.
+- Nenhuma credencial versionada.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.

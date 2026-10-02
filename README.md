@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: a fundação (I01), a autenticação (I02) e o cadastro com a administração de roles (I03) estão prontos: persistência com SQLite, ASP.NET Core Identity, cadastro público sem roles, login com token bearer, as cinco roles, a conta Admin inicial e a atribuição de roles pelo Admin. Ainda não existem endpoints de despesa; os endpoints atuais são `GET /health`, `POST /register`, `POST /login`, `GET /api/admin/users` e `PUT /api/admin/users/{id}/roles`.
+Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a administração de roles (I03) e a criação e edição de rascunhos de despesa (I04) estão prontos: persistência com SQLite, ASP.NET Core Identity, cadastro público sem roles, login com token bearer, as cinco roles, a conta Admin inicial, a atribuição de roles pelo Admin e o `Employee` criando e editando os próprios rascunhos. Ainda não existem envio, listagem, consulta, aprovação nem pagamento; os endpoints atuais são `GET /health`, `POST /register`, `POST /login`, `GET /api/admin/users`, `PUT /api/admin/users/{id}/roles`, `POST /api/expenses` e `PUT /api/expenses/{id}`.
 
 ## Sumário
 
@@ -24,6 +24,7 @@ Estado atual: a fundação (I01), a autenticação (I02) e o cadastro com a admi
 - [Detalhe da I01: Fundação da solução e Entity Framework Core](#detalhe-da-i01-fundação-da-solução-e-entity-framework-core)
 - [Detalhe da I02: Identity, Admin e autenticação](#detalhe-da-i02-identity-admin-e-autenticação)
 - [Detalhe da I03: Cadastro HTTP e gerenciamento de roles](#detalhe-da-i03-cadastro-http-e-gerenciamento-de-roles)
+- [Detalhe da I04: Criar e editar rascunho](#detalhe-da-i04-criar-e-editar-rascunho)
 - [Próximas issues](#próximas-issues)
 
 ## Equipe
@@ -40,7 +41,7 @@ Estado atual: a fundação (I01), a autenticação (I02) e o cadastro com a admi
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
 | I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
-| I04 | Criar e editar rascunho | 7% | A implementar | Pedro | - |
+| I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | - |
 | I05 | Enviar, listar e consultar | 7% | A implementar | Pedro | - |
 | I06 | Ownership e matriz de acesso | 10% | A implementar | Pedro | - |
 | I07 | Aprovar e reprovar com justificativa | 12% | A implementar | Renan | - |
@@ -57,6 +58,8 @@ Estado atual: a fundação (I01), a autenticação (I02) e o cadastro com a admi
 | POST | `/login` | Público. Recebe `email` e `password` e devolve o token bearer. Credencial inválida: `401`; corpo inválido: `400` | I02 |
 | GET | `/api/admin/users` | Somente `Admin`. Lista `id`, `email` e `roles` dos usuários, ordenados por e-mail. Sem token: `401`; sem a role: `403` | I02 e I03 |
 | PUT | `/api/admin/users/{id}/roles` | Somente `Admin`. Recebe `{"roles": [...]}` e **substitui** as roles do usuário: as listadas são atribuídas e as omitidas são removidas. Role desconhecida ou lista ausente: `400`; usuário inexistente: `404`; Admin removendo a própria role Admin: `403`. O usuário afetado precisa fazer login de novo | I03 |
+| POST | `/api/expenses` | Somente `Employee`. Recebe `description`, `amount` e `expenseDate` e cria um rascunho (`Draft`) cujo dono é o usuário do token. `201` com a despesa; dados inválidos: `400`; sem token: `401`; sem a role: `403` | I04 |
+| PUT | `/api/expenses/{id}` | Somente `Employee`. **Substitui** `description`, `amount` e `expenseDate` de um rascunho do próprio usuário. `200` com a despesa; dados inválidos: `400`; inexistente ou de outro usuário: `404`; fora de `Draft`: `409`; sem token: `401`; sem a role: `403` | I04 |
 
 Esta tabela ganha uma linha a cada endpoint implementado.
 
@@ -187,10 +190,12 @@ sources/
   ExpenseHub.Api/
     Program.cs                    inicialização, pipeline e GET /health
     appsettings.json
-    Controllers/                  AuthController (POST /register e /login), AdminUsersController
+    Controllers/                  AuthController (POST /register e /login), AdminUsersController, ExpensesController
     Domain/
       Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
       Enums/                      ExpenseStatus, ExpenseHistoryAction
+    Expenses/                     ExpenseService (regras de criar e editar), ExpenseRules (contrato de validação),
+                                  BrazilTime, IExpenseRepository, DTOs (ExpenseRequest e ExpenseResponse) e MoneyAmount
     Identity/                     registro do Identity e do bearer, DTOs, AppRoles, o seed, UserAccountService
                                   (regras de cadastro e de roles) e a validação do SecurityStamp
     Persistence/
@@ -200,12 +205,14 @@ sources/
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
       Migrations/                 InitialCreate, AddIdentity e snapshot (gerados)
+      Repositories/               ExpenseRepository (EF Core)
   ExpenseHub.UnitTests/
+    Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório
     Identity/                     testes do seed, do cadastro, das roles e das validações, com fakes das stores
     Persistence/                  testes das conversões
 ```
 
-As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`.
+As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`. As regras de despesa ficam em `ExpenseService` e `ExpenseRules`, que dependem de `IExpenseRepository` e de um `TimeProvider`; a implementação com EF Core é `ExpenseRepository`. O serviço nunca recebe `DbContext`.
 
 ## Testes
 
@@ -213,9 +220,9 @@ As entidades são classes simples, sem regras de negócio por enquanto. A regra 
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 86 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`) e 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`, contando cada caso de `DataRow`).
-- Os testes da I01 chamam funções estáticas puras. Os do seed e os de `UserAccountService` usam fakes escritos à mão das stores. Nenhum usa tipos do EF Core.
-- O login, o cadastro, o `401`, o `403` e a invalidação do token dependem do host e do banco, então foram validados à mão (seções da I02 e da I03), e não por teste unitário.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 196 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`) e 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`), contando cada caso de `DataRow`.
+- Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService` e de `ExpenseService` usam fakes escritos à mão das stores e do repositório, e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core.
+- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02, da I03 e da I04), e não por teste unitário.
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -237,6 +244,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
 - I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. O score do pipeline da I02 é o da execução na PR.
 - I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
+- I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -259,6 +267,15 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **Ordem das respostas em `PUT /api/admin/users/{id}/roles`:** `401` (sem token), `403` (sem a role Admin), `400` (corpo ou role inválidos), `404` (usuário inexistente) e `403` (Admin removendo a própria role Admin). A regra da própria role é de autorização, por isso `403`, como nas regras de dono das despesas.
 - **Nunca sem Admin:** como o Admin que faz a chamada não pode tirar a própria role Admin, sempre resta pelo menos um Admin. Ele pode remover a role de outro Admin e pode acumular outras roles.
 - **Novo login após alterar roles, de verdade:** o token bearer nativo carrega as roles do momento do login e não consulta o banco por conta própria, então sem tratamento a role removida continuaria valendo até o token expirar (1 hora). Cada troca de roles renova o `SecurityStamp` do usuário, e o `SecurityStampValidationMiddleware` compara o stamp do token com o do banco a cada requisição autenticada. Token antigo vira `401`, e o usuário precisa fazer login de novo. Custo: uma leitura do usuário por requisição autenticada. Trocar para as mesmas roles que o usuário já tem não escreve nada e não invalida o token.
+- **Repositório de despesas e filtro na consulta:** `IExpenseRepository.FindOwnedAsync(id, ownerId)` aplica o filtro de dono na própria consulta, antes de materializar. A despesa de outro usuário nunca é carregada e responde `404`, igual à inexistente, como nas decisões do projeto. A criação grava a despesa e a linha de histórico em um único `SaveChanges`, e a edição também (a linha `Edited` entra no histórico da despesa rastreada antes do salvamento).
+- **Ordem das respostas em `PUT /api/expenses/{id}`:** `401` (sem token), `403` (sem a role Employee), `400` (dados inválidos), `404` (inexistente ou de outro usuário) e `409` (fora de `Draft`). Por isso a despesa de outro usuário que já foi enviada responde `404`, e não `409`.
+- **O `PUT` é uma substituição completa:** `description`, `amount` e `expenseDate` são obrigatórios; a ausência de qualquer um é `400` e nunca "mantém o valor antigo". O servidor define o dono, o estado, o ator e os horários, e os DTOs não têm esses membros, então o que o cliente enviar a mais é ignorado (mass assignment impedido).
+- **Valor:** de R$ 0,01 até `Int32.MaxValue`, com no máximo duas casas decimais. O DTO e o serviço **rejeitam** mais de duas casas, e o conversor para centavos nunca arredonda entrada de usuário. O valor é gravado em centavos (`MoneyConversion`).
+- **Descrição:** de 10 a 500 caracteres depois de aparar os espaços das pontas, e é gravada já aparada. Uma descrição de 495 caracteres com muitos espaços nas pontas pode passar de 500 no corpo bruto e ser rejeitada pelo DTO; é um limite conservador.
+- **Data não futura, em Brasília:** a data da despesa não pode ser posterior à data de hoje no fuso de Brasília (`America/Sao_Paulo`, ou o nome equivalente do Windows). Assim, às 23h30 em Brasília, quando a data em UTC já virou, a data de hoje continua valendo e a de amanhã é rejeitada.
+- **Histórico de edição:** toda edição grava uma linha `Edited` (de `Draft` para `Draft`) com o resumo do que mudou, de cada campo com o valor antigo e o novo. Se o `PUT` mandar os mesmos valores já gravados, a linha também é gravada, com `No field changed.`. O resumo é truncado para caber em 2000 caracteres.
+- **Resposta da criação sem `Location`:** `POST /api/expenses` responde `201` só com o corpo, porque o `GET` por id só nasce na I05.
+- **Limitações conhecidas, para as próximas issues:** (1) um usuário com `Employee` e outra role (por exemplo `Auditor`) que tente editar a despesa de outra pessoa recebe `404`; a visibilidade completa por role, que pode virar `403`, é da I06. (2) Uma edição e um envio simultâneos podem disputar o estado; isso passa a importar nas transições da I05 e da I07.
 
 ## Solução de problemas
 
@@ -273,6 +290,9 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - Os testes com `curl.exe` no Windows PowerShell 5.1 devolvem `400` com `is an invalid start of a property name`: o PowerShell 5.1 estraga as aspas do JSON. Use `Invoke-RestMethod` ou o PowerShell 7.
 - Um token que funcionava passou a devolver `401`: as roles ou o `SecurityStamp` do usuário mudaram depois que o token foi emitido. Faça login de novo.
 - `POST /register` devolve `400` com `PasswordTooShort` ou outros códigos `Password...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
+- `POST /api/expenses` ou `PUT /api/expenses/{id}` devolvem `403` para um usuário que acabou de se cadastrar: o cadastro não dá nenhuma role. Um Admin precisa conceder `Employee` (`PUT /api/admin/users/{id}/roles`), e o usuário precisa fazer login de novo para receber o token com a role.
+- `400` com `The amount cannot have more than 2 decimal places`: o valor tem mais de duas casas decimais. Elas não são arredondadas; envie, por exemplo, `12.35`.
+- `400` com `The expense date cannot be in the future`: a data é posterior a hoje em Brasília.
 
 ## Fora de escopo
 
@@ -425,6 +445,68 @@ dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
 Depois: cadastre um usuário, faça login com ele e com o Admin, liste os usuários, atribua e remova roles, tente os casos negativos acima e confira que o token antigo do usuário alterado devolve `401`. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
+
+## Detalhe da I04: Criar e editar rascunho
+
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| `POST /api/expenses` exige Employee e cria estado `Draft` | Atendido | sem token `401`; sem a role (inclusive o Admin) `403`; Employee `201` com `status` `Draft` |
+| O proprietário é obtido da identidade autenticada | Atendido | `ownerId` da resposta e da coluna `OwnerId` é o id do usuário do token, mesmo com outro `ownerId` no corpo |
+| Descrição, valor e data respeitam o contrato de validação | Atendido | descrição de 10 a 500 caracteres (aparada), valor de 0,01 a 2.147.483.647 com no máximo duas casas e data não posterior a hoje em Brasília; cada violação é `400` e os limites exatos são aceitos |
+| `PUT /api/expenses/{id}` edita somente Draft próprio | Atendido | dono em `Draft`: `200`; outro usuário: `404`; `Submitted`, `Approved`, `Rejected` e `Paid`: `409` |
+| DTOs impedem mass assignment de proprietário, estado, ator e horários | Atendido | `ExpenseRequest` só tem `description`, `amount` e `expenseDate` (teste `ExpenseRequest_HasOnlyDescriptionAmountAndDate`); `ownerId`, `status`, `createdAtUtc`, `actorId`, `id` e `payment` no corpo são ignorados |
+| A persistência e as respostas são consistentes | Atendido | valor gravado em centavos (87,50 vira 8750); um histórico `Created` por despesa criada e um `Edited` por edição, na mesma operação; `ProblemDetails` em todas as falhas |
+
+Casos negativos:
+
+- **Valor menor que R$ 0,01 ou maior que `Int32.MaxValue`:** `0`, `0.009`, `-1` e `2147483647.01` devolvem `400`; `0.01` e `2147483647` são aceitos. Mais de duas casas decimais (`12.345`) também é `400`.
+- **Data futura e descrição fora dos limites:** a data de amanhã em Brasília, 9 caracteres, 501 caracteres, só espaços e data inválida (`2026-02-30`) devolvem `400`.
+- **Outro usuário não edita o rascunho:** outro Employee recebe `404` e a despesa continua igual; nenhum histórico é gravado.
+- **Expense fora de Draft não é editada:** `409`, sem alterar a despesa e sem gravar histórico.
+
+Respostas por endpoint:
+
+| Situação | `POST /api/expenses` | `PUT /api/expenses/{id}` |
+|---|---|---|
+| Sem token | `401` | `401` |
+| Sem a role Employee | `403` | `403` |
+| Dados inválidos ou campo ausente | `400` | `400` |
+| Inexistente, `id` que não é Guid ou de outro usuário | - | `404` |
+| Fora de Draft | - | `409` |
+| Sucesso | `201` | `200` |
+
+Exemplo de corpo (o mesmo nos dois endpoints):
+
+```json
+{
+  "description": "Almoco com cliente em Campinas",
+  "amount": 87.50,
+  "expenseDate": "2026-10-01"
+}
+```
+
+Tabelas e dados: nenhuma migration nova. A I01 já criou `Expenses` (com o `CHECK` de faixa em `AmountCents`) e `ExpenseHistories`. A criação grava uma linha em `Expenses` e uma em `ExpenseHistories` (`Created`, ator igual ao dono, estado anterior nulo e novo `Draft`); cada edição grava uma linha `Edited` com o campo `Changes`.
+
+Decisões (o raciocínio completo está em Decisões de projeto):
+
+- O `PUT` substitui os três campos e todos são obrigatórios; o servidor define dono, estado, ator e horários.
+- Edição com os mesmos valores grava histórico com `No field changed.`.
+- `201` da criação sem `Location`, porque o `GET` por id é da I05.
+- A data não futura usa a data de hoje em Brasília.
+- Despesa de outro usuário é `404` (o filtro de dono está na consulta); a visibilidade completa por role fica na I06.
+
+Como validar (com um banco fora do repositório):
+
+```powershell
+$env:ConnectionStrings__ExpenseHub = "Data Source=$env:TEMP\expensehub-teste.db"
+$env:Seed__Admin__Password = "<senha do Admin>"
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+```
+
+Depois: cadastre um usuário, conceda `Employee` pelo Admin e faça login de novo; crie uma despesa; edite-a; tente os casos negativos acima. Ainda não há `GET` de despesas (I05), então confira a gravação nas tabelas `Expenses` e `ExpenseHistories` no banco. Para ver o `409`, mude o `Status` da despesa direto no banco temporário. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
 ## Próximas issues
 
