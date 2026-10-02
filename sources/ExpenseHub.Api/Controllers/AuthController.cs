@@ -10,21 +10,63 @@ using IdentitySignInResult = Microsoft.AspNetCore.Identity.SignInResult;
 namespace ExpenseHub.Api.Controllers;
 
 /// <summary>
-/// Authenticates users and issues bearer tokens.
+/// Registers users and authenticates them, issuing bearer tokens.
 /// </summary>
 [ApiController]
 [AllowAnonymous]
 public sealed class AuthController : ControllerBase
 {
     private readonly SignInManager<IdentityUser> _signInManager;
+    private readonly UserAccountService _accounts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthController"/> class.
     /// </summary>
     /// <param name="signInManager">The Identity sign-in manager.</param>
-    public AuthController(SignInManager<IdentityUser> signInManager)
+    /// <param name="accounts">The user account service.</param>
+    public AuthController(SignInManager<IdentityUser> signInManager, UserAccountService accounts)
     {
         _signInManager = signInManager;
+        _accounts = accounts;
+    }
+
+    /// <summary>
+    /// Registers a new user. The user is created without any role, and any role sent by the client is ignored:
+    /// only an Admin can grant roles afterwards. Registering does not log the user in.
+    /// </summary>
+    /// <param name="request">The e-mail address and password of the new user.</param>
+    /// <returns>
+    /// <c>201</c> with the new user; <c>400</c> for invalid input or a password that breaks the Identity policy;
+    /// <c>409</c> when the e-mail address is already registered.
+    /// </returns>
+    [HttpPost("/register")]
+    public async Task<IActionResult> RegisterAsync([FromBody] RegisterRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        RegistrationResult result = await _accounts.RegisterAsync(request.Email, request.Password);
+
+        switch (result.Status)
+        {
+            case RegistrationStatus.Created:
+                return StatusCode(StatusCodes.Status201Created, UserSummaryResponse.From(result.User!));
+
+            case RegistrationStatus.DuplicateEmail:
+                return Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "E-mail already registered.");
+
+            default:
+                foreach (string code in result.ErrorCodes)
+                {
+                    string field = code.StartsWith("Password", StringComparison.Ordinal)
+                        ? nameof(RegisterRequest.Password)
+                        : nameof(RegisterRequest.Email);
+                    ModelState.AddModelError(field, code);
+                }
+
+                return ValidationProblem(ModelState);
+        }
     }
 
     /// <summary>
