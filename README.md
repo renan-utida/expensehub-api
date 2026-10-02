@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persistência com SQLite, ASP.NET Core Identity, login com token bearer, as cinco roles e a conta Admin inicial. Ainda não existem cadastro, gerenciamento de roles nem endpoints de despesa; os endpoints atuais são `GET /health`, `POST /login` e `GET /api/admin/users`.
+Estado atual: a fundação (I01), a autenticação (I02) e o cadastro com a administração de roles (I03) estão prontos: persistência com SQLite, ASP.NET Core Identity, cadastro público sem roles, login com token bearer, as cinco roles, a conta Admin inicial e a atribuição de roles pelo Admin. Ainda não existem endpoints de despesa; os endpoints atuais são `GET /health`, `POST /register`, `POST /login`, `GET /api/admin/users` e `PUT /api/admin/users/{id}/roles`.
 
 ## Sumário
 
@@ -23,6 +23,7 @@ Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persis
 - [Fluxo de trabalho da equipe](#fluxo-de-trabalho-da-equipe)
 - [Detalhe da I01: Fundação da solução e Entity Framework Core](#detalhe-da-i01-fundação-da-solução-e-entity-framework-core)
 - [Detalhe da I02: Identity, Admin e autenticação](#detalhe-da-i02-identity-admin-e-autenticação)
+- [Detalhe da I03: Cadastro HTTP e gerenciamento de roles](#detalhe-da-i03-cadastro-http-e-gerenciamento-de-roles)
 - [Próximas issues](#próximas-issues)
 
 ## Equipe
@@ -38,7 +39,7 @@ Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persis
 |---|---|---:|---|---|---|
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
 | I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
-| I03 | Cadastro HTTP e gerenciamento de roles | 8% | A implementar | Pedro | - |
+| I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | - |
 | I04 | Criar e editar rascunho | 7% | A implementar | Pedro | - |
 | I05 | Enviar, listar e consultar | 7% | A implementar | Pedro | - |
 | I06 | Ownership e matriz de acesso | 10% | A implementar | Pedro | - |
@@ -52,8 +53,10 @@ Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persis
 | Método | Rota | Descrição | Issue |
 |---|---|---|---|
 | GET | `/health` | Confirma que a aplicação iniciou; não acessa o banco | Esqueleto inicial |
+| POST | `/register` | Público. Recebe `email` e `password` e cria o usuário **sem nenhuma role**; qualquer role enviada no corpo é ignorada. `201` com `id`, `email` e `roles` vazia; entrada inválida ou senha fora da política: `400`; e-mail já cadastrado: `409` | I03 |
 | POST | `/login` | Público. Recebe `email` e `password` e devolve o token bearer. Credencial inválida: `401`; corpo inválido: `400` | I02 |
-| GET | `/api/admin/users` | Somente `Admin`. Lista `id` e `email` dos usuários. Sem token: `401`; sem a role: `403`. A administração completa de usuários é da I03 | I02 |
+| GET | `/api/admin/users` | Somente `Admin`. Lista `id`, `email` e `roles` dos usuários, ordenados por e-mail. Sem token: `401`; sem a role: `403` | I02 e I03 |
+| PUT | `/api/admin/users/{id}/roles` | Somente `Admin`. Recebe `{"roles": [...]}` e **substitui** as roles do usuário: as listadas são atribuídas e as omitidas são removidas. Role desconhecida ou lista ausente: `400`; usuário inexistente: `404`; Admin removendo a própria role Admin: `403`. O usuário afetado precisa fazer login de novo | I03 |
 
 Esta tabela ganha uma linha a cada endpoint implementado.
 
@@ -117,6 +120,21 @@ curl http://localhost:5245/api/admin/users -H "Authorization: Bearer <accessToke
 
 No Windows PowerShell 5.1 o `curl.exe` estraga as aspas do JSON; use `Invoke-RestMethod` com `-ContentType 'application/json'` e o corpo montado com `ConvertTo-Json`.
 
+### Cadastro e roles
+
+Um usuário novo se cadastra sozinho, **sem roles**, e só um Admin concede roles:
+
+```shell
+curl -X POST http://localhost:5245/register -H "Content-Type: application/json" -d '{"email":"maria@exemplo.com","password":"<senha>"}'
+curl http://localhost:5245/api/admin/users -H "Authorization: Bearer <accessToken do Admin>"
+curl -X PUT http://localhost:5245/api/admin/users/<id>/roles -H "Authorization: Bearer <accessToken do Admin>" -H "Content-Type: application/json" -d '{"roles":["Employee"]}'
+```
+
+- O `PUT` **substitui** as roles do usuário: as listadas são atribuídas e as omitidas são removidas. `{"roles":[]}` remove todas.
+- As roles aceitas são `Admin`, `Employee`, `Approver`, `Finance` e `Auditor`. Qualquer outro nome é `400`, e nenhuma role nova é criada.
+- **Depois de alterar as roles de um usuário, ele precisa fazer login de novo.** O token que ele já tinha deixa de valer (`401`), e só o token novo traz as roles atualizadas. Isso vale também para o Admin que altera as próprias roles.
+- O Admin não pode remover a própria role Admin (`403`).
+
 ## Banco de dados
 
 **Provider:** SQLite, escolhido por ser um arquivo local que dispensa servidor.
@@ -169,11 +187,12 @@ sources/
   ExpenseHub.Api/
     Program.cs                    inicialização, pipeline e GET /health
     appsettings.json
-    Controllers/                  AuthController (POST /login), AdminUsersController
+    Controllers/                  AuthController (POST /register e /login), AdminUsersController
     Domain/
       Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
       Enums/                      ExpenseStatus, ExpenseHistoryAction
-    Identity/                     registro do Identity e do bearer, DTOs, AppRoles e o seed
+    Identity/                     registro do Identity e do bearer, DTOs, AppRoles, o seed, UserAccountService
+                                  (regras de cadastro e de roles) e a validação do SecurityStamp
     Persistence/
       ExpenseHubDbContext.cs
       ExpenseHubDbContextFactory.cs             usada só pelo dotnet ef
@@ -182,11 +201,11 @@ sources/
       Converters/                 conversões de valor e de instante
       Migrations/                 InitialCreate, AddIdentity e snapshot (gerados)
   ExpenseHub.UnitTests/
-    Identity/                     testes do seed e da validação do login, com fake da store
+    Identity/                     testes do seed, do cadastro, das roles e das validações, com fakes das stores
     Persistence/                  testes das conversões
 ```
 
-As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`.
+As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`.
 
 ## Testes
 
@@ -194,9 +213,9 @@ As entidades são classes simples, sem regras de negócio por enquanto. A regra 
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 38 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`) e 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`).
-- Os testes da I01 chamam funções estáticas puras. Os do seed usam um fake escrito à mão de `IIdentitySeedStore`. Nenhum usa tipos do EF Core.
-- O login, o `401` e o `403` dependem do host e do banco, então foram validados à mão (seção da I02), e não por teste unitário.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 86 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`) e 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`, contando cada caso de `DataRow`).
+- Os testes da I01 chamam funções estáticas puras. Os do seed e os de `UserAccountService` usam fakes escritos à mão das stores. Nenhum usa tipos do EF Core.
+- O login, o cadastro, o `401`, o `403` e a invalidação do token dependem do host e do banco, então foram validados à mão (seções da I02 e da I03), e não por teste unitário.
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -217,6 +236,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I01: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
 - Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
 - I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. O score do pipeline da I02 é o da execução na PR.
+- I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -234,6 +254,11 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **`401` e `403`:** sem token ou com token inválido a resposta é `401`; autenticado sem a role exigida é `403`. Ambos saem como `ProblemDetails` (`AddProblemDetails` e `UseStatusCodePages`). A regra por status code completa, com ownership e estado, é da I06.
 - **Seed que falha cedo:** sem a senha do Admin a aplicação não inicia. Um erro de configuração fica visível na hora, em vez de gerar uma API no ar sem Admin. A regra do seed é uma classe simples atrás de `IIdentitySeedStore`, testada sem banco.
 - **Um único Admin:** o seed só cria o Admin quando nenhum usuário está na role `Admin`. O Admin não recebe nenhuma role funcional de despesa.
+- **Cadastro sem roles:** `RegisterRequest` não tem nenhum membro de role, então o que o cliente enviar a mais é ignorado, e `IUserAccountStore.CreateUserAsync` nem recebe role. O usuário nasce sem roles e só um Admin concede alguma depois. E-mail já cadastrado responde `409`, o que revela que a conta existe; escolhemos a clareza da resposta.
+- **PUT substitui o conjunto de roles:** atribuir é listar a role e remover é omiti-la. A lista é obrigatória: um corpo sem `roles` é `400` e nunca zera as roles por acidente; lista vazia é válida. Os nomes são comparados sem diferenciar maiúsculas e gravados com o nome canônico. Uma role desconhecida rejeita o pedido inteiro e nenhuma role é criada implicitamente. A troca roda em um único `SaveChanges`, então é atômica.
+- **Ordem das respostas em `PUT /api/admin/users/{id}/roles`:** `401` (sem token), `403` (sem a role Admin), `400` (corpo ou role inválidos), `404` (usuário inexistente) e `403` (Admin removendo a própria role Admin). A regra da própria role é de autorização, por isso `403`, como nas regras de dono das despesas.
+- **Nunca sem Admin:** como o Admin que faz a chamada não pode tirar a própria role Admin, sempre resta pelo menos um Admin. Ele pode remover a role de outro Admin e pode acumular outras roles.
+- **Novo login após alterar roles, de verdade:** o token bearer nativo carrega as roles do momento do login e não consulta o banco por conta própria, então sem tratamento a role removida continuaria valendo até o token expirar (1 hora). Cada troca de roles renova o `SecurityStamp` do usuário, e o `SecurityStampValidationMiddleware` compara o stamp do token com o do banco a cada requisição autenticada. Token antigo vira `401`, e o usuário precisa fazer login de novo. Custo: uma leitura do usuário por requisição autenticada. Trocar para as mesmas roles que o usuário já tem não escreve nada e não invalida o token.
 
 ## Solução de problemas
 
@@ -246,6 +271,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - `Could not create the initial Admin user: PasswordTooShort, ...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
 - Login do Admin devolve `401` mesmo com a senha certa: o Admin já existia de uma execução anterior com outra senha. O seed não altera um Admin existente. Apague o arquivo `.db` e rode `dotnet ef database update` de novo.
 - Os testes com `curl.exe` no Windows PowerShell 5.1 devolvem `400` com `is an invalid start of a property name`: o PowerShell 5.1 estraga as aspas do JSON. Use `Invoke-RestMethod` ou o PowerShell 7.
+- Um token que funcionava passou a devolver `401`: as roles ou o `SecurityStamp` do usuário mudaram depois que o token foi emitido. Faça login de novo.
+- `POST /register` devolve `400` com `PasswordTooShort` ou outros códigos `Password...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
 
 ## Fora de escopo
 
@@ -360,6 +387,44 @@ dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
 Depois, chame `POST /login` com o Admin e `GET /api/admin/users` com e sem token. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
+
+## Detalhe da I03: Cadastro HTTP e gerenciamento de roles
+
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| `POST /register` cria usuário sem aceitar role do cliente | Atendido | `201` com `roles` vazia, mesmo com `roles`, `role` e `isAdmin` no corpo; `RegisterRequest` não tem membro de role (teste `RegisterRequest_HasNoRoleMember`) |
+| `GET /api/admin/users` é acessível somente por Admin | Atendido | Sem token: `401`; usuário cadastrado sem role: `403`; Admin: `200` com `roles` de cada usuário |
+| `PUT /api/admin/users/{id}/roles` altera apenas roles conhecidas | Atendido | `Superuser` e uma role inválida entre válidas: `400`, sem nada aplicado e com 5 roles no banco depois; `employee` e `approver` viram `Employee` e `Approver` |
+| O Admin não remove a própria role Admin | Atendido | Remover listando outra role e enviando lista vazia: `403`; o Admin continua `Admin` |
+| Usuário inexistente, role inválida e entrada inválida têm respostas coerentes | Atendido | usuário inexistente `404`; role inválida, corpo sem `roles` e `roles: null`: `400`; e-mail inválido, senha fraca e corpo vazio no cadastro: `400`; todos em `ProblemDetails` |
+| A documentação informa que um novo login é necessário após alterar roles | Atendido | seção Cadastro e roles, tabela de endpoints e Decisões de projeto; além disso o sistema força: o token antigo devolve `401` |
+
+Casos negativos:
+
+- **Cadastro não promove usuário:** o usuário cadastrado, mesmo enviando roles no corpo, recebe `403` na rota de Admin e `403` ao tentar se promover pelo `PUT`.
+- **Employee, Approver, Finance e Auditor não administram roles:** a rota exige a role Admin; sem ela, `403` (e, sem token, `401`).
+- **Role arbitrária não é criada implicitamente:** `Superuser` devolve `400` e o banco continua com as 5 roles; o serviço só repassa à store nomes de `AppRoles`.
+- **Admin não bloqueia a própria administração:** a remoção da própria role Admin é `403`; um Admin pode tirar a role de outro Admin, e o que faz a chamada continua Admin, então sempre resta um.
+
+Decisões:
+
+- O `PUT` substitui o conjunto de roles e a lista é obrigatória (um corpo sem `roles` é `400`, e nunca "remover tudo").
+- A troca de roles é um único `SaveChanges` e renova o `SecurityStamp` do usuário; o middleware `SecurityStampValidationMiddleware` rejeita tokens emitidos antes (`401`). Ver Decisões de projeto.
+- `UserSummaryResponse` ganhou `roles` e continua sem hash de senha nem dados de segurança.
+- E-mail duplicado responde `409` (a conta existe), e a comparação do e-mail ignora maiúsculas.
+
+Como validar (com um banco fora do repositório):
+
+```powershell
+$env:ConnectionStrings__ExpenseHub = "Data Source=$env:TEMP\expensehub-teste.db"
+$env:Seed__Admin__Password = "<senha do Admin>"
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+```
+
+Depois: cadastre um usuário, faça login com ele e com o Admin, liste os usuários, atribua e remova roles, tente os casos negativos acima e confira que o token antigo do usuário alterado devolve `401`. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
 ## Próximas issues
 

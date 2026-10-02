@@ -282,6 +282,120 @@ dotnet test ./sources/ExpenseHub.slnx
 - [ ] Documentação atualizada
 ```
 
+## I03: Cadastro HTTP e gerenciamento de roles
+
+**Status:** implementada na branch `i03-user-roles`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+
+**Branch:** `i03-user-roles`.
+
+### O que foi feito
+
+- `POST /register` (público, em `AuthController`): `RegisterRequest` só com `Email` e `Password`, sem membro de role. Cria o usuário sem roles (`201`); e-mail duplicado `409`; entrada inválida ou senha fora da política `400` (só códigos, nunca a senha).
+- `GET /api/admin/users` agora devolve `roles` de cada usuário (duas consultas e junção em memória; sem N+1).
+- `PUT /api/admin/users/{id}/roles` (Admin): `UpdateUserRolesRequest` com `Roles` obrigatório. O PUT substitui o conjunto de roles. Role desconhecida: `400`, rejeitando o pedido inteiro; usuário inexistente: `404`; Admin removendo a própria role Admin: `403`.
+- `UserAccountService` (regras) atrás de `IUserAccountStore`; `UserAccountStore` (EF Core com `ExpenseHubDbContext` e `UserManager`). A troca de roles é um único `SaveChanges`, com `SecurityStamp` renovado.
+- Opção B do "novo login": `SecurityStampValidationMiddleware` (entre `UseAuthentication` e `UseAuthorization`) compara o stamp do token com o do banco; token antigo vira anônimo e a autorização responde `401`. Regra pura em `SecurityStampCheck`.
+- 48 testes unitários novos (25 `UserAccountService`, 11 `RegisterRequest`, 4 `UpdateUserRolesRequest`, 8 `SecurityStampCheck`), com `FakeUserAccountStore` escrito à mão. Total: 86.
+- README: estado atual, tabelas de issues e endpoints, seção Cadastro e roles (com o aviso de novo login), arquitetura, testes, qualidade, decisões, solução de problemas e o detalhe da I03.
+
+### Decisões que afetam as próximas issues
+
+- **Quem pode criar despesa:** o usuário cadastrado nasce sem role. Nas I04 em diante, `Employee` precisa ser concedido por um Admin antes de qualquer despesa; sem ele a resposta é `403`.
+- **Dono da despesa:** continua vindo de `ClaimTypes.NameIdentifier` do token (o `Id` do `IdentityUser`).
+- **Token e roles:** qualquer troca de roles invalida os tokens antigos do usuário (`401`). Testes manuais de I04 em diante precisam fazer login de novo depois de conceder roles.
+- **Custo:** o middleware lê o usuário uma vez por requisição autenticada (inclusive nas rotas de despesa). Se virar problema de desempenho, é o ponto a otimizar (por exemplo cache curto do stamp); hoje é aceitável.
+- **Constantes de roles:** use `AppRoles.*` em `[Authorize(Roles = ...)]`, nunca literais.
+- **Ordem das respostas** nas rotas de roles: `401`, `403` pelo atributo, `400` (corpo ou role inválida), `404`, `403` (regra de própria role). Segue a decisão do `CLAUDE.md`.
+- **Nunca sem Admin:** a regra "Admin não remove a própria role Admin" garante pelo menos um Admin; ele pode remover a role de outro Admin.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+Script descartável no diretório temporário da sessão, 44 verificações: 43 conforme o esperado e a 4b, que falhou por um defeito da própria verificação (explicado em Desvios) e foi conferida à parte:
+
+- Cadastro: `201` com `roles` vazia; com `roles`, `role` e `isAdmin` no corpo continua sem roles; e-mail duplicado em outra caixa `409`; senha fraca, e-mail inválido e corpo vazio `400`.
+- O usuário cadastrado recebe `403` na rota de Admin e `403` ao tentar se promover; sem token `401`.
+- Listagem do Admin: `200` com as roles (`Admin`, vazia, vazia).
+- `PUT`: `employee` e `approver` gravados como `Approver,Employee`; `Superuser` `400` e o banco segue com 5 roles e 3 usuários; uma role inválida no meio das válidas `400` sem nada aplicado; corpo `{}` e `roles: null` `400` com as roles preservadas; usuário inexistente `404`; usuário inexistente com role inválida `400`; Admin removendo a própria role (lista com outra role e lista vazia) `403` e continua Admin; mesmas roles `200`, sem escrita.
+- Novo login: token antigo da alice depois da troca `401`; token novo `403` (sem Admin); depois de promovida a Admin, o token anterior `401` (não `403`) e o novo `200`; alice (Admin) tirando a role Admin do outro Admin `200`, e o token do outro Admin passa a `401`; alice tentando remover a própria role `403`; o Admin volta a ser Admin; o sistema sempre fica com pelo menos um Admin.
+- Contagem final: 5 roles e 3 usuários. A senha e os tokens usados não aparecem no log da aplicação.
+
+### Desvios e cuidados
+
+- **CA1861:** arrays constantes de literais repetidos nos testes geram aviso; viraram campos `static readonly`. O `dotnet build` mostrou os 4 avisos; foram corrigidos na causa.
+- **FIAP1002 e IDE1006 (lições da I02):** os testes novos usam `_credential = new string('a', 12)`, sem literal atribuído a nome com `password`, e todo campo privado não `const` leva `_`. O pipeline local dá 100/100.
+- **PowerShell 7 e `application/problem+json`:** `Invoke-WebRequest` devolve o corpo de respostas `problem+json` como `byte[]`, e não como texto. A verificação 4b comparava texto e falhou por isso; ao decodificar os bytes, o corpo tem só os códigos `PasswordTooShort`, `PasswordRequiresNonAlphanumeric`, `PasswordRequiresDigit` e `PasswordRequiresUpper`, sem o valor da senha. Em scripts, use `[Text.Encoding]::UTF8.GetString($r.Content)` ou `Invoke-RestMethod`.
+- **Porta do executável:** rodar `ExpenseHub.Api.exe` direto (sem o perfil de lançamento) sobe em `http://localhost:5000` em Production; para testar na `5245`, defina `ASPNETCORE_URLS=http://localhost:5245`. Um script que saía cedo deixou a API rodando, e o processo foi encerrado depois (era meu).
+- A `MaxLength` em `IReadOnlyList<string>` funciona como esperado (teste `Validate_TooManyNames_ReportsRolesError`).
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 86 aprovados.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, medido com os arquivos novos ainda sem commit (o script também analisa arquivos não rastreados). Repetir depois de commitar, com a árvore limpa.
+
+### Pendências
+
+- **Commits:** nada commitado. Sugestão de divisão: store e serviço, cadastro, rotas de roles com o middleware, testes, documentação.
+- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
+- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
+- **Linha da I02 no README:** continua "Implementada, aguardando PR" e a seção de qualidade diz que o score da I02 "é o da execução na PR". A I02 já foi mergeada (PR #2); trocar para "Concluída" e registrar o score oficial, num commit à parte.
+- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+
+### Modelo de PR
+
+Título: `I03: Cadastro HTTP e gerenciamento de roles`
+
+```text
+Implementa o cadastro por HTTP e a administração de roles pelo Admin.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#3
+
+## Resumo técnico
+- POST /register cria o usuário sem nenhuma role; o DTO não tem membro de role, então qualquer role enviada é ignorada. E-mail duplicado: 409; entrada inválida ou senha fora da política: 400.
+- GET /api/admin/users (Admin) passa a listar também as roles de cada usuário.
+- PUT /api/admin/users/{id}/roles (Admin) substitui o conjunto de roles. Aceita só as cinco roles conhecidas, sem criar nenhuma; usuário inexistente: 404; o Admin não remove a própria role Admin (403).
+- As regras ficam em UserAccountService, atrás de IUserAccountStore, e são testadas com fake escrito à mão, sem banco. A troca de roles é um único SaveChanges.
+- Novo login após alterar roles, de verdade: cada troca renova o SecurityStamp e um middleware rejeita (401) tokens emitidos antes; o README documenta o novo login.
+- 48 testes unitários novos (total de 86).
+
+## Decisões e concessões
+- O PUT substitui o conjunto de roles; a lista é obrigatória, então um corpo sem roles é 400 e nunca remove tudo por acidente.
+- A própria role Admin protegida com 403 (regra de autorização), mantendo pelo menos um Admin.
+- Invalidar o token antigo custa uma leitura do usuário por requisição autenticada; a alternativa de só documentar deixaria a role removida valer até o token expirar (1 hora).
+- E-mail duplicado devolve 409, o que revela que a conta existe; escolhemos a clareza da resposta.
+- Nenhum pacote novo.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+(configurar a senha do Admin, aplicar a migration e chamar /register, /login e as rotas de Admin; detalhes no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 86 testes unitários aprovados.
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks).
+- Cadastro com roles no corpo continua sem roles; usuário cadastrado recebe 403 na rota de Admin.
+- Role inexistente: 400, sem nada aplicado e com 5 roles no banco; usuário inexistente: 404; Admin removendo a própria role: 403.
+- Token emitido antes da troca de roles devolve 401; depois do novo login traz as roles atuais.
+- Pipeline code-quality na PR: (preencher com o score depois de ler o resultado, com Gitleaks)
+
+## Limitações conhecidas
+- O cadastro, as roles e a invalidação do token dependem do host e do banco, então foram validados à mão, e não por teste unitário.
+- O middleware faz uma leitura por requisição autenticada.
+
+## Impacto em segurança e autorização
+- O cadastro nunca concede role; só um Admin concede.
+- Roles removidas deixam de valer no próximo uso do token, e não só depois que ele expira.
+- Nenhuma credencial versionada.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
