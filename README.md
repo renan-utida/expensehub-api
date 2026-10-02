@@ -41,7 +41,7 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
 | I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
-| I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | - |
+| I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
 | I05 | Enviar, listar e consultar | 7% | A implementar | Pedro | - |
 | I06 | Ownership e matriz de acesso | 10% | A implementar | Pedro | - |
 | I07 | Aprovar e reprovar com justificativa | 12% | A implementar | Renan | - |
