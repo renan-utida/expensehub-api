@@ -28,6 +28,28 @@ internal static class ExpenseTestData
         return decimal.Parse(text, CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Builds an authenticated user with the given roles.</summary>
+    /// <param name="userId">The identifier of the user.</param>
+    /// <param name="roles">The roles of the user.</param>
+    /// <returns>The user.</returns>
+    public static ExpenseCaller Caller(string userId, params string[] roles)
+    {
+        return new ExpenseCaller(userId, roles);
+    }
+
+    /// <summary>Builds an expense with a label in its description, owned by a user, in the given state.</summary>
+    /// <param name="label">The label, kept in the description so tests can tell expenses apart.</param>
+    /// <param name="ownerId">The owner.</param>
+    /// <param name="status">The state.</param>
+    /// <returns>The expense.</returns>
+    public static Expense Labeled(string label, string ownerId, ExpenseStatus status)
+    {
+        Expense expense = ExpenseOf(ownerId, status);
+        expense.Description = label;
+
+        return expense;
+    }
+
     /// <summary>Builds an expense that belongs to a user, in the given state.</summary>
     /// <param name="ownerId">The owner.</param>
     /// <param name="status">The state.</param>

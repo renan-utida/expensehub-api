@@ -222,6 +222,19 @@ public sealed class ExpenseServiceUpdateTests
         Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
     }
 
+    /// <summary>If the state changed between the read and the save (for example, a concurrent submit), the edit is a conflict.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_StateChangedWhileSaving_ReturnsNotDraft()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+        repository.ConflictOnNextSave = true;
+
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
+        Assert.AreEqual(0, repository.SaveCalls);
+    }
+
     /// <summary>A caller without an identifier cannot edit a draft.</summary>
     /// <param name="actorId">An actor that is missing or blank.</param>
     [TestMethod]
