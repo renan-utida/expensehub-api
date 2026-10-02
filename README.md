@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: a fundação está pronta (solução, persistência com SQLite, entidades mínimas e migration inicial). Ainda não existem Identity, autenticação nem endpoints de negócio; o único endpoint é `GET /health`.
+Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persistência com SQLite, ASP.NET Core Identity, login com token bearer, as cinco roles e a conta Admin inicial. Ainda não existem cadastro, gerenciamento de roles nem endpoints de despesa; os endpoints atuais são `GET /health`, `POST /login` e `GET /api/admin/users`.
 
 ## Sumário
 
@@ -22,6 +22,7 @@ Estado atual: a fundação está pronta (solução, persistência com SQLite, en
 - [Uso de IA](#uso-de-ia)
 - [Fluxo de trabalho da equipe](#fluxo-de-trabalho-da-equipe)
 - [Detalhe da I01: Fundação da solução e Entity Framework Core](#detalhe-da-i01-fundação-da-solução-e-entity-framework-core)
+- [Detalhe da I02: Identity, Admin e autenticação](#detalhe-da-i02-identity-admin-e-autenticação)
 - [Próximas issues](#próximas-issues)
 
 ## Equipe
@@ -36,7 +37,7 @@ Estado atual: a fundação está pronta (solução, persistência com SQLite, en
 | Issue | Título | Peso | Status | Responsável | PR |
 |---|---|---:|---|---|---|
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
-| I02 | Identity, Admin e autenticação | 9% | A implementar | Pedro | - |
+| I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | - |
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | A implementar | Pedro | - |
 | I04 | Criar e editar rascunho | 7% | A implementar | Pedro | - |
 | I05 | Enviar, listar e consultar | 7% | A implementar | Pedro | - |
@@ -51,6 +52,8 @@ Estado atual: a fundação está pronta (solução, persistência com SQLite, en
 | Método | Rota | Descrição | Issue |
 |---|---|---|---|
 | GET | `/health` | Confirma que a aplicação iniciou; não acessa o banco | Esqueleto inicial |
+| POST | `/login` | Público. Recebe `email` e `password` e devolve o token bearer. Credencial inválida: `401`; corpo inválido: `400` | I02 |
+| GET | `/api/admin/users` | Somente `Admin`. Lista `id` e `email` dos usuários. Sem token: `401`; sem a role: `403`. A administração completa de usuários é da I03 | I02 |
 
 Esta tabela ganha uma linha a cada endpoint implementado.
 
@@ -64,11 +67,13 @@ Rode os comandos a partir da raiz do repositório:
 dotnet restore ./sources/ExpenseHub.slnx
 dotnet tool restore
 dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet user-secrets set "Seed:Admin:Password" "<senha do Admin>" --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
 - `dotnet tool restore` instala o `dotnet-ef` na versão fixada em `dotnet-tools.json`.
 - `dotnet ef database update` cria o arquivo do banco e aplica as migrations. Rode a partir da raiz do repositório, porque o caminho de `--project` é relativo à pasta atual. O arquivo do banco cai sempre em `sources/ExpenseHub.Api/expensehub.db`.
+- `dotnet user-secrets set` guarda a senha inicial do Admin fora do repositório. Troque `<senha do Admin>` por uma senha que atenda à política padrão do Identity: pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo. Sem essa senha a aplicação não inicia (veja [Conta Admin inicial](#conta-admin-inicial)).
 - A aplicação escuta em `http://localhost:5245`. Para conferir que ela iniciou:
 
 ```shell
@@ -76,6 +81,41 @@ curl http://localhost:5245/health
 ```
 
 Resposta esperada: `{"status":"ok"}`.
+
+### Conta Admin inicial
+
+Na inicialização a aplicação cria as cinco roles (`Admin`, `Employee`, `Approver`, `Finance` e `Auditor`) e, se ainda não existir nenhum usuário `Admin`, uma única conta Admin. Nenhum outro usuário é criado pelo seed.
+
+| Chave | De onde vem |
+|---|---|
+| `Seed:Admin:Email` | `appsettings.json` (`admin@expensehub.local`); pode ser trocada por configuração. E-mail não é segredo |
+| `Seed:Admin:Password` | Somente de user-secrets ou da variável de ambiente `Seed__Admin__Password`. Nunca de arquivo versionado |
+
+Alternativa ao user-secrets, por variável de ambiente:
+
+```powershell
+$env:Seed__Admin__Password = "<senha do Admin>"
+```
+
+```shell
+export Seed__Admin__Password="<senha do Admin>"
+```
+
+- O seed é idempotente: reiniciar a aplicação não duplica roles nem o Admin.
+- Se a senha (ou o e-mail) não estiver configurada, a aplicação **não inicia**, com a mensagem `'Seed:Admin:Password' is not configured...`, e nada é gravado. A senha é exigida em toda inicialização, mesmo depois de o Admin existir.
+- Se a senha não atender à política do Identity, a aplicação não inicia e informa só os códigos das regras violadas (por exemplo `PasswordTooShort`), nunca a senha. As roles ficam criadas e o Admin não é criado; uma nova execução com uma senha válida conclui o que faltou.
+- O seed exige o banco migrado. Sem a migration, o erro é `no such table`.
+
+### Usando o login
+
+O login devolve um token bearer, que vai no cabeçalho `Authorization` das rotas protegidas. No PowerShell 7 ou no bash:
+
+```shell
+curl -X POST http://localhost:5245/login -H "Content-Type: application/json" -d '{"email":"admin@expensehub.local","password":"<senha do Admin>"}'
+curl http://localhost:5245/api/admin/users -H "Authorization: Bearer <accessToken>"
+```
+
+No Windows PowerShell 5.1 o `curl.exe` estraga as aspas do JSON; use `Invoke-RestMethod` com `-ContentType 'application/json'` e o corpo montado com `ConvertTo-Json`.
 
 ## Banco de dados
 
@@ -85,6 +125,7 @@ Resposta esperada: `{"status":"ok"}`.
 |---|---|---|
 | `Microsoft.EntityFrameworkCore.Sqlite` | 10.0.12 | `ExpenseHub.Api` |
 | `Microsoft.EntityFrameworkCore.Design` | 10.0.12 | `ExpenseHub.Api` (somente tempo de design, `PrivateAssets=all`) |
+| `Microsoft.AspNetCore.Identity.EntityFrameworkCore` | 10.0.12 | `ExpenseHub.Api` (tabelas do Identity, I02) |
 | `dotnet-ef` | 10.0.12 | ferramenta local em `dotnet-tools.json`, na raiz do repositório |
 
 **Configuração.** A connection string fica em `sources/ExpenseHub.Api/appsettings.json`, chave `ConnectionStrings:ExpenseHub`, com o valor `Data Source=expensehub.db`. É só o caminho de um arquivo, sem usuário nem senha. Um caminho relativo é ancorado na pasta do projeto da API, então o arquivo cai sempre em `sources/ExpenseHub.Api/expensehub.db`, seja com `dotnet run` ou com `dotnet ef`. Rode os comandos `dotnet ef` a partir da raiz do repositório, porque o caminho de `--project` é relativo à pasta atual.
@@ -126,23 +167,26 @@ scripts/                          pipeline de qualidade local
 sources/
   ExpenseHub.slnx
   ExpenseHub.Api/
-    Program.cs                    inicialização e GET /health
+    Program.cs                    inicialização, pipeline e GET /health
     appsettings.json
+    Controllers/                  AuthController (POST /login), AdminUsersController
     Domain/
       Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
       Enums/                      ExpenseStatus, ExpenseHistoryAction
+    Identity/                     registro do Identity e do bearer, DTOs, AppRoles e o seed
     Persistence/
       ExpenseHubDbContext.cs
       ExpenseHubDbContextFactory.cs             usada só pelo dotnet ef
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
-      Migrations/                 InitialCreate e snapshot (gerados)
+      Migrations/                 InitialCreate, AddIdentity e snapshot (gerados)
   ExpenseHub.UnitTests/
+    Identity/                     testes do seed e da validação do login, com fake da store
     Persistence/                  testes das conversões
 ```
 
-As entidades são classes simples, sem regras de negócio por enquanto.
+As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`.
 
 ## Testes
 
@@ -150,8 +194,9 @@ As entidades são classes simples, sem regras de negócio por enquanto.
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Na I01, 13 testes: 9 de `MoneyConversion` e 4 de `UtcTicks`.
-- Os testes chamam funções estáticas puras e não usam nenhum tipo do EF Core.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 38 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`) e 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`).
+- Os testes da I01 chamam funções estáticas puras. Os do seed usam um fake escrito à mão de `IIdentitySeedStore`. Nenhum usa tipos do EF Core.
+- O login, o `401` e o `403` dependem do host e do banco, então foram validados à mão (seção da I02), e não por teste unitário.
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -169,8 +214,9 @@ dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~MoneyConversi
 pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 ```
 
-- Nesta rodada: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
+- I01: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
 - Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
+- I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. O score do pipeline da I02 é o da execução na PR.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -183,6 +229,11 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **Um pagamento por despesa:** índice único em `PaymentRecords.ExpenseId`, como segunda barreira além da regra de negócio.
 - **Categoria mínima:** `ExpenseCategory` tem só `Id` e `Name`, sem endpoint, seed nem vínculo com `Expense`.
 - **Repositórios na I04:** as interfaces de repositório nascem na I04, junto com o primeiro serviço.
+- **Bearer nativo do Identity:** o token vem do esquema `IdentityConstants.BearerScheme`, sem JWT. Não há chave de assinatura para guardar, e o pacote extra de JWT não é necessário. O `MapIdentityApi` não é usado, para que cadastro e login fiquem sob controle da equipe.
+- **Login sem vazar contas:** e-mail inexistente, senha errada e conta bloqueada respondem o mesmo `401`, e há bloqueio por tentativas repetidas (`lockoutOnFailure`).
+- **`401` e `403`:** sem token ou com token inválido a resposta é `401`; autenticado sem a role exigida é `403`. Ambos saem como `ProblemDetails` (`AddProblemDetails` e `UseStatusCodePages`). A regra por status code completa, com ownership e estado, é da I06.
+- **Seed que falha cedo:** sem a senha do Admin a aplicação não inicia. Um erro de configuração fica visível na hora, em vez de gerar uma API no ar sem Admin. A regra do seed é uma classe simples atrás de `IIdentitySeedStore`, testada sem banco.
+- **Um único Admin:** o seed só cria o Admin quando nenhum usuário está na role `Admin`. O Admin não recebe nenhuma role funcional de despesa.
 
 ## Solução de problemas
 
@@ -191,6 +242,10 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - `Format of the initialization string does not conform to specification`: o valor de `ConnectionStrings__ExpenseHub` está sem o prefixo `Data Source=`.
 - O arquivo `.db` não está onde se esperava: confira se a variável `ConnectionStrings__ExpenseHub` está definida no terminal; sem ela o arquivo fica em `sources/ExpenseHub.Api/expensehub.db`.
 - `Generating idempotent scripts for migrations is not currently supported for SQLite`: use `dotnet ef migrations script` sem `--idempotent`.
+- `'Seed:Admin:Password' is not configured`: defina a senha com `dotnet user-secrets set "Seed:Admin:Password" "<senha>" --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj` ou com a variável de ambiente `Seed__Admin__Password`.
+- `Could not create the initial Admin user: PasswordTooShort, ...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
+- Login do Admin devolve `401` mesmo com a senha certa: o Admin já existia de uma execução anterior com outra senha. O seed não altera um Admin existente. Apague o arquivo `.db` e rode `dotnet ef database update` de novo.
+- Os testes com `curl.exe` no Windows PowerShell 5.1 devolvem `400` com `is an invalid start of a property name`: o PowerShell 5.1 estraga as aspas do JSON. Use `Invoke-RestMethod` ou o PowerShell 7.
 
 ## Fora de escopo
 
@@ -263,6 +318,48 @@ Decisões:
 - Os campos de `PaymentRecord` (`ExpenseId`, `ActorId`, `PaidAtUtc`) são inferidos do comportamento de pagamento descrito nos requisitos, que não os enumeram.
 - Entidades e `DbContext` são `public` com documentação XML, para manter zero avisos sem supressão.
 - A migration não é aplicada na inicialização: o passo de criar o banco é explícito.
+
+## Detalhe da I02: Identity, Admin e autenticação
+
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| Identity utiliza persistência relacional | Atendido | `ExpenseHubDbContext` herda de `IdentityDbContext<IdentityUser>`; migration `AddIdentity` cria as tabelas `AspNet*` no SQLite |
+| `POST /login` emite credencial bearer para credenciais válidas | Atendido | login do Admin devolve `tokenType: Bearer` e `accessToken`; o token abre `GET /api/admin/users` com `200` |
+| As roles `Admin`, `Employee`, `Approver`, `Finance` e `Auditor` existem | Atendido | o seed cria as cinco; banco com 5 linhas em `AspNetRoles` após a inicialização |
+| O seed é idempotente e cria somente uma conta Admin | Atendido | depois de reiniciar duas vezes: 5 roles, 1 usuário, 1 vínculo de role; testes `SeedAsync_RunTwice_*` e `SeedAsync_AdminAlreadyExists_*` |
+| A senha inicial vem de configuração segura | Atendido | só user-secrets ou `Seed__Admin__Password`; nenhum arquivo versionado a contém |
+| Rotas protegidas diferenciam `401` e `403` | Atendido | sem token: `401`; token de usuário sem a role `Admin`: `403`; com Admin: `200` |
+
+Casos negativos:
+
+- **Credencial inválida não gera token:** e-mail inexistente e senha errada devolvem `401` `ProblemDetails`, sem `accessToken`. Corpo vazio, e-mail malformado, senha vazia ou acima de 128 caracteres devolvem `400`.
+- **Reexecutar o seed não duplica roles nem Admin:** conferido no banco depois de reiniciar a aplicação duas vezes.
+- **Usuário autenticado sem role não executa operação privilegiada:** o token de um usuário sem role recebe `403` em `GET /api/admin/users`.
+- **Segredos fora de commits, logs e arquivos versionados:** a senha não está em nenhum arquivo versionado, e a busca pela senha e pelo token no log da aplicação não encontrou ocorrência. Os erros do seed mostram só códigos de regra.
+- **Sem senha configurada:** a aplicação não inicia e nada é gravado; a mensagem não contém nenhum valor secreto.
+
+Tabelas criadas pela migration `AddIdentity`: `AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, `AspNetUserClaims`, `AspNetRoleClaims`, `AspNetUserLogins` e `AspNetUserTokens`. A migration não altera as tabelas da I01.
+
+Decisões:
+
+- `IdentityUser` padrão, com o e-mail também como nome de usuário e e-mail único.
+- `OwnerId` e `ActorId` continuam sem chave estrangeira; ela será avaliada quando a I04 precisar dela.
+- `LockoutEnd` (`DateTimeOffset?`) ficou sem conversor, porque nenhuma consulta ordena ou filtra por ele.
+- `GET /api/admin/users` existe só para provar `401` e `403` e devolve apenas `id` e `email`, sem hash de senha. A listagem completa e a alteração de roles são da I03.
+- O cadastro (`/register`) e o gerenciamento de roles ficam para a I03.
+
+Como validar (com um banco fora do repositório):
+
+```powershell
+$env:ConnectionStrings__ExpenseHub = "Data Source=$env:TEMP\expensehub-teste.db"
+$env:Seed__Admin__Password = "<senha do Admin>"
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+```
+
+Depois, chame `POST /login` com o Admin e `GET /api/admin/users` com e sem token. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
 ## Próximas issues
 

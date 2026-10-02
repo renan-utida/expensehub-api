@@ -162,6 +162,126 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [x] Documentação atualizada
 ```
 
+## I02: Identity, Admin e autenticação
+
+**Status:** implementada e commitada na branch; aguardando o score do pipeline e a abertura da PR. Só passa a "Concluída" (README e este arquivo) depois do merge.
+
+**Branch:** `i02-identity-auth`.
+
+### O que foi feito
+
+- Pacote `Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.12 (aprovado pelo Pedro) e `UserSecretsId` no `.csproj`.
+- `ExpenseHubDbContext` herda de `IdentityDbContext<IdentityUser>`; `base.OnModelCreating` vem antes dos `ApplyConfiguration` (aviso (a)). O parâmetro se chama `builder`, por causa do CA1725.
+- Migration `AddIdentity` (só tabelas `AspNet*`; as tabelas da I01 não mudam).
+- `AddExpenseHubIdentity()`: bearer nativo (`IdentityConstants.BearerScheme`), autorização, `AddIdentityCore` com e-mail único, roles, stores do EF e `SignInManager`. Sem `MapIdentityApi`.
+- `POST /login` (`AuthController`, DTO `LoginRequest` validado): e-mail inexistente, senha errada e conta bloqueada dão o mesmo `401`; `lockoutOnFailure` ligado.
+- `GET /api/admin/users` (`AdminUsersController`, `[Authorize(Roles = "Admin")]`), devolve só `id` e `email`. A listagem e a administração completas são da I03.
+- `AddProblemDetails` e `UseStatusCodePages`: `401` e `403` como `ProblemDetails`.
+- Seed: `AppRoles`, `AdminSeedOptions` (`Seed:Admin`), `IdentitySeeder` (regra), `IIdentitySeedStore` e `IdentitySeedStore` (acesso), `IdentitySeedHostedService` (roda na inicialização). Registro em `AddExpenseHubIdentitySeed`.
+- 25 testes unitários novos (14 do seeder, 11 do `LoginRequest`), com `FakeIdentitySeedStore` escrito à mão. Total: 38.
+- Frase "Commit messages in English" acrescentada ao `CLAUDE.md` (aviso (g)).
+
+### Decisões que afetam as próximas issues
+
+- **Senha do Admin:** só de user-secrets ou de `Seed__Admin__Password`. O e-mail (`admin@expensehub.local`) fica no `appsettings.json`, porque não é segredo.
+- **Sem senha, a aplicação não inicia** (decisão do Pedro), e nada é gravado. A senha é exigida em toda inicialização, inclusive com o Admin já criado. Senha que viola a política do Identity também impede o início, e a mensagem mostra só os códigos das regras.
+- **Um Admin só:** o seed cria o Admin apenas se nenhum usuário estiver na role `Admin`. O seed não altera um Admin existente (trocar a senha no user-secrets não muda a senha de um banco já semeado).
+- **I03:** o cadastro deve usar o e-mail também como `UserName`, como o seed e o login assumem (o login busca por `FindByEmailAsync`). Nunca aceitar role no `/register`.
+- **I03:** `AppRoles` já tem as cinco roles; usar as constantes em `[Authorize(Roles = ...)]` e na validação de "roles conhecidas". `AdminUsersController` já existe e deve crescer na I03 (listagem e `PUT /api/admin/users/{id}/roles`).
+- **I03:** "após uma alteração de role, o usuário deve autenticar novamente". O token do bearer nativo carrega as roles do momento do login; a I03 precisa decidir como invalidar (por exemplo atualizar o `SecurityStamp` e validar no token).
+- **I04 em diante:** o `UserManager` e o `SignInManager` são do Identity e podem ser injetados em controllers; os serviços de despesa continuam dependendo só de repositórios. O dono da despesa vem de `ClaimTypes.NameIdentifier` do token (o `Id` do `IdentityUser`).
+- **Ordem do pipeline:** `UseStatusCodePages`, `UseAuthentication`, `UseAuthorization`, `MapControllers`.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+- Sem token: `401` `ProblemDetails` com `WWW-Authenticate: Bearer`. Token inválido: `401`. Usuário sem role com token válido: `403`. Admin: `200` com a lista.
+- Credencial inexistente e senha errada: `401` sem token. Corpo vazio, e-mail malformado e senha vazia: `400` com erros por campo.
+- Seed com senha válida: 5 roles, 1 usuário, 1 vínculo. Reiniciar duas vezes: continua 5, 1, 1.
+- Sem senha: a aplicação não sobe e o banco fica com 0 roles e 0 usuários. Senha fraca: não sobe, 5 roles e 0 usuários.
+- Busca da senha de teste e do token no log da aplicação: 0 ocorrências.
+- Mutação no seeder (sempre criar o Admin): 2 testes falharam (`RunTwice` e `AdminAlreadyExists`); arquivo restaurado, 38 aprovados.
+- Para testar o `403` sem `/register`, os usuários descartáveis foram criados por um programa auxiliar fora do repositório, em um banco temporário. Nada disso entrou no código.
+
+### Desvios e cuidados
+
+- O Windows PowerShell 5.1 estraga as aspas do JSON no `curl.exe` (`400` com `is an invalid start of a property name`). Não é defeito da API. Use `Invoke-RestMethod` ou o PowerShell 7.
+- Rodar o executável a partir da raiz do repositório faz a aplicação não achar o `appsettings.json` (o content root é o diretório atual). Use `dotnet run --project ...` ou rode a partir de `sources/ExpenseHub.Api`.
+- `SignInResult` é ambíguo entre `Microsoft.AspNetCore.Identity` e `Microsoft.AspNetCore.Mvc` no controller; resolvido com alias.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 38 aprovados.
+- Os commits da I02 têm `(I02)` no fim da primeira linha, em inglês.
+
+### Pendências
+
+- **Score do pipeline:** o `pwsh` (PowerShell 7) não está instalado na máquina do Pedro, então `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks` ainda não foi rodado para a I02. Rodar antes do push final, ou conferir o score do workflow na PR. O README só registra build e testes para a I02.
+- **Bloqueio por tentativas (`lockoutOnFailure`):** ligado no código, mas não foi testado à mão com várias senhas erradas.
+- **Número da PR:** preencher na tabela do README e no texto da PR, em um commit seguinte, depois de abrir a PR.
+- **Status:** trocar "Implementada, aguardando PR" por "Concluída" na tabela do README depois do merge, e marcar aqui.
+- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+
+### Como validar
+
+```powershell
+dotnet build ./sources/ExpenseHub.slnx --no-incremental   # 0 avisos, 0 erros
+dotnet test ./sources/ExpenseHub.slnx                     # 38 aprovados
+$env:ConnectionStrings__ExpenseHub = "Data Source=$env:TEMP\expensehub-teste.db"
+$env:Seed__Admin__Password = "<senha do Admin>"
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+```
+
+Depois: `POST /login` com o Admin, `GET /api/admin/users` sem token (`401`) e com o token (`200`), e reiniciar a aplicação duas vezes conferindo 5 roles e 1 Admin no banco. Limpe as variáveis ao terminar.
+
+### Modelo de PR
+
+Título: `I02: Identity, Admin e autenticação`
+
+```text
+Implementa ASP.NET Core Identity, o login com token bearer, as roles obrigatórias e a conta Admin inicial.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#2
+
+## Resumo técnico
+- Identity com EF Core e SQLite; migration AddIdentity só com as tabelas do Identity.
+- Bearer nativo do Identity; POST /login devolve o token. E-mail inexistente, senha errada e conta bloqueada respondem o mesmo 401.
+- Seed idempotente das cinco roles e de um único Admin; a senha vem só de user-secrets ou de variável de ambiente. Sem a senha a aplicação não inicia e nada é gravado.
+- GET /api/admin/users restrito a Admin, para provar 401 (sem token) e 403 (sem a role); respostas em ProblemDetails.
+- 25 testes unitários novos (seed e validação do login) com fake escrito à mão, sem banco.
+
+## Decisões e concessões
+- Bearer nativo em vez de JWT: sem chave de assinatura para guardar e sem pacote extra.
+- Falhar na inicialização sem a senha do Admin, em vez de só avisar.
+- A listagem de usuários é mínima (id e e-mail); a administração completa e o /register ficam na I03.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+(configurar a senha do Admin por user-secrets ou Seed__Admin__Password, aplicar a migration e chamar /login e /api/admin/users; detalhes no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 38 testes unitários aprovados.
+- Login inválido: 401 sem token. Sem token: 401. Sem a role: 403. Admin: 200.
+- Seed repetido: 5 roles e 1 Admin após reiniciar duas vezes.
+- Senha de teste e token ausentes do log da aplicação.
+- Pipeline code-quality na PR: (preencher com o score depois de ler o resultado)
+
+## Impacto em segurança e autorização
+- Nenhuma credencial versionada; a senha do Admin só por configuração segura.
+- 401 e 403 distintos; login sem enumeração de contas; bloqueio por tentativas.
+- Admin não recebe role funcional de despesa.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
