@@ -33,6 +33,9 @@ public static class IdentityServiceCollectionExtensions
             .AddEntityFrameworkStores<ExpenseHubDbContext>()
             .AddSignInManager();
 
+        services.AddScoped<IUserAccountStore, UserAccountStore>();
+        services.AddScoped<UserAccountService>();
+
         return services;
     }
 
