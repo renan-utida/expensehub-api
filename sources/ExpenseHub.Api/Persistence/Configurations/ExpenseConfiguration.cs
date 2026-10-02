@@ -28,9 +28,12 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
             .HasColumnName("AmountCents")
             .HasConversion(new DecimalToCentsConverter());
 
+        // The state is a concurrency token: an update only applies if the state is still the one that was read,
+        // so two requests that try the same transition cannot both succeed.
         builder.Property(expense => expense.Status)
             .HasConversion<string>()
-            .HasMaxLength(MappingConstants.EnumTextMaxLength);
+            .HasMaxLength(MappingConstants.EnumTextMaxLength)
+            .IsConcurrencyToken();
 
         builder.Property(expense => expense.CreatedAtUtc)
             .HasConversion(new UtcDateTimeOffsetConverter());
