@@ -37,7 +37,7 @@ Estado atual: a fundação (I01) e a autenticação (I02) estão prontas: persis
 | Issue | Título | Peso | Status | Responsável | PR |
 |---|---|---:|---|---|---|
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
-| I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | - |
+| I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | A implementar | Pedro | - |
 | I04 | Criar e editar rascunho | 7% | A implementar | Pedro | - |
 | I05 | Enviar, listar e consultar | 7% | A implementar | Pedro | - |
