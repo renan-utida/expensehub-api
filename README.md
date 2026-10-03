@@ -44,8 +44,8 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 | I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
 | I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
 | I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
-| I05 | Enviar, listar e consultar | 7% | Implementada, aguardando PR | Pedro | - |
-| I06 | Ownership e matriz de acesso | 10% | Implementada, aguardando PR | Pedro | - |
+| I05 | Enviar, listar e consultar | 7% | Implementada, aguardando PR | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5)|
+| I06 | Ownership e matriz de acesso | 10% | Implementada, aguardando PR | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
 | I07 | Aprovar e reprovar com justificativa | 12% | A implementar | Renan | - |
 | I08 | Pagamento e histórico | 8% | A implementar | Renan | - |
 | I09 | Testes unitários | 10% | A implementar | Renan | - |
