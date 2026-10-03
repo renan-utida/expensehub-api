@@ -11,6 +11,8 @@ namespace ExpenseHub.Api.Expenses;
 /// </summary>
 public sealed class ExpenseScope
 {
+    private readonly Lazy<Func<Expense, bool>> _compiled;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ExpenseScope"/> class.
     /// </summary>
@@ -25,10 +27,24 @@ public sealed class ExpenseScope
         SeesApprovedAndPaid = seesApprovedAndPaid;
         SeesAll = seesAll;
         Predicate = BuildPredicate(ownerId, seesSubmitted, seesApprovedAndPaid, seesAll);
+        _compiled = new Lazy<Func<Expense, bool>>(() => Predicate.Compile());
     }
 
     /// <summary>Gets the user whose own expenses are visible, or <c>null</c>.</summary>
     public string? OwnerId { get; }
+
+    /// <summary>
+    /// Checks one expense that is already in memory against the scope, with the same condition the storage applies in the query.
+    /// This is used to decide an action on an expense that was loaded; it is never used to filter a list.
+    /// </summary>
+    /// <param name="expense">The expense.</param>
+    /// <returns><c>true</c> when the expense is inside the scope.</returns>
+    public bool Allows(Expense expense)
+    {
+        ArgumentNullException.ThrowIfNull(expense);
+
+        return _compiled.Value(expense);
+    }
 
     /// <summary>Gets a value indicating whether the expenses in <c>Submitted</c> state are visible.</summary>
     public bool SeesSubmitted { get; }

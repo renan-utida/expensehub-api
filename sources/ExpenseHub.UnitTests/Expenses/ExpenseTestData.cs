@@ -37,6 +37,14 @@ internal static class ExpenseTestData
         return new ExpenseCaller(userId, roles);
     }
 
+    /// <summary>Builds an authenticated user whose only role is Employee.</summary>
+    /// <param name="userId">The identifier of the user.</param>
+    /// <returns>The user.</returns>
+    public static ExpenseCaller Employee(string userId)
+    {
+        return Caller(userId, "Employee");
+    }
+
     /// <summary>Builds an expense with a label in its description, owned by a user, in the given state.</summary>
     /// <param name="label">The label, kept in the description so tests can tell expenses apart.</param>
     /// <param name="ownerId">The owner.</param>

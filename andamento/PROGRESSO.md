@@ -645,6 +645,131 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [ ] Documentação atualizada
 ```
 
+## I06: Ownership e matriz de acesso
+
+**Status:** implementada na branch `i06-ownership-access`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+
+**Branch:** `i06-ownership-access`.
+
+### O que foi feito
+
+- `ExpenseAccess` (classe estática pura, sem EF nem controller): a matriz de autorização de despesas em uma regra só. `Evaluate(caller, ação, despesa)` devolve `AccessDecision` (`Allowed`, `NotFound`, `Forbidden`, `WrongState`), sempre na ordem: role da ação (`403`), escopo de leitura (`404`), regra de dono (`403`), estado (`409`). `HasRoleFor(caller, ação)` expõe só a checagem de role.
+- `ExpenseAction` (`Create`, `Edit`, `Submit`, `Approve`, `Reject`, `Pay`) e `AccessDecision`, cada um no seu arquivo.
+- Matriz: criar, editar e enviar exigem `Employee` e, para editar e enviar, o dono e `Draft`. Aprovar e reprovar exigem `Approver`, nunca o dono, e `Submitted`. Pagar exige `Finance`, nunca o dono, e `Approved`.
+- `ExpenseScope.Allows(despesa)`: o mesmo predicado do escopo de leitura, compilado uma vez (`Lazy`), para decidir sobre uma despesa já carregada. Nunca é usado para filtrar listas.
+- `ExpenseService`: `CreateAsync`, `UpdateAsync` e `SubmitAsync` agora recebem o `ExpenseCaller` (e não só o id) e decidem por `ExpenseAccess`. O serviço exige a role `Employee` sozinho, antes de validar e de consultar.
+- O `PUT` passou a usar `FindVisibleAsync` e a regra completa: `404` (fora do escopo), `403` (visível, mas de outro dono), `409` (fora de `Draft`). Isso resolve a limitação registrada na I04 e na I05.
+- `ExpenseOperationStatus.NotOwner` virou `Forbidden`, um `403` único (falta de role ou regra de dono), com a mensagem "You are not allowed to do this with this expense.".
+- `IExpenseRepository.FindOwnedAsync` saiu (repositório, interface e fake): nada mais o usa.
+- 100 testes unitários novos: 83 de `ExpenseAccess` (casos nomeados de edição e envio, aprovar e reprovar, pagar e criar, mais cinco verificações de propriedades de segurança sobre todas as combinações de roles, ações, estados e donos), 8 de criação e 9 de edição. Total: 350.
+- README: estado atual, tabelas de issues e endpoints, arquitetura, testes, qualidade, decisões, solução de problemas e o detalhe da I06, com a matriz preenchida. Nenhuma migration e nenhum pacote novo.
+
+### Decisões que afetam as próximas issues
+
+- **Decisões do Pedro nesta issue:** (1) só a regra de aprovar, reprovar e pagar, sem os endpoints (que são da I07 e da I08); (2) `NotOwner` renomeado para `Forbidden`; (3) `PUT` com a regra completa (`404`, `403`, `409`); (4) o histórico é da I08.
+- **I07 (aprovar e reprovar) e I08 (pagar):** chamem `ExpenseAccess.Evaluate(caller, ExpenseAction.Approve | Reject | Pay, despesa)` dentro do serviço, com a despesa vinda de `FindVisibleAsync(id, scope)`. Mapeie: `NotFound` para `404`, `Forbidden` para `403` (inclui "aprovar ou pagar a própria despesa"), `WrongState` para `409`. A role e o dono já estão decididos pela regra; não os confira de novo no controller, só no atributo (`[Authorize(Roles = AppRoles.Approver)]` ou `AppRoles.Finance`).
+- **Concorrência (I07 e I08):** o `Status` já é token de concorrência; use o mesmo padrão do envio (`try` em `SaveChangesAsync` e `ExpenseConflictException` vira `409`), com o estado e o histórico na mesma gravação.
+- **Resposta de decisão:** reprovar exige justificativa de 10 a 500 caracteres (REQUISITOS); a regra de acesso não cobre isso (é validação de DTO).
+- **Histórico (I08):** `GET /api/expenses/{id}/history` deve usar `ExpenseScope` na consulta (a mesma visibilidade da despesa: dono, Approver nas `Submitted`, Finance nas `Approved` e `Paid`, Auditor em todas). Despesa fora do escopo dá `404`; quem não lê despesas (Admin sozinho) dá `403`.
+- **Mensagens de erro:** o `403` do serviço de despesas tem sempre a mesma mensagem; o `409` é "The expense is not a draft." para editar e enviar e deve ganhar mensagens próprias nas decisões ("The expense is not submitted." e "The expense is not approved.").
+- **Matriz de testes:** acrescentem casos ao `ExpenseAccessMatrixTests` se mudarem alguma regra; ele é a especificação executável da matriz.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+Script descartável no diretório temporário da sessão, 40 verificações, todas conforme o esperado depois de corrigir defeitos do próprio script (explicados em Desvios):
+
+- Isolamento entre Employees: o emp2 recebe `404` ao ler, editar e enviar despesas do emp1 (e vice-versa), trocando o id na URL, e as despesas atacadas não mudam (estado, descrição e histórico iguais); o `404` de uma despesa alheia tem o mesmo corpo do de uma inexistente; cada um lista só as suas.
+- Employee mais outra role: Employee mais Auditor edita e envia o próprio rascunho (`200`), lê o de outro (`200`) e recebe `403` ao editar ou enviar o de outro; Employee mais Approver recebe `403` na `Submitted` de outro (antes do `409`) e `404` no `Draft` de outro; Employee mais Finance recebe `403` na `Approved` de outro e `404` no `Draft` de outro.
+- Quem não tem `Employee` (Auditor, Approver, Finance e sem role) recebe `403` ao criar, editar e enviar; o Admin sozinho recebe `403` em criar, editar, enviar, listar e ler; sem token, `401` nas cinco rotas; as contagens de despesas e de histórico não mudam com as tentativas do Auditor.
+- Filtros: Approver lista exatamente as `Submitted`, Finance as `Approved` e `Paid`, Auditor todas (conferido contra o banco).
+- Log do EF: todas as consultas de despesas têm `WHERE`, com as condições de escopo; a única sem `WHERE` é a listagem do Auditor, cujo escopo é "todas". A senha e os tokens não aparecem no log.
+- A prova de autoaprovação e de autopagamento é por teste unitário, porque aprovar e pagar ainda não têm endpoint.
+
+### Desvios e cuidados
+
+- **Build incremental e restauração de arquivo:** depois de uma quebra proposital de `ExpenseAccess` (21 testes falharam, como esperado), restaurei o arquivo com `Copy-Item`, que manteve a data antiga, e o `dotnet test` reutilizou a DLL quebrada (os 21 continuaram falhando). Um rebuild completo (`--no-incremental`) resolveu. Ao restaurar um arquivo, atualize a data de modificação ou rode `--no-incremental`.
+- **Script de validação:** uma função chamada `Where` colidiu com o alias do PowerShell para `Where-Object` e produziu SQL vazio, o que deixou o `SetStatus` sem efeito e derrubou algumas verificações; renomeei para `ExpWhere` e repeti tudo. A verificação "nenhuma consulta sem WHERE" estava mal formulada: a listagem do Auditor não tem `WHERE` por ter escopo total. Evite nomes de função que colidam com aliases do PowerShell.
+- **API pelo `dotnet`, e não pelo `.exe`:** o Smart App Control desta máquina pode bloquear `ExpenseHub.Api.exe`; `dotnet ExpenseHub.Api.dll` continua funcionando.
+- **Lições anteriores seguidas:** nenhum literal atribuído a nome com `password`, campos privados com `_`, arrays constantes dos testes sem `new[]` em argumentos (CA1861), um tipo por arquivo.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 350 aprovados.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, medido com os arquivos novos ainda sem commit. Depois de commitar, o Smart App Control pode bloquear a DLL de testes e produzir um falso 96 (FIAP4001); o score oficial é o do workflow.
+- Verificação de mutação: a regra de dono de `ExpenseAccess` foi desligada de propósito e 21 testes falharam; restaurada, os 350 passam.
+
+### Pendências
+
+- **Commits:** nada commitado. Sugestão de divisão: regra de acesso e escopo, serviço, controller e repositório, testes, documentação.
+- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
+- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
+- **Linhas das issues anteriores no README:** conferir o status e os scores oficiais, num commit à parte.
+- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+
+### Modelo de PR
+
+Título: `I06: Ownership e matriz de acesso`
+
+```text
+Aplica a matriz de acesso combinando role, dono e estado na camada de serviço.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#6
+
+## Resumo técnico
+- ExpenseAccess concentra a matriz de autorização em uma regra pura (sem EF nem controller): a ordem é role (403), escopo de leitura (404), regra de dono (403) e estado (409). Criar, editar e enviar exigem Employee (editar e enviar, só o dono e só em Draft); aprovar e reprovar exigem Approver e pagar exige Finance, e ninguém decide sobre a própria despesa.
+- Acumular roles soma permissões, mas não remove a proibição sobre o recurso próprio: Employee mais Approver não aprova a própria despesa, e Employee mais Finance não paga a própria.
+- O ExpenseService decide por ExpenseAccess e exige a role por conta própria; o atributo do controller é só a primeira barreira.
+- O PUT passa a seguir a mesma regra do envio (404 fora do escopo de leitura, 403 quando é visível mas de outro dono, 409 fora de Draft). Isso resolve a limitação registrada na I04 e na I05.
+- NotOwner virou Forbidden, um 403 único.
+- Aprovar, reprovar e pagar entram como regra provada por teste unitário; os endpoints são da I07 e da I08.
+- 100 testes unitários novos (total de 350), com a matriz completa e verificações de propriedades de segurança sobre todas as combinações. Nenhum pacote novo nem migration.
+
+## Decisões e concessões
+- Só a regra de aprovar, reprovar e pagar, sem os endpoints, que ficam com as issues seguintes.
+- O serviço exige a role Employee por dentro, e quem não a tem recebe 403 antes de qualquer validação ou consulta.
+- Um Approver só enxerga as Submitted e um Finance só as Approved e Paid, então decidir fora desses estados dá 404, e não 409.
+- O histórico (consulta autorizada) é da I08 e deve reaproveitar o mesmo escopo de leitura.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+dotnet tool restore
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+(configurar a senha do Admin, conceder perfis diferentes a vários usuários e fazer login de novo; detalhes no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 350 testes unitários aprovados.
+- Isolamento entre Employees: trocar o id na URL dá 404 em GET, PUT e envio, com o mesmo corpo de uma despesa inexistente, e a despesa atacada não muda.
+- Employee mais Auditor: edita e envia o próprio rascunho, lê o de outro e recebe 403 ao editar ou enviar o de outro. Employee mais Approver e Employee mais Finance: 403 no que está visível pela outra role e 404 no que não está.
+- Auditor, Approver, Finance e sem role nunca criam, editam nem enviam (403); o Admin sozinho recebe 403 em todas as rotas de despesa; sem token, 401.
+- Log do EF: todas as consultas de despesas têm WHERE com o escopo; a única sem WHERE é a listagem do Auditor (escopo total).
+- Verificação de mutação: desligar a regra de dono de ExpenseAccess derruba 21 testes.
+- A senha e os tokens usados não aparecem no log da aplicação.
+- Pipeline code-quality na PR: (preencher com o score depois de ler o resultado, com Gitleaks)
+
+## Limitações conhecidas
+- Aprovar, reprovar e pagar ainda não têm endpoint: a proibição de autoaprovação e de autopagamento é provada por teste unitário, e não por requisição.
+- O histórico e a consulta autorizada dele são da I08.
+- As consultas e o isolamento entre perfis dependem do host e do banco, então foram validados à mão, além dos testes unitários.
+- Na máquina de desenvolvimento, o Smart App Control do Windows pode bloquear a DLL de testes e gerar um falso "teste falhou" no script local; o score oficial é o do workflow desta PR.
+
+## Impacto em segurança e autorização
+- A decisão sobre cada despesa combina role, dono e estado no serviço, e não só no atributo de role.
+- Ninguém aprova, reprova nem paga a própria despesa, mesmo acumulando roles.
+- Recursos fora do escopo de leitura respondem 404, igual a um inexistente, sem revelar que existem.
+- O Auditor lê tudo e nunca escreve; o Admin sozinho não ganha acesso funcional.
+- Nenhuma credencial versionada.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.

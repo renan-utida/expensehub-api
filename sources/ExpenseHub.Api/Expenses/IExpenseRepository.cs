@@ -18,15 +18,6 @@ public interface IExpenseRepository
     Task AddAsync(Expense expense);
 
     /// <summary>
-    /// Finds an expense that belongs to a user. The owner filter is part of the query, so an expense of
-    /// someone else is never loaded and looks the same as one that does not exist.
-    /// </summary>
-    /// <param name="id">The identifier of the expense.</param>
-    /// <param name="ownerId">The identifier of the owner.</param>
-    /// <returns>The tracked expense, or <c>null</c> when it does not exist or belongs to another user.</returns>
-    Task<Expense?> FindOwnedAsync(Guid id, string ownerId);
-
-    /// <summary>
     /// Lists the expenses a user can read, newest first. The scope is applied inside the query, before
     /// any expense is loaded.
     /// </summary>

@@ -22,7 +22,7 @@ public sealed class ExpenseServiceCreateTests
     {
         var repository = new FakeExpenseRepository();
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, result.Status);
         Assert.IsNotNull(result.Expense);
@@ -40,7 +40,7 @@ public sealed class ExpenseServiceCreateTests
     {
         var repository = new FakeExpenseRepository();
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), ExpenseTestData.Valid);
 
         Assert.IsNotNull(result.Expense);
         Assert.AreNotEqual(Guid.Empty, result.Expense.Id);
@@ -55,8 +55,8 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         ExpenseService service = NewService(repository);
 
-        ExpenseOperationResult first = await service.CreateAsync(Owner, ExpenseTestData.Valid);
-        ExpenseOperationResult second = await service.CreateAsync(Owner, ExpenseTestData.Valid);
+        ExpenseOperationResult first = await service.CreateAsync(ExpenseTestData.Employee(Owner), ExpenseTestData.Valid);
+        ExpenseOperationResult second = await service.CreateAsync(ExpenseTestData.Employee(Owner), ExpenseTestData.Valid);
 
         Assert.AreNotEqual(first.Expense!.Id, second.Expense!.Id);
     }
@@ -67,7 +67,7 @@ public sealed class ExpenseServiceCreateTests
     {
         var repository = new FakeExpenseRepository();
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), ExpenseTestData.Valid);
 
         Assert.AreEqual(1, repository.HistoryCountWhenAdded);
         ExpenseHistory entry = result.Expense!.History.Single();
@@ -85,7 +85,7 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         var details = new ExpenseDetails("   Almoco com cliente em Campinas   ", 10m, ExpenseTestData.Today);
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.AreEqual("Almoco com cliente em Campinas", result.Expense!.Description);
     }
@@ -117,7 +117,7 @@ public sealed class ExpenseServiceCreateTests
         decimal? parsedAmount = amount.Length == 0 ? null : ExpenseTestData.Dec(amount);
         var details = new ExpenseDetails(description, parsedAmount, ExpenseTestData.Today.AddDays(daysFromToday));
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, result.Status);
         Assert.IsTrue(result.Errors.Any(error => error.Field == invalidField));
@@ -132,7 +132,7 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         var details = new ExpenseDetails(new string('a', 501), 10m, ExpenseTestData.Today);
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, result.Status);
         Assert.AreEqual(0, repository.AddCalls);
@@ -145,7 +145,7 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         var details = new ExpenseDetails(ExpenseTestData.Valid.Description, 10m, null);
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, result.Status);
         Assert.AreEqual(0, repository.AddCalls);
@@ -163,7 +163,7 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         var details = new ExpenseDetails(new string('a', descriptionLength), ExpenseTestData.Dec(amount), ExpenseTestData.Today);
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, result.Status);
         Assert.AreEqual(1, repository.AddCalls);
@@ -176,7 +176,7 @@ public sealed class ExpenseServiceCreateTests
         var repository = new FakeExpenseRepository();
         var details = new ExpenseDetails("curta", 0m, ExpenseTestData.Today.AddDays(2));
 
-        ExpenseOperationResult result = await NewService(repository).CreateAsync(Owner, details);
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Employee(Owner), details);
 
         Assert.HasCount(3, result.Errors);
     }
@@ -189,11 +189,56 @@ public sealed class ExpenseServiceCreateTests
         var lateEvening = new DateTimeOffset(2026, 10, 3, 2, 30, 0, TimeSpan.Zero);
         ExpenseService service = new(repository, new FixedTimeProvider(lateEvening));
 
-        ExpenseOperationResult today = await service.CreateAsync(Owner, new ExpenseDetails(ExpenseTestData.Valid.Description, 10m, new DateOnly(2026, 10, 2)));
-        ExpenseOperationResult utcToday = await service.CreateAsync(Owner, new ExpenseDetails(ExpenseTestData.Valid.Description, 10m, new DateOnly(2026, 10, 3)));
+        ExpenseOperationResult today = await service.CreateAsync(ExpenseTestData.Employee(Owner), new ExpenseDetails(ExpenseTestData.Valid.Description, 10m, new DateOnly(2026, 10, 2)));
+        ExpenseOperationResult utcToday = await service.CreateAsync(ExpenseTestData.Employee(Owner), new ExpenseDetails(ExpenseTestData.Valid.Description, 10m, new DateOnly(2026, 10, 3)));
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, today.Status);
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, utcToday.Status);
+    }
+
+    /// <summary>The service itself requires the Employee role: without it nothing is created, whatever the attribute of the endpoint says.</summary>
+    /// <param name="roles">The roles of the user, separated by comma; empty for none.</param>
+    [TestMethod]
+    [DataRow("Approver")]
+    [DataRow("Finance")]
+    [DataRow("Auditor")]
+    [DataRow("Admin")]
+    [DataRow("Approver,Finance")]
+    [DataRow("")]
+    public async Task CreateAsync_CallerWithoutTheEmployeeRole_IsForbiddenAndSavesNothing(string roles)
+    {
+        var repository = new FakeExpenseRepository();
+        ExpenseCaller caller = ExpenseTestData.Caller(Owner, roles.Length == 0 ? [] : roles.Split(','));
+
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(caller, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual(0, repository.AddCalls);
+        Assert.IsEmpty(repository.Expenses);
+    }
+
+    /// <summary>The missing role is reported before the validation: a user who cannot create learns nothing about the data rules.</summary>
+    [TestMethod]
+    public async Task CreateAsync_WithoutTheRoleAndWithInvalidData_IsForbiddenNotInvalid()
+    {
+        var repository = new FakeExpenseRepository();
+        var invalid = new ExpenseDetails("curta", 0m, ExpenseTestData.Today.AddDays(1));
+
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Caller(Owner, "Auditor"), invalid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+    }
+
+    /// <summary>Other roles do not stop an Employee from creating: roles accumulate.</summary>
+    [TestMethod]
+    public async Task CreateAsync_EmployeeWhoIsAlsoAuditor_CreatesTheDraft()
+    {
+        var repository = new FakeExpenseRepository();
+
+        ExpenseOperationResult result = await NewService(repository).CreateAsync(ExpenseTestData.Caller(Owner, "Employee", "Auditor"), ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Succeeded, result.Status);
+        Assert.AreEqual(Owner, result.Expense!.OwnerId);
     }
 
     /// <summary>A caller without an identifier cannot create a draft.</summary>
@@ -206,7 +251,7 @@ public sealed class ExpenseServiceCreateTests
     {
         var repository = new FakeExpenseRepository();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => NewService(repository).CreateAsync(ownerId!, ExpenseTestData.Valid));
+        await Assert.ThrowsAsync<ArgumentException>(() => NewService(repository).CreateAsync(ExpenseTestData.Employee(ownerId!), ExpenseTestData.Valid));
 
         Assert.AreEqual(0, repository.AddCalls);
     }

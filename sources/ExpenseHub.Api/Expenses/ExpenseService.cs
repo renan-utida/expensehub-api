@@ -10,7 +10,8 @@ namespace ExpenseHub.Api.Expenses;
 /// <summary>
 /// Rules of creating, editing and submitting expense drafts, and of reading expenses by profile.
 /// The owner, the state, the actor and the instants always come from the caller (the token)
-/// and the server clock, never from the client data.
+/// and the server clock, never from the client data. Every decision that depends on the role, the owner and the state
+/// of an expense is made here through <see cref="ExpenseAccess"/>, and not in the controller.
 /// </summary>
 public sealed class ExpenseService
 {
@@ -32,14 +33,21 @@ public sealed class ExpenseService
 
     /// <summary>
     /// Creates a draft owned by the caller and records its first history entry in the same save.
+    /// Only a user with the <c>Employee</c> role can create. The answers follow this order: no role, then invalid data.
     /// </summary>
-    /// <param name="ownerId">The identifier of the authenticated user, taken from the token.</param>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="details">The fields chosen by the client.</param>
-    /// <returns>The created draft, or the validation problems.</returns>
-    public async Task<ExpenseOperationResult> CreateAsync(string ownerId, ExpenseDetails details)
+    /// <returns>The created draft, or the reason it was not created.</returns>
+    public async Task<ExpenseOperationResult> CreateAsync(ExpenseCaller caller, ExpenseDetails details)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
         ArgumentNullException.ThrowIfNull(details);
+
+        if (ExpenseAccess.Evaluate(caller, ExpenseAction.Create, null) != AccessDecision.Allowed)
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
 
         DateTimeOffset now = _timeProvider.GetUtcNow();
         IReadOnlyList<ExpenseValidationError> errors = Validate(details, now);
@@ -52,7 +60,7 @@ public sealed class ExpenseService
         var expense = new Expense
         {
             Id = Guid.NewGuid(),
-            OwnerId = ownerId,
+            OwnerId = caller.UserId,
             Description = details.Description!.Trim(),
             Amount = details.Amount!.Value,
             ExpenseDate = details.ExpenseDate!.Value,
@@ -63,7 +71,7 @@ public sealed class ExpenseService
         expense.History.Add(new ExpenseHistory
         {
             Action = ExpenseHistoryAction.Created,
-            ActorId = ownerId,
+            ActorId = caller.UserId,
             OccurredAtUtc = now,
             PreviousStatus = null,
             NewStatus = ExpenseStatus.Draft,
@@ -75,18 +83,25 @@ public sealed class ExpenseService
     }
 
     /// <summary>
-    /// Replaces the description, the amount and the date of a draft that belongs to the caller, and records the
-    /// history entry in the same save. The owner, the state and the creation instant never change.
-    /// The order of the answers is: invalid data, then not found (also for someone else's expense), then not a draft.
+    /// Replaces the description, the amount and the date of a draft, and records the history entry in the same save.
+    /// The owner, the state and the creation instant never change.
+    /// The answers follow this order: no role (<c>403</c>), invalid data (<c>400</c>), not found or outside the read scope
+    /// of the caller (<c>404</c>), the expense belongs to someone else (<c>403</c>) and not a draft (<c>409</c>).
     /// </summary>
-    /// <param name="actorId">The identifier of the authenticated user, taken from the token.</param>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <param name="details">The fields chosen by the client.</param>
     /// <returns>The edited draft, or the reason it was not edited.</returns>
-    public async Task<ExpenseOperationResult> UpdateAsync(string actorId, Guid expenseId, ExpenseDetails details)
+    public async Task<ExpenseOperationResult> UpdateAsync(ExpenseCaller caller, Guid expenseId, ExpenseDetails details)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
         ArgumentNullException.ThrowIfNull(details);
+
+        if (!ExpenseAccess.HasRoleFor(caller, ExpenseAction.Edit))
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
 
         DateTimeOffset now = _timeProvider.GetUtcNow();
         IReadOnlyList<ExpenseValidationError> errors = Validate(details, now);
@@ -96,32 +111,32 @@ public sealed class ExpenseService
             return ExpenseOperationResult.Invalid(errors);
         }
 
-        Expense? expense = await _repository.FindOwnedAsync(expenseId, actorId);
+        Expense? expense = await FindVisibleAsync(caller, expenseId);
 
-        if (expense is null)
+        switch (ExpenseAccess.Evaluate(caller, ExpenseAction.Edit, expense))
         {
-            return ExpenseOperationResult.NotFound();
-        }
-
-        if (expense.Status != ExpenseStatus.Draft)
-        {
-            return ExpenseOperationResult.NotDraft();
+            case AccessDecision.NotFound:
+                return ExpenseOperationResult.NotFound();
+            case AccessDecision.Forbidden:
+                return ExpenseOperationResult.Forbidden();
+            case AccessDecision.WrongState:
+                return ExpenseOperationResult.NotDraft();
         }
 
         string description = details.Description!.Trim();
         decimal amount = details.Amount!.Value;
         DateOnly expenseDate = details.ExpenseDate!.Value;
 
-        string changes = DescribeChanges(expense, description, amount, expenseDate);
+        string changes = DescribeChanges(expense!, description, amount, expenseDate);
 
-        expense.Description = description;
+        expense!.Description = description;
         expense.Amount = amount;
         expense.ExpenseDate = expenseDate;
 
         expense.History.Add(new ExpenseHistory
         {
             Action = ExpenseHistoryAction.Edited,
-            ActorId = actorId,
+            ActorId = caller.UserId,
             OccurredAtUtc = now,
             PreviousStatus = ExpenseStatus.Draft,
             NewStatus = ExpenseStatus.Draft,
@@ -143,8 +158,8 @@ public sealed class ExpenseService
 
     /// <summary>
     /// Submits a draft: <c>Draft</c> to <c>Submitted</c>, recording the history entry in the same save.
-    /// The answers follow this order: not found (also when the expense is outside the read scope of the caller),
-    /// then not the owner, then not a draft (which includes submitting twice).
+    /// The answers follow this order: no role (<c>403</c>), not found or outside the read scope of the caller (<c>404</c>),
+    /// the expense belongs to someone else (<c>403</c>) and not a draft (<c>409</c>, which includes submitting twice).
     /// A concurrent submit of the same draft is also answered as not a draft, and writes no extra history.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
@@ -155,24 +170,24 @@ public sealed class ExpenseService
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
 
+        if (!ExpenseAccess.HasRoleFor(caller, ExpenseAction.Submit))
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
+
         Expense? expense = await FindVisibleAsync(caller, expenseId);
 
-        if (expense is null)
+        switch (ExpenseAccess.Evaluate(caller, ExpenseAction.Submit, expense))
         {
-            return ExpenseOperationResult.NotFound();
+            case AccessDecision.NotFound:
+                return ExpenseOperationResult.NotFound();
+            case AccessDecision.Forbidden:
+                return ExpenseOperationResult.Forbidden();
+            case AccessDecision.WrongState:
+                return ExpenseOperationResult.NotDraft();
         }
 
-        if (!string.Equals(expense.OwnerId, caller.UserId, StringComparison.Ordinal))
-        {
-            return ExpenseOperationResult.NotOwner();
-        }
-
-        if (expense.Status != ExpenseStatus.Draft)
-        {
-            return ExpenseOperationResult.NotDraft();
-        }
-
-        expense.Status = ExpenseStatus.Submitted;
+        expense!.Status = ExpenseStatus.Submitted;
         expense.History.Add(new ExpenseHistory
         {
             Action = ExpenseHistoryAction.Submitted,

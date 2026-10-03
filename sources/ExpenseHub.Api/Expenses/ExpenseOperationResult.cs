@@ -21,8 +21,8 @@ public enum ExpenseOperationStatus
     /// <summary>The expense is not a draft, so it cannot be edited or submitted (for example, it was already submitted).</summary>
     NotDraft,
 
-    /// <summary>The expense is visible to the user but belongs to someone else, so the user cannot change it.</summary>
-    NotOwner,
+    /// <summary>The user lacks the role of the action, or the ownership rule forbids it (for example, editing the expense of someone else).</summary>
+    Forbidden,
 }
 
 /// <summary>
@@ -58,8 +58,8 @@ public sealed record ExpenseOperationResult(
     public static ExpenseOperationResult NotDraft() =>
         new(ExpenseOperationStatus.NotDraft, null, Array.Empty<ExpenseValidationError>());
 
-    /// <summary>Builds the result for an expense that the user can see but does not own.</summary>
+    /// <summary>Builds the result for an action the user is not allowed to do (no role, or the ownership rule forbids it).</summary>
     /// <returns>The result.</returns>
-    public static ExpenseOperationResult NotOwner() =>
-        new(ExpenseOperationStatus.NotOwner, null, Array.Empty<ExpenseValidationError>());
+    public static ExpenseOperationResult Forbidden() =>
+        new(ExpenseOperationStatus.Forbidden, null, Array.Empty<ExpenseValidationError>());
 }
