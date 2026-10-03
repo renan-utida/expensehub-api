@@ -34,12 +34,6 @@ public sealed class ExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
-    public Task<Expense?> FindOwnedAsync(Guid id, string ownerId)
-    {
-        return _dbContext.Expenses.FirstOrDefaultAsync(expense => expense.Id == id && expense.OwnerId == ownerId);
-    }
-
-    /// <inheritdoc />
     public async Task<IReadOnlyList<Expense>> ListAsync(ExpenseScope scope)
     {
         ArgumentNullException.ThrowIfNull(scope);

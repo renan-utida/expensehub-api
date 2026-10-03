@@ -57,12 +57,6 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
-    public Task<Expense?> FindOwnedAsync(Guid id, string ownerId)
-    {
-        return Task.FromResult(_expenses.FirstOrDefault(expense => expense.Id == id && expense.OwnerId == ownerId));
-    }
-
-    /// <inheritdoc />
     public Task<IReadOnlyList<Expense>> ListAsync(ExpenseScope scope)
     {
         ListCalls++;

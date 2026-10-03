@@ -103,26 +103,26 @@ public sealed class ExpenseServiceSubmitTests
 
     /// <summary>A user who is Employee and Auditor sees the draft of someone else, so the answer is "not the owner", and nothing changes.</summary>
     [TestMethod]
-    public async Task SubmitAsync_EmployeeWhoAlsoAudits_OnAnotherUsersDraft_ReturnsNotOwner()
+    public async Task SubmitAsync_EmployeeWhoAlsoAudits_OnAnotherUsersDraft_ReturnsForbidden()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Employee", "Auditor"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotOwner, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual(ExpenseStatus.Draft, expense.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
     /// <summary>Not being the owner is reported before the state: someone else's submitted expense is "not the owner", not "not a draft".</summary>
     [TestMethod]
-    public async Task SubmitAsync_ApproverWhoIsAlsoEmployee_OnAnotherUsersSubmittedExpense_ReturnsNotOwner()
+    public async Task SubmitAsync_ApproverWhoIsAlsoEmployee_OnAnotherUsersSubmittedExpense_ReturnsForbidden()
     {
         var (repository, expense) = Given(ExpenseStatus.Submitted);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Employee", "Approver"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotOwner, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
@@ -134,33 +134,33 @@ public sealed class ExpenseServiceSubmitTests
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Auditor"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotOwner, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual(ExpenseStatus.Draft, expense.Status);
         Assert.HasCount(1, expense.History);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
-    /// <summary>An Approver alone cannot even see the draft of someone else, so the answer is "not found".</summary>
+    /// <summary>An Approver alone has no role to submit, so the answer is "forbidden", as the attribute of the endpoint already says.</summary>
     [TestMethod]
-    public async Task SubmitAsync_ApproverAlone_OnAnotherUsersDraft_ReturnsNotFound()
+    public async Task SubmitAsync_ApproverAlone_OnAnotherUsersDraft_ReturnsForbidden()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Approver"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
     /// <summary>The Admin role alone gives no functional access, not even to an expense the Admin owns.</summary>
     [TestMethod]
-    public async Task SubmitAsync_AdminAlone_ReturnsNotFound()
+    public async Task SubmitAsync_AdminAlone_ReturnsForbidden()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Owner, "Admin"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual(ExpenseStatus.Draft, expense.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }

@@ -23,7 +23,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, result.Status);
         Assert.AreEqual(ExpenseTestData.Valid.Description, expense.Description);
@@ -40,7 +40,7 @@ public sealed class ExpenseServiceUpdateTests
         Guid id = expense.Id;
         DateTimeOffset createdAt = expense.CreatedAtUtc;
 
-        await NewService(repository).UpdateAsync(Owner, id, ExpenseTestData.Valid);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), id, ExpenseTestData.Valid);
 
         Assert.AreEqual(id, expense.Id);
         Assert.AreEqual(Owner, expense.OwnerId);
@@ -54,7 +54,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
-        await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(2, repository.HistoryCountAtLastSave);
         ExpenseHistory entry = expense.History.Last();
@@ -71,7 +71,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
-        await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
         string? changes = expense.History.Last().Changes;
         Assert.IsNotNull(changes);
@@ -87,7 +87,7 @@ public sealed class ExpenseServiceUpdateTests
         var (repository, expense) = Given(ExpenseStatus.Draft);
         var details = new ExpenseDetails(expense.Description, 75.25m, expense.ExpenseDate);
 
-        await NewService(repository).UpdateAsync(Owner, expense.Id, details);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, details);
 
         Assert.AreEqual("Amount: 60.00 -> 75.25", expense.History.Last().Changes);
     }
@@ -99,7 +99,7 @@ public sealed class ExpenseServiceUpdateTests
         var (repository, expense) = Given(ExpenseStatus.Draft);
         var details = new ExpenseDetails(expense.Description, expense.Amount, expense.ExpenseDate);
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, details);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, details);
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, result.Status);
         Assert.HasCount(2, expense.History);
@@ -114,7 +114,7 @@ public sealed class ExpenseServiceUpdateTests
         expense.Description = new string('x', 500);
         var details = new ExpenseDetails(new string('y', 500), 1m, ExpenseTestData.Today);
 
-        await NewService(repository).UpdateAsync(Owner, expense.Id, details);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, details);
 
         Assert.IsLessThanOrEqualTo(ExpenseRules.ChangesMaxLength, expense.History.Last().Changes!.Length);
     }
@@ -126,7 +126,7 @@ public sealed class ExpenseServiceUpdateTests
         var (repository, expense) = Given(ExpenseStatus.Draft);
         var details = new ExpenseDetails("   Almoco com cliente em Campinas   ", 10m, ExpenseTestData.Today);
 
-        await NewService(repository).UpdateAsync(Owner, expense.Id, details);
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, details);
 
         Assert.AreEqual("Almoco com cliente em Campinas", expense.Description);
     }
@@ -137,7 +137,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Other, expense.Id, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Other), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
         Assert.AreEqual("Taxi para o aeroporto", expense.Description);
@@ -152,7 +152,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var repository = new FakeExpenseRepository();
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, Guid.NewGuid(), ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), Guid.NewGuid(), ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
@@ -169,7 +169,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(status);
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
         Assert.AreEqual("Taxi para o aeroporto", expense.Description);
@@ -186,7 +186,7 @@ public sealed class ExpenseServiceUpdateTests
         var (repository, expense) = Given(ExpenseStatus.Draft);
         var details = new ExpenseDetails("curta", 12.345m, ExpenseTestData.Today.AddDays(1));
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, details);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, details);
 
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, result.Status);
         Assert.HasCount(3, result.Errors);
@@ -204,8 +204,8 @@ public sealed class ExpenseServiceUpdateTests
         var invalid = new ExpenseDetails("curta", 10m, ExpenseTestData.Today);
         ExpenseService service = NewService(repository);
 
-        ExpenseOperationResult notDraft = await service.UpdateAsync(Owner, submitted.Id, invalid);
-        ExpenseOperationResult missing = await service.UpdateAsync(Owner, Guid.NewGuid(), invalid);
+        ExpenseOperationResult notDraft = await service.UpdateAsync(ExpenseTestData.Employee(Owner), submitted.Id, invalid);
+        ExpenseOperationResult missing = await service.UpdateAsync(ExpenseTestData.Employee(Owner), Guid.NewGuid(), invalid);
 
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, notDraft.Status);
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, missing.Status);
@@ -217,9 +217,82 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Submitted);
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Other, expense.Id, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Other), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+    }
+
+    /// <summary>A user who is Employee and Auditor sees the draft of someone else, so the edit is forbidden (not "not found"), and nothing changes.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_EmployeeWhoAlsoAudits_OnAnotherUsersDraft_ReturnsForbidden()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Caller(Other, "Employee", "Auditor"), expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual("Taxi para o aeroporto", expense.Description);
+        Assert.HasCount(1, expense.History);
+        Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>Not being the owner is reported before the state: the submitted expense of someone else is forbidden, not "not a draft".</summary>
+    [TestMethod]
+    public async Task UpdateAsync_EmployeeWhoIsAlsoApprover_OnAnotherUsersSubmittedExpense_ReturnsForbidden()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Submitted);
+
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Caller(Other, "Employee", "Approver"), expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>Another Employee who cannot see the draft still gets "not found", so identifiers in the URL reveal nothing.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_EmployeeWhoIsAlsoApprover_OnAnotherUsersDraft_ReturnsNotFound()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Caller(Other, "Employee", "Approver"), expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>The service itself requires the Employee role: Auditor, Approver, Finance and Admin never edit, even their own draft or with valid data.</summary>
+    /// <param name="roles">The roles of the user, separated by comma.</param>
+    [TestMethod]
+    [DataRow("Auditor")]
+    [DataRow("Approver")]
+    [DataRow("Finance")]
+    [DataRow("Admin")]
+    [DataRow("Approver,Finance")]
+    public async Task UpdateAsync_CallerWithoutTheEmployeeRole_IsForbiddenAndChangesNothing(string roles)
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Caller(Owner, roles.Split(',')), expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual("Taxi para o aeroporto", expense.Description);
+        Assert.HasCount(1, expense.History);
+        Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>The missing role is reported before the validation and before the lookup.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_WithoutTheRole_IsForbiddenEvenWithInvalidDataOrAMissingExpense()
+    {
+        var repository = new FakeExpenseRepository();
+        var invalid = new ExpenseDetails("curta", 0m, ExpenseTestData.Today.AddDays(1));
+        ExpenseCaller auditor = ExpenseTestData.Caller(Owner, "Auditor");
+
+        ExpenseOperationResult invalidData = await NewService(repository).UpdateAsync(auditor, Guid.NewGuid(), invalid);
+        ExpenseOperationResult missing = await NewService(repository).UpdateAsync(auditor, Guid.NewGuid(), ExpenseTestData.Valid);
+
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, invalidData.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, missing.Status);
     }
 
     /// <summary>If the state changed between the read and the save (for example, a concurrent submit), the edit is a conflict.</summary>
@@ -229,7 +302,7 @@ public sealed class ExpenseServiceUpdateTests
         var (repository, expense) = Given(ExpenseStatus.Draft);
         repository.ConflictOnNextSave = true;
 
-        ExpenseOperationResult result = await NewService(repository).UpdateAsync(Owner, expense.Id, ExpenseTestData.Valid);
+        ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
         Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
@@ -245,7 +318,7 @@ public sealed class ExpenseServiceUpdateTests
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => NewService(repository).UpdateAsync(actorId!, expense.Id, ExpenseTestData.Valid));
+        await Assert.ThrowsAsync<ArgumentException>(() => NewService(repository).UpdateAsync(ExpenseTestData.Employee(actorId!), expense.Id, ExpenseTestData.Valid));
 
         Assert.AreEqual(0, repository.SaveCalls);
     }

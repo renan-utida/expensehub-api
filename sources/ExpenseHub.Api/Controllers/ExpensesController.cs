@@ -44,7 +44,7 @@ public sealed class ExpensesController : ControllerBase
     [Authorize(Roles = AppRoles.Employee)]
     public async Task<IActionResult> CreateAsync([FromBody] ExpenseRequest request)
     {
-        ExpenseOperationResult result = await _expenses.CreateAsync(GetCaller().UserId, ToDetails(request));
+        ExpenseOperationResult result = await _expenses.CreateAsync(GetCaller(), ToDetails(request));
 
         if (result.Status == ExpenseOperationStatus.Succeeded)
         {
@@ -62,14 +62,14 @@ public sealed class ExpensesController : ControllerBase
     /// <param name="id">The identifier of the expense.</param>
     /// <param name="request">The new description, amount and date.</param>
     /// <returns>
-    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist or belongs to another user;
-    /// <c>409</c> when the expense is not a draft.
+    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist or is outside the read scope of the user;
+    /// <c>403</c> when the user can see the expense but does not own it; <c>409</c> when the expense is not a draft.
     /// </returns>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = AppRoles.Employee)]
     public async Task<IActionResult> UpdateAsync(Guid id, [FromBody] ExpenseRequest request)
     {
-        ExpenseOperationResult result = await _expenses.UpdateAsync(GetCaller().UserId, id, ToDetails(request));
+        ExpenseOperationResult result = await _expenses.UpdateAsync(GetCaller(), id, ToDetails(request));
 
         return ToActionResult(result, StatusCodes.Status200OK);
     }
@@ -166,10 +166,10 @@ public sealed class ExpensesController : ControllerBase
             case ExpenseOperationStatus.NotFound:
                 return ExpenseNotFound();
 
-            case ExpenseOperationStatus.NotOwner:
+            case ExpenseOperationStatus.Forbidden:
                 return Problem(
                     statusCode: StatusCodes.Status403Forbidden,
-                    title: "Only the owner can change this expense.");
+                    title: "You are not allowed to do this with this expense.");
 
             default:
                 return Problem(
