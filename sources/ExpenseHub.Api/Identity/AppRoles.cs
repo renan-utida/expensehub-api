@@ -22,6 +22,9 @@ public static class AppRoles
     /// <summary>Reads every expense and history, without write access.</summary>
     public const string Auditor = "Auditor";
 
+    /// <summary>The roles that can read expenses, as a comma separated list for an authorization attribute.</summary>
+    public const string ExpenseReaders = Employee + "," + Approver + "," + Finance + "," + Auditor;
+
     /// <summary>Gets every role the application needs.</summary>
     public static IReadOnlyList<string> All { get; } = new[] { Admin, Employee, Approver, Finance, Auditor };
 }

@@ -18,8 +18,11 @@ public enum ExpenseOperationStatus
     /// <summary>The expense does not exist or is not visible to the user.</summary>
     NotFound,
 
-    /// <summary>The expense is not a draft, so it cannot be edited.</summary>
+    /// <summary>The expense is not a draft, so it cannot be edited or submitted (for example, it was already submitted).</summary>
     NotDraft,
+
+    /// <summary>The expense is visible to the user but belongs to someone else, so the user cannot change it.</summary>
+    NotOwner,
 }
 
 /// <summary>
@@ -54,4 +57,9 @@ public sealed record ExpenseOperationResult(
     /// <returns>The result.</returns>
     public static ExpenseOperationResult NotDraft() =>
         new(ExpenseOperationStatus.NotDraft, null, Array.Empty<ExpenseValidationError>());
+
+    /// <summary>Builds the result for an expense that the user can see but does not own.</summary>
+    /// <returns>The result.</returns>
+    public static ExpenseOperationResult NotOwner() =>
+        new(ExpenseOperationStatus.NotOwner, null, Array.Empty<ExpenseValidationError>());
 }

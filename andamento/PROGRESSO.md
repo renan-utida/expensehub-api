@@ -522,6 +522,129 @@ dotnet test ./sources/ExpenseHub.slnx
 - [ ] Documentação atualizada
 ```
 
+## I05: Enviar, listar e consultar
+
+**Status:** implementada na branch `i05-submit-query`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+
+**Branch:** `i05-submit-query`.
+
+### O que foi feito
+
+- `POST /api/expenses/{id:guid}/submit` (Employee): `Draft` para `Submitted`, sem corpo. Grava o histórico `Submitted` (anterior `Draft`, ator = dono, horário do servidor) na mesma gravação.
+- `GET /api/expenses` e `GET /api/expenses/{id:guid}` (Employee, Approver, Finance ou Auditor): lista e detalhe filtrados pelo perfil.
+- `POST /api/expenses` agora devolve o cabeçalho `Location` (`/api/expenses/{id}`), porque o `GET` por id passou a existir.
+- Visibilidade (`ExpenseCaller`, `ExpenseScope`, `ExpenseVisibility`): regra pura. Employee lê as próprias; Approver as `Submitted`; Finance as `Approved` e `Paid`; Auditor todas; o Admin sozinho nada. Roles acumuladas somam os escopos. O escopo é um predicado (`Expression`) com valores capturados, aplicado pelo repositório dentro do `WHERE`.
+- `IExpenseRepository` ganhou `ListAsync(scope)` (mais nova primeiro, sem rastreamento) e `FindVisibleAsync(id, scope)`. `FindOwnedAsync` continua servindo ao `PUT`.
+- `ExpenseService`: `SubmitAsync`, `ListAsync` e `GetAsync`. O envio responde `404` (fora do escopo de leitura), `403` (`NotOwner`: visível, mas de outro dono) e `409` (`NotDraft`), nessa ordem, como o `CLAUDE.md` pede.
+- `Status` virou token de concorrência do EF (`.IsConcurrencyToken()`); `ExpenseRepository.SaveChangesAsync` converte `DbUpdateConcurrencyException` em `ExpenseConflictException`, e o serviço responde `409` (no envio e no `PUT`). Migration `ExpenseStatusConcurrencyToken`, vazia (o esquema não muda; só o snapshot).
+- `ExpensesController` deixou de ter `[Authorize]` na classe: cada ação tem o seu (`AppRoles.Employee` para escrever, `AppRoles.ExpenseReaders` para ler).
+- A mensagem do `409` passou a ser "The expense is not a draft." (vale para editar e enviar).
+- 54 testes unitários novos (19 `ExpenseVisibility`, 18 envio, 16 consulta, 1 de conflito na edição), com o `FakeExpenseRepository` aplicando o predicado do escopo. Total: 250.
+- README: estado atual, tabelas de issues e endpoints, arquitetura, testes, qualidade, decisões, solução de problemas e o detalhe da I05.
+
+### Decisões que afetam as próximas issues
+
+- **Decisões do Pedro nesta issue:** (1) token de concorrência no `Status`; (2) `Location` no `201` da criação; (3) `403` quando a despesa é visível por outra role mas é de outro dono; (4) lista da mais nova para a mais antiga, sem paginação; (5) manter o `ownerId` na resposta.
+- **I06 (ownership e matriz):** o `PUT` ainda usa `FindOwnedAsync`, então um usuário com `Employee` e outra role (por exemplo `Auditor`) que edite a despesa de outra pessoa recebe `404`. Leve a regra do envio ao `PUT` (`FindVisibleAsync`, depois `403` se não for dono, depois `409`). A visibilidade já está pronta em `ExpenseVisibility`; a I06 deve reusá-la, e não recriá-la. Reforce com testes de matriz completa por role.
+- **I07 e I08 (aprovar, reprovar e pagar):** reutilize o padrão do envio: `FindVisibleAsync`, `404`, `403` e `409`, uma única gravação do estado e do histórico, e o `Status` como token de concorrência (já configurado), de modo que duas decisões simultâneas deem um `200` e um `409`. A regra "ninguém aprova nem paga a própria despesa" é `403`. Approver enxerga as `Submitted` e Finance as `Approved` e `Paid`, que são exatamente os escopos já implementados.
+- **Escopo e filtro na consulta:** qualquer endpoint novo de leitura (como o histórico da I08, "mesma visibilidade do reembolso") deve usar `ExpenseScope.Predicate` dentro da consulta, nunca carregar e filtrar em memória.
+- **Resposta:** `ExpenseResponse` não traz e-mail, histórico nem pagamento; mantenha assim em listagem e detalhe.
+- **Teste manual:** para ver `Approved`, `Paid` e `Rejected` antes da I07 e da I08, mude o `Status` direto no banco temporário.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+Script descartável no diretório temporário da sessão, 56 verificações, todas conforme o esperado depois de corrigir defeitos do próprio script (explicados em Desvios):
+
+- Envio: sem token `401`; sem role, Admin, Approver, Finance e Auditor sozinhos `403`; outro Employee `404`; Employee mais Auditor `403`; Employee mais Approver na `Submitted` de outro `403` (antes de `409`); dono `200`, `Submitted`, dono inalterado; histórico `Created` e `Submitted` com anterior `Draft`, novo `Submitted` e ator igual ao dono; reenvio `409` sem histórico novo; `Submitted`, `Approved`, `Rejected` e `Paid` dão `409` sem histórico; `id` inexistente e `id` que não é Guid `404`; `status` e `ownerId` no corpo do envio são ignorados.
+- Concorrência: 12 pares de envios simultâneos do mesmo rascunho deram sempre um `200` e um `409`, e cada despesa ficou com exatamente uma linha `Submitted` no histórico (conferido no banco). O log do EF mostra o `UPDATE` do estado com `WHERE "Id" = ... AND "Status" = ...`, que é o token em ação.
+- Listagem: Employee vê só as próprias (e nenhuma de outro dono); Approver vê exatamente as `Submitted` de mais de um dono (e nenhum `Draft` nem `Rejected`); Finance vê exatamente as `Approved` e `Paid`; Auditor vê todas; Employee mais Approver vê a união; Employee mais Auditor vê todas; Admin sozinho e usuário sem role `403`; sem token `401`; ordenada da mais nova para a mais antiga.
+- Detalhe: Employee lê a própria e recebe `404` para as de outros; Approver lê a `Submitted` de outro e não o `Draft`; Finance lê a `Paid` e não a `Submitted` nem a `Rejected`; Auditor lê `Draft`, `Rejected` e `Paid`; o `404` de uma despesa inexistente e o de uma invisível têm o mesmo corpo; a resposta tem só os sete campos esperados, sem `@` e sem histórico nem pagamento; o `Location` da criação leva ao `GET` da despesa.
+- A senha e os tokens usados não aparecem no log da aplicação.
+
+### Desvios e cuidados
+
+- **Script de validação:** `ConvertFrom-Json -NoEnumerate` devolve o resultado do SQLite sem desenrolar, e passar isso por um pipe entrega só a primeira linha; a contagem do histórico e as listas esperadas saíram erradas por isso, e não por defeito do código (o banco confirmou 1 linha `Submitted` por despesa). No PowerShell 7, `$r.Headers['Location']` é um array, então se compara o `[0]`. Corrigi o script e repeti tudo.
+- **`ForEach-Object -Parallel`:** o `$using:` não aceita uma expressão (como `$using:($t.emp1)`); copie o valor para uma variável antes.
+- **API pelo `dotnet`, e não pelo `.exe`:** o Smart App Control do Windows desta máquina bloqueia `ExpenseHub.Api.exe` e a DLL de testes; `dotnet ExpenseHub.Api.dll` (o que o `dotnet run` faz) continua funcionando.
+- **Predicado do escopo:** o EF traduz o predicado como `@seesAll = 1 OR (@owner IS NOT NULL AND OwnerId = @owner) OR ...`, com os valores como parâmetros. Se o desempenho virar problema, dá para montar o predicado só com as partes que se aplicam (uma consulta por combinação de roles).
+- **Lições anteriores seguidas:** nenhum literal atribuído a nome com `password`; campos privados com `_`; arrays constantes dos testes de consulta viraram textos ordenados (CA1861); um tipo por arquivo. Um script de substituição que eu rodei sobre um arquivo de teste deixou valores esperados vazios, e eu os corrigi à mão; confira sempre o `git diff` de arquivos alterados por script.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 250 aprovados.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, medido com os arquivos novos ainda sem commit (o script também analisa arquivos não rastreados). Depois de commitar, o Smart App Control pode bloquear a DLL de testes e produzir um falso 96 (FIAP4001); o score oficial é o do workflow.
+
+### Pendências
+
+- **Commits:** nada commitado. Sugestão de divisão: visibilidade, repositório e concorrência (com a migration), serviço, controller, testes, documentação.
+- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
+- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
+- **Linhas da I02, da I03 e da I04 no README:** conferir o status e os scores oficiais, num commit à parte.
+- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+
+### Modelo de PR
+
+Título: `I05: Enviar, listar e consultar`
+
+```text
+Implementa o envio de rascunhos e a consulta de despesas conforme o perfil.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#5
+
+## Resumo técnico
+- POST /api/expenses/{id}/submit (Employee) executa Draft para Submitted e grava o histórico Submitted na mesma gravação. Só o dono envia: outro Employee recebe 404, quem enxerga a despesa por outra role mas não é o dono recebe 403, e fora de Draft (inclusive reenvio) é 409 sem histórico novo.
+- GET /api/expenses lista, e GET /api/expenses/{id} detalha, apenas o que o perfil lê: Employee as próprias, Approver as Submitted, Finance as Approved e Paid, Auditor todas. Roles acumuladas somam os filtros, e o Admin sozinho não lê nada (403).
+- O filtro do perfil é um predicado aplicado dentro da consulta (WHERE), antes de materializar; nunca se carrega tudo para filtrar na memória.
+- O detalhe não vaza: despesa inexistente e despesa fora do escopo recebem o mesmo 404, e a resposta não traz e-mail, histórico nem pagamento.
+- O Status é token de concorrência do EF: dois envios simultâneos do mesmo rascunho dão um 200 e um 409, e um único histórico. Migration vazia, só para o snapshot do modelo.
+- POST /api/expenses passa a devolver o cabeçalho Location.
+- 54 testes unitários novos (total de 250), com fake do repositório que aplica o escopo; sem banco. Nenhum pacote novo.
+
+## Decisões e concessões
+- 404 fora do escopo de leitura, 403 quando é visível mas de outro dono, 409 quando o estado não aceita (regra do CLAUDE.md).
+- Listagem da mais nova para a mais antiga, sem paginação (fora de escopo).
+- O ownerId fica na resposta (identificador interno, sem e-mail).
+- O PUT da I04 continua respondendo 404 para um usuário com Employee e outra role que edita a despesa de outro; levar a regra completa ao PUT é da I06.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+dotnet tool restore
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+(configurar a senha do Admin, conceder roles diferentes a usuários e fazer login de novo; detalhes no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 250 testes unitários aprovados.
+- Envio: dono 200 com Submitted; outro Employee 404; Employee mais Auditor 403; Approver, Finance, Auditor e Admin sozinhos 403; reenvio e estados Submitted, Approved, Rejected e Paid 409 sem histórico novo.
+- 12 pares de envios simultâneos: sempre um 200, um 409 e uma única linha Submitted no histórico; o UPDATE do estado leva a condição do estado lido.
+- Listagem por perfil conferida contra o banco para Employee, Approver, Finance, Auditor e as combinações; Admin sozinho 403.
+- Detalhe: fora do escopo e inexistente têm o mesmo corpo de 404.
+- A senha e os tokens usados não aparecem no log da aplicação.
+- Pipeline code-quality na PR: (preencher com o score depois de ler o resultado, com Gitleaks)
+
+## Limitações conhecidas
+- Aprovar, reprovar e pagar são das issues seguintes; para ver Approved, Paid e Rejected foi preciso mudar o estado direto no banco temporário.
+- A listagem não tem paginação (fora de escopo).
+- As consultas, o envio e a concorrência dependem do host e do banco, então foram validados à mão, e não por teste unitário.
+- Na máquina de desenvolvimento, o Smart App Control do Windows pode bloquear a DLL de testes e gerar um falso "teste falhou" no script local; o score oficial é o do workflow desta PR.
+
+## Impacto em segurança e autorização
+- Só Employee cria, edita e envia; só o dono envia o próprio rascunho.
+- Cada perfil lê somente o seu escopo, aplicado na consulta; recursos fora dele dão 404 sem revelar a existência.
+- O Auditor lê tudo e nunca escreve; o Admin sozinho não ganha acesso funcional.
+- Estado, dono, ator e horários nunca vêm do cliente.
+- Nenhuma credencial versionada.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
