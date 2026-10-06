@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-ExpenseHub is a FIAP C# checkpoint (group assignment, due 2026-10-14 at 23:59 on Teams, confirmed by the professor): a corporate expense-reimbursement REST API built with ASP.NET Core (.NET 10), ASP.NET Core Identity, EF Core on a relational provider, bearer auth, and role-based authorization. The repo starts as a skeleton (only `GET /health` in `sources/ExpenseHub.Api/Program.cs`); everything else is implemented incrementally, one backlog issue per branch.
+ExpenseHub is a FIAP C# checkpoint (group assignment, due 2026-10-14 at 23:59 on Teams, confirmed by the professor): a corporate expense-reimbursement REST API built with ASP.NET Core (.NET 10), ASP.NET Core Identity, EF Core on a relational provider, bearer auth, and role-based authorization. The repo is implemented incrementally, one backlog issue per branch, and the README keeps the status of every issue.
 
 The spec lives in `docs/` (in Portuguese) and is the contract. Read it before implementing a feature:
 - `docs/REQUISITOS.md`: roles, entities, field validations, state machine, required endpoints, HTTP status contract.
@@ -70,6 +70,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 - Keep business rules (state transitions, ownership, validation) in plain classes or service methods that can be tested without EF Core. Prefer hand-written fakes. Ask before adding a mocking package.
 - Read `andamento/PROGRESSO.md` before starting an issue. When an issue is finished, update `andamento/PROGRESSO.md` and, in the README, the 'Estado atual' line, the status table, the endpoints table and the issue section. Never mark an issue as done unless every acceptance criterion is met. The `andamento/` folder is temporary and will be removed before the final SHA.
 - Money is stored as integer cents (`MoneyConversion`) and `ToCents` rounds. DTOs must reject amounts with more than two decimal places. Never rely on the converter to round user input.
+- When an issue is finished, in the same branch and before the merge: set it to "Concluída" in the README status table and in `andamento/PROGRESSO.md`, remove it from "Próximas issues", and fill in the PR number once the PR exists. Do not leave an issue marked as implemented or waiting for a PR after the merge.
+- Never assign a literal to a field, variable, property or JSON key whose name contains password, passwd, pwd, senha, secret, token or api key, not even in unit tests: the quality script flags it as FIAP1002 in tracked files, which caps the score at 9. Build test credentials at runtime (for example `new string('a', 12)`) or read them from configuration. Run `pwsh ./scripts/Invoke-CodeQuality.ps1` after the files are staged or committed and read the finding IDs, not only the score.
 
 ## Decisions (keep status-code logic in one place and document the reasoning in the README)
 
