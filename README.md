@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a administração de roles (I03) e a criação e edição de rascunhos de despesa (I04) o envio, a listagem e a consulta por perfil (I05) e a matriz de acesso completa, que combina role, dono e estado na camada de serviço (I06), estão prontos: persistência com SQLite, ASP.NET Core Identity, cadastro público sem roles, login com token bearer, as cinco roles, a conta Admin inicial, a atribuição de roles pelo Admin e o `Employee` criando e editando os próprios rascunhos. Ainda não existem aprovação, reprovação, pagamento nem consulta do histórico; os endpoints atuais são `GET /health`, `POST /register`, `POST /login`, `GET /api/admin/users`, `PUT /api/admin/users/{id}/roles`, `POST /api/expenses`, `PUT /api/expenses/{id}`, `POST /api/expenses/{id}/submit`, `GET /api/expenses` e `GET /api/expenses/{id}`.
+Estado atual: da I01 à I06 estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, e a matriz de acesso que combina role, dono e estado na camada de serviço. Ainda não existem aprovação, reprovação, pagamento nem consulta do histórico. Os endpoints atuais estão na seção Endpoints.
 
 ## Sumário
 
@@ -41,11 +41,11 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 | Issue | Título | Peso | Status | Responsável | PR |
 |---|---|---:|---|---|---|
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
-| I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
-| I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
-| I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
-| I05 | Enviar, listar e consultar | 7% | Implementada, aguardando PR | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5)|
-| I06 | Ownership e matriz de acesso | 10% | Implementada, aguardando PR | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
+| I02 | Identity, Admin e autenticação | 9% | Concluída | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2) |
+| I03 | Cadastro HTTP e gerenciamento de roles | 8% | Concluída | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
+| I04 | Criar e editar rascunho | 7% | Concluída | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
+| I05 | Enviar, listar e consultar | 7% | Concluída | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5) |
+| I06 | Ownership e matriz de acesso | 10% | Concluída | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
 | I07 | Aprovar e reprovar com justificativa | 12% | A implementar | Renan | - |
 | I08 | Pagamento e histórico | 8% | A implementar | Renan | - |
 | I09 | Testes unitários | 10% | A implementar | Renan | - |
@@ -211,7 +211,7 @@ sources/
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
-      Migrations/                 InitialCreate, AddIdentity e snapshot (gerados)
+      Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken e snapshot (gerados)
       Repositories/               ExpenseRepository (EF Core)
   ExpenseHub.UnitTests/
     Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório
@@ -227,9 +227,9 @@ As entidades são classes simples, sem regras de negócio por enquanto. A regra 
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 350 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`) 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição) e 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`), contando cada caso de `DataRow`.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Na I06, 350 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`), 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição) e 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`), contando cada caso de `DataRow`.
 - Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService` e de `ExpenseService` usam fakes escritos à mão das stores e do repositório, e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core.
-- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02, da I03 e da I04), e não por teste unitário.
+- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02, da I03, da I04, da I05 e da I06), e não por teste unitário.
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -249,11 +249,11 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 
 - I01: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
 - Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
-- I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. O score do pipeline da I02 é o da execução na PR.
-- I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
-- I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
-- I05: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 250 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Depois dos commits da I04, o Smart App Control do Windows chegou a bloquear a DLL de testes nesta máquina e o script mostrou 96 por um falso "teste falhou"; o score oficial é o do workflow na PR.
-- I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. O score oficial é o do workflow na PR.
+- I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. Score oficial na PR #2 (execução #14): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados. Uma execução anterior na branch (#12) deu 9/100 pela regra FIAP1002, porque os testes tinham valores literais atribuídos a campos sensíveis; os valores foram removidos antes da PR e as execuções seguintes passaram.
+- I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #3 (execução #18): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #4 (execução #22): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I05: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 250 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Depois dos commits da I04, o Smart App Control do Windows chegou a bloquear a DLL de testes nesta máquina e o script mostrou 96 por um falso "teste falhou"; o score oficial na PR #5 (execução #26) é **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #6 (execução #29): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -276,7 +276,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **Ordem das respostas em `PUT /api/admin/users/{id}/roles`:** `401` (sem token), `403` (sem a role Admin), `400` (corpo ou role inválidos), `404` (usuário inexistente) e `403` (Admin removendo a própria role Admin). A regra da própria role é de autorização, por isso `403`, como nas regras de dono das despesas.
 - **Nunca sem Admin:** como o Admin que faz a chamada não pode tirar a própria role Admin, sempre resta pelo menos um Admin. Ele pode remover a role de outro Admin e pode acumular outras roles.
 - **Novo login após alterar roles, de verdade:** o token bearer nativo carrega as roles do momento do login e não consulta o banco por conta própria, então sem tratamento a role removida continuaria valendo até o token expirar (1 hora). Cada troca de roles renova o `SecurityStamp` do usuário, e o `SecurityStampValidationMiddleware` compara o stamp do token com o do banco a cada requisição autenticada. Token antigo vira `401`, e o usuário precisa fazer login de novo. Custo: uma leitura do usuário por requisição autenticada. Trocar para as mesmas roles que o usuário já tem não escreve nada e não invalida o token.
-- **Repositório de despesas e filtro na consulta:** `IExpenseRepository.FindOwnedAsync(id, ownerId)` aplica o filtro de dono na própria consulta, antes de materializar. A despesa de outro usuário nunca é carregada e responde `404`, igual à inexistente, como nas decisões do projeto. A criação grava a despesa e a linha de histórico em um único `SaveChanges`, e a edição também (a linha `Edited` entra no histórico da despesa rastreada antes do salvamento).
+- **Repositório de despesas e filtro na consulta:** `IExpenseRepository.FindVisibleAsync(id, scope)` aplica o escopo de leitura do usuário na própria consulta, antes de materializar. A despesa fora do escopo nunca é carregada e responde `404`, igual à inexistente, como nas decisões do projeto. A criação grava a despesa e a linha de histórico em um único `SaveChanges`, e a edição também (a linha `Edited` entra no histórico da despesa rastreada antes do salvamento).
 - **Ordem das respostas em `PUT /api/expenses/{id}`:** `401` (sem token), `403` (sem a role Employee), `400` (dados inválidos), `404` (inexistente ou fora do escopo de leitura), `403` (visível por outra role, mas de outro dono) e `409` (fora de `Draft`). Desde a I06 o `PUT` segue a mesma regra do envio, pela mesma `ExpenseAccess`.
 - **O `PUT` é uma substituição completa:** `description`, `amount` e `expenseDate` são obrigatórios; a ausência de qualquer um é `400` e nunca "mantém o valor antigo". O servidor define o dono, o estado, o ator e os horários, e os DTOs não têm esses membros, então o que o cliente enviar a mais é ignorado (mass assignment impedido).
 - **Valor:** de R$ 0,01 até `Int32.MaxValue`, com no máximo duas casas decimais. O DTO e o serviço **rejeitam** mais de duas casas, e o conversor para centavos nunca arredonda entrada de usuário. O valor é gravado em centavos (`MoneyConversion`).
@@ -302,6 +302,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 
 - `dotnet ef` não encontrado: rode `dotnet tool restore` na raiz do repositório.
 - `no such table`: o banco ainda não foi criado ou está desatualizado; rode `dotnet ef database update`.
+- A aplicação não inicia e o log mostra `SQLite Error 1: 'no such table: AspNetRoles'`: o seed roda na inicialização e exige o banco já migrado. Rode `dotnet ef database update` antes de `dotnet run`. A tentativa sem migrations deixa um arquivo `.db` vazio (0 bytes), e ele pode ficar onde está: o `dotnet ef database update` o aproveita, aplica todas as migrations e a aplicação inicia normalmente depois (testado com um arquivo vazio de 0 bytes).
 - `Format of the initialization string does not conform to specification`: o valor de `ConnectionStrings__ExpenseHub` está sem o prefixo `Data Source=`.
 - O arquivo `.db` não está onde se esperava: confira se a variável `ConnectionStrings__ExpenseHub` está definida no terminal; sem ela o arquivo fica em `sources/ExpenseHub.Api/expensehub.db`.
 - `Generating idempotent scripts for migrations is not currently supported for SQLite`: use `dotnet ef migrations script` sem `--idempotent`.
@@ -681,11 +682,6 @@ Depois: cadastre vários usuários, conceda a cada um um perfil diferente (`Empl
 
 Os critérios de cada issue estão no backlog central, e não são copiados aqui.
 
-- I02: [Racass/checkpoint-csharpracass-expensehub#2](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/2)
-- I03: [Racass/checkpoint-csharpracass-expensehub#3](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/3)
-- I04: [Racass/checkpoint-csharpracass-expensehub#4](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/4)
-- I05: [Racass/checkpoint-csharpracass-expensehub#5](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/5)
-- I06: [Racass/checkpoint-csharpracass-expensehub#6](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/6)
 - I07: [Racass/checkpoint-csharpracass-expensehub#7](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/7)
 - I08: [Racass/checkpoint-csharpracass-expensehub#8](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/8)
 - I09: [Racass/checkpoint-csharpracass-expensehub#9](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/9)
