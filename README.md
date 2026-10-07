@@ -47,7 +47,7 @@ Estado atual: da I01 à I07 estão prontos a persistência com SQLite, o Identit
 | I04 | Criar e editar rascunho | 7% | Concluída | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
 | I05 | Enviar, listar e consultar | 7% | Concluída | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5) |
 | I06 | Ownership e matriz de acesso | 10% | Concluída | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
-| I07 | Aprovar e reprovar com justificativa | 12% | Concluída | Renan | a preencher |
+| I07 | Aprovar e reprovar com justificativa | 12% | Concluída | Renan | [#7](https://github.com/renan-utida/expensehub-api/pull/7) |
 | I08 | Pagamento e histórico | 8% | A implementar | Renan | - |
 | I09 | Testes unitários | 10% | A implementar | Renan | - |
 | I10 | Qualidade de Código | 25% | A implementar | Renan | - |
@@ -257,7 +257,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #4 (execução #22): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I05: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 250 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Depois dos commits da I04, o Smart App Control do Windows chegou a bloquear a DLL de testes nesta máquina e o script mostrou 96 por um falso "teste falhou"; o score oficial na PR #5 (execução #26) é **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #6 (execução #29): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
-- I07: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 486 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. O score oficial da PR é registrado depois que ela for aberta.
+- I07: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 486 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #7 (execução #37): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto

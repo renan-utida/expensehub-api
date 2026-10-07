@@ -757,7 +757,7 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ## I07: Aprovar e reprovar com justificativa
 
-**Status:** concluída na branch `i07-approve-reject`, com PR e score oficial ainda a preencher (a coluna PR do README está "a preencher"). O workflow da branch passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras).
+**Status:** concluída na branch `i07-approve-reject`, com a PR #7 aberta e o pipeline oficial em 100/100 (execução #37, com Gitleaks 8.30.1, sem bloqueantes e sem achados). O workflow da branch também passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras). Passa a mergeada depois do merge.
 
 **Branch:** `i07-approve-reject`.
 
@@ -791,7 +791,8 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ### Pendências
 
-- **PR:** abrir a PR `I07: Aprovar e reprovar com justificativa`, preencher o número no README e registrar o score oficial. Merge com "Create a merge commit", sem apagar a branch.
+- **Feitos:** PR #7 aberta (`I07: Aprovar e reprovar com justificativa`), número no README e score oficial registrado (execução #37, 100/100, com Gitleaks 8.30.1, sem bloqueantes e sem achados).
+- **Merge:** marcar "Pipeline analisado" na descrição da PR, fazer o merge com "Create a merge commit" e manter a branch.
 - **Para a I08:** serviço de pagamento, `PaymentRecord`, `POST /api/expenses/{id}/pay` e `GET /api/expenses/{id}/history` (este reaproveita o escopo de leitura, com a mesma visibilidade da despesa).
 - **Pergunta ao professor:** a confirmação de que o pagamento segue a regra de existência (409 para `Draft`, `Submitted`, `Rejected` e `Paid`) já está refletida no código e nos testes; se ele disser o contrário, mudar `ExpenseAccess` e as linhas de `Pay` da matriz.
 
