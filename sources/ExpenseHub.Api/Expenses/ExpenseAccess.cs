@@ -10,8 +10,10 @@ namespace ExpenseHub.Api.Expenses;
 /// and does not depend on the web layer or on EF Core. An attribute on an endpoint only keeps out users who have no
 /// chance of doing the action; the decision on a given expense is always made here, in the service layer.
 /// <para>
-/// The answers follow a fixed order: the role first (<c>403</c>), then whether the expense is inside the read scope
-/// of the user (<c>404</c>), then the ownership rule (<c>403</c>) and finally the state (<c>409</c>).
+/// Every action that writes (edit, submit, approve, reject and pay) is decided the same way, in a fixed order: the role
+/// first (<c>403</c>), then whether the expense exists (<c>404</c>, only for an expense that does not exist), then the
+/// ownership rule (<c>403</c>) and finally the state (<c>409</c>). The read scope of the user is not used here: it only
+/// decides what a user can list and read, where an expense outside it is also a <c>404</c>.
 /// </para>
 /// <para>
 /// Ownership: only the owner edits and submits; nobody approves, rejects or pays their own expense, even when the user
@@ -54,7 +56,7 @@ public static class ExpenseAccess
             return AccessDecision.Allowed;
         }
 
-        if (expense is null || !ExpenseVisibility.ScopeFor(caller).Allows(expense))
+        if (expense is null)
         {
             return AccessDecision.NotFound;
         }

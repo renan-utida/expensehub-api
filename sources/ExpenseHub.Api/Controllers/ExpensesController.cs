@@ -13,14 +13,17 @@ using Microsoft.AspNetCore.Mvc;
 namespace ExpenseHub.Api.Controllers;
 
 /// <summary>
-/// Creation, edition and submission of expense drafts, and reading of expenses by profile.
-/// Writing needs the <c>Employee</c> role; reading needs one of the roles that can read expenses.
-/// <c>Admin</c> alone gives no access.
+/// Creation, edition and submission of expense drafts, approval and rejection of submitted expenses, and reading of
+/// expenses by profile. Creating, editing and submitting need the <c>Employee</c> role, approving and rejecting need the
+/// <c>Approver</c> role, and reading needs one of the roles that can read expenses. <c>Admin</c> alone gives no access.
 /// </summary>
 [ApiController]
 [Route("api/expenses")]
 public sealed class ExpensesController : ControllerBase
 {
+    private const string NotADraftTitle = "The expense is not a draft.";
+    private const string NotSubmittedTitle = "The expense is not submitted.";
+
     private readonly ExpenseService _expenses;
 
     /// <summary>
@@ -53,7 +56,7 @@ public sealed class ExpensesController : ControllerBase
             return Created($"/api/expenses/{created.Id}", created);
         }
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
     }
 
     /// <summary>
@@ -62,8 +65,8 @@ public sealed class ExpensesController : ControllerBase
     /// <param name="id">The identifier of the expense.</param>
     /// <param name="request">The new description, amount and date.</param>
     /// <returns>
-    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist or is outside the read scope of the user;
-    /// <c>403</c> when the user can see the expense but does not own it; <c>409</c> when the expense is not a draft.
+    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist;
+    /// <c>403</c> when the expense belongs to someone else; <c>409</c> when the expense is not a draft.
     /// </returns>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = AppRoles.Employee)]
@@ -71,7 +74,7 @@ public sealed class ExpensesController : ControllerBase
     {
         ExpenseOperationResult result = await _expenses.UpdateAsync(GetCaller(), id, ToDetails(request));
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
     }
 
     /// <summary>
@@ -79,8 +82,8 @@ public sealed class ExpensesController : ControllerBase
     /// </summary>
     /// <param name="id">The identifier of the expense.</param>
     /// <returns>
-    /// <c>200</c> with the submitted expense; <c>404</c> when the expense does not exist or is outside the read scope of the user;
-    /// <c>403</c> when the user can see the expense but does not own it; <c>409</c> when the expense is not a draft
+    /// <c>200</c> with the submitted expense; <c>404</c> when the expense does not exist;
+    /// <c>403</c> when the expense belongs to someone else; <c>409</c> when the expense is not a draft
     /// (including a repeated submit); <c>401</c> without a token; <c>403</c> without the Employee role.
     /// </returns>
     [HttpPost("{id:guid}/submit")]
@@ -89,7 +92,47 @@ public sealed class ExpensesController : ControllerBase
     {
         ExpenseOperationResult result = await _expenses.SubmitAsync(GetCaller(), id);
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
+    }
+
+    /// <summary>
+    /// Approves a submitted expense: <c>Submitted</c> to <c>Approved</c>. It takes no body: the approver and the instant
+    /// come from the token and the server, and the state is never sent by the client.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <returns>
+    /// <c>200</c> with the approved expense; <c>404</c> when the expense does not exist; <c>403</c> when the expense belongs
+    /// to the user; <c>409</c> when the expense is not submitted (a repeated approval, a draft, or an expense already decided
+    /// or paid); <c>401</c> without a token; <c>403</c> without the Approver role.
+    /// </returns>
+    [HttpPost("{id:guid}/approve")]
+    [Authorize(Roles = AppRoles.Approver)]
+    public async Task<IActionResult> ApproveAsync(Guid id)
+    {
+        ExpenseOperationResult result = await _expenses.ApproveAsync(GetCaller(), id);
+
+        return ToActionResult(result, StatusCodes.Status200OK, NotSubmittedTitle);
+    }
+
+    /// <summary>
+    /// Rejects a submitted expense: <c>Submitted</c> to <c>Rejected</c>, with a reason of 10 to 500 characters that is kept
+    /// in the history. The rejecter and the instant come from the token and the server.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <param name="request">The reason of the rejection.</param>
+    /// <returns>
+    /// <c>200</c> with the rejected expense; <c>400</c> for a missing body or an invalid reason; <c>404</c> when the expense
+    /// does not exist; <c>403</c> when the expense belongs to the user; <c>409</c> when the expense is not submitted
+    /// (a repeated rejection, a draft, or an expense already decided or paid); <c>401</c> without a token;
+    /// <c>403</c> without the Approver role.
+    /// </returns>
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Roles = AppRoles.Approver)]
+    public async Task<IActionResult> RejectAsync(Guid id, [FromBody] RejectExpenseRequest request)
+    {
+        ExpenseOperationResult result = await _expenses.RejectAsync(GetCaller(), id, request.Reason);
+
+        return ToActionResult(result, StatusCodes.Status200OK, NotSubmittedTitle);
     }
 
     /// <summary>
@@ -148,7 +191,7 @@ public sealed class ExpensesController : ControllerBase
             title: "Expense not found.");
     }
 
-    private IActionResult ToActionResult(ExpenseOperationResult result, int successStatusCode)
+    private IActionResult ToActionResult(ExpenseOperationResult result, int successStatusCode, string conflictTitle)
     {
         switch (result.Status)
         {
@@ -174,7 +217,7 @@ public sealed class ExpensesController : ControllerBase
             default:
                 return Problem(
                     statusCode: StatusCodes.Status409Conflict,
-                    title: "The expense is not a draft.");
+                    title: conflictTitle);
         }
     }
 }

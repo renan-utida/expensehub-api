@@ -59,6 +59,12 @@ public sealed class ExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
+    public Task<Expense?> FindByIdAsync(Guid id)
+    {
+        return _dbContext.Expenses.FirstOrDefaultAsync(expense => expense.Id == id);
+    }
+
+    /// <inheritdoc />
     public async Task SaveChangesAsync()
     {
         try

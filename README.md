@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a administração de roles (I03) e a criação e edição de rascunhos de despesa (I04) o envio, a listagem e a consulta por perfil (I05) e a matriz de acesso completa, que combina role, dono e estado na camada de serviço (I06), estão prontos: persistência com SQLite, ASP.NET Core Identity, cadastro público sem roles, login com token bearer, as cinco roles, a conta Admin inicial, a atribuição de roles pelo Admin e o `Employee` criando e editando os próprios rascunhos. Ainda não existem aprovação, reprovação, pagamento nem consulta do histórico; os endpoints atuais são `GET /health`, `POST /register`, `POST /login`, `GET /api/admin/users`, `PUT /api/admin/users/{id}/roles`, `POST /api/expenses`, `PUT /api/expenses/{id}`, `POST /api/expenses/{id}/submit`, `GET /api/expenses` e `GET /api/expenses/{id}`.
+Estado atual: da I01 à I07 estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, a matriz de acesso que combina role, dono e estado na camada de serviço, e a aprovação e a reprovação (com justificativa) pelo Approver. Ainda não existem pagamento nem consulta do histórico. Os endpoints atuais estão na seção Endpoints.
 
 ## Sumário
 
@@ -27,6 +27,7 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 - [Detalhe da I04: Criar e editar rascunho](#detalhe-da-i04-criar-e-editar-rascunho)
 - [Detalhe da I05: Enviar, listar e consultar](#detalhe-da-i05-enviar-listar-e-consultar)
 - [Detalhe da I06: Ownership e matriz de acesso](#detalhe-da-i06-ownership-e-matriz-de-acesso)
+- [Detalhe da I07: Aprovar e reprovar com justificativa](#detalhe-da-i07-aprovar-e-reprovar-com-justificativa)
 - [Próximas issues](#próximas-issues)
 
 ## Equipe
@@ -41,12 +42,12 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 | Issue | Título | Peso | Status | Responsável | PR |
 |---|---|---:|---|---|---|
 | I01 | Fundação da solução e Entity Framework Core | 4% | Concluída | Renan | [#1](https://github.com/renan-utida/expensehub-api/pull/1) |
-| I02 | Identity, Admin e autenticação | 9% | Implementada, aguardando PR | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2)|
-| I03 | Cadastro HTTP e gerenciamento de roles | 8% | Implementada, aguardando PR | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
-| I04 | Criar e editar rascunho | 7% | Implementada, aguardando PR | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
-| I05 | Enviar, listar e consultar | 7% | Implementada, aguardando PR | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5)|
-| I06 | Ownership e matriz de acesso | 10% | Implementada, aguardando PR | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
-| I07 | Aprovar e reprovar com justificativa | 12% | A implementar | Renan | - |
+| I02 | Identity, Admin e autenticação | 9% | Concluída | Pedro | [#2](https://github.com/renan-utida/expensehub-api/pull/2) |
+| I03 | Cadastro HTTP e gerenciamento de roles | 8% | Concluída | Pedro | [#3](https://github.com/renan-utida/expensehub-api/pull/3) |
+| I04 | Criar e editar rascunho | 7% | Concluída | Pedro | [#4](https://github.com/renan-utida/expensehub-api/pull/4) |
+| I05 | Enviar, listar e consultar | 7% | Concluída | Pedro | [#5](https://github.com/renan-utida/expensehub-api/pull/5) |
+| I06 | Ownership e matriz de acesso | 10% | Concluída | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
+| I07 | Aprovar e reprovar com justificativa | 12% | Concluída | Renan | [#7](https://github.com/renan-utida/expensehub-api/pull/7) |
 | I08 | Pagamento e histórico | 8% | A implementar | Renan | - |
 | I09 | Testes unitários | 10% | A implementar | Renan | - |
 | I10 | Qualidade de Código | 25% | A implementar | Renan | - |
@@ -61,8 +62,10 @@ Estado atual: a fundação (I01), a autenticação (I02), o cadastro com a admin
 | GET | `/api/admin/users` | Somente `Admin`. Lista `id`, `email` e `roles` dos usuários, ordenados por e-mail. Sem token: `401`; sem a role: `403` | I02 e I03 |
 | PUT | `/api/admin/users/{id}/roles` | Somente `Admin`. Recebe `{"roles": [...]}` e **substitui** as roles do usuário: as listadas são atribuídas e as omitidas são removidas. Role desconhecida ou lista ausente: `400`; usuário inexistente: `404`; Admin removendo a própria role Admin: `403`. O usuário afetado precisa fazer login de novo | I03 |
 | POST | `/api/expenses` | Somente `Employee`. Recebe `description`, `amount` e `expenseDate` e cria um rascunho (`Draft`) cujo dono é o usuário do token. `201` com a despesa e o cabeçalho `Location` (`/api/expenses/{id}`); dados inválidos: `400`; sem token: `401`; sem a role: `403` | I04 e I05 |
-| PUT | `/api/expenses/{id}` | Somente `Employee`. **Substitui** `description`, `amount` e `expenseDate` de um rascunho do próprio usuário. `200` com a despesa; dados inválidos: `400`; inexistente ou fora do escopo de leitura: `404`; visível por outra role mas de outro dono: `403`; fora de `Draft`: `409`; sem token: `401`; sem a role: `403` | I04 e I06 |
-| POST | `/api/expenses/{id}/submit` | Somente `Employee`. Envia um rascunho do próprio usuário: `Draft` para `Submitted`, sem corpo (o estado nunca vem do cliente). `200` com a despesa; inexistente ou fora do escopo de leitura: `404`; visível por outra role mas de outro dono: `403`; fora de `Draft`, inclusive reenvio e envio simultâneo: `409`; sem token: `401`; sem a role: `403` | I05 |
+| PUT | `/api/expenses/{id}` | Somente `Employee`. **Substitui** `description`, `amount` e `expenseDate` de um rascunho do próprio usuário. `200` com a despesa; dados inválidos: `400`; inexistente: `404`; de outro dono: `403`; fora de `Draft`: `409`; sem token: `401`; sem a role: `403` | I04, I06 e I07 |
+| POST | `/api/expenses/{id}/submit` | Somente `Employee`. Envia um rascunho do próprio usuário: `Draft` para `Submitted`, sem corpo (o estado nunca vem do cliente). `200` com a despesa; inexistente: `404`; de outro dono: `403`; fora de `Draft`, inclusive reenvio e envio simultâneo: `409`; sem token: `401`; sem a role: `403` | I05 e I07 |
+| POST | `/api/expenses/{id}/approve` | Somente `Approver`, e nunca o dono da despesa. Aprova uma despesa `Submitted`: `Submitted` para `Approved`, sem corpo (o aprovador e o horário vêm do token e do servidor). `200` com a despesa; inexistente: `404`; despesa do próprio usuário: `403`; qualquer outro estado, inclusive `Draft`, aprovação repetida e decisão simultânea: `409`; sem token: `401`; sem a role: `403` | I07 |
+| POST | `/api/expenses/{id}/reject` | Somente `Approver`, e nunca o dono da despesa. Reprova uma despesa `Submitted`: `Submitted` para `Rejected`, com o corpo `{"reason": "..."}` (de 10 a 500 caracteres depois de aparar os espaços), que fica só no histórico. `200` com a despesa; corpo ausente ou `reason` inválido: `400`; inexistente: `404`; despesa do próprio usuário: `403`; qualquer outro estado, inclusive `Draft`, reprovação repetida e decisão simultânea: `409`; sem token: `401`; sem a role: `403` | I07 |
 | GET | `/api/expenses` | `Employee`, `Approver`, `Finance` ou `Auditor`. Lista as despesas do escopo do perfil, da mais nova para a mais antiga: Employee as próprias, Approver as `Submitted`, Finance as `Approved` e `Paid`, Auditor todas; roles acumuladas somam os filtros. O Admin sozinho e quem não tem role recebem `403`; sem token: `401` | I05 |
 | GET | `/api/expenses/{id}` | Mesmas roles da listagem. `200` com a despesa; inexistente ou fora do escopo: `404`, com a mesma resposta nos dois casos, para não revelar que o recurso existe; `403` para quem não lê despesas; `401` sem token | I05 |
 
@@ -211,7 +214,7 @@ sources/
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
-      Migrations/                 InitialCreate, AddIdentity e snapshot (gerados)
+      Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken e snapshot (gerados)
       Repositories/               ExpenseRepository (EF Core)
   ExpenseHub.UnitTests/
     Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório
@@ -227,9 +230,9 @@ As entidades são classes simples, sem regras de negócio por enquanto. A regra 
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Hoje são 350 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`) 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição) e 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`), contando cada caso de `DataRow`.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Na I07, 486 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`), 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição), 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`) e 136 da I07 (37 da regra de acesso e dos serviços de edição e envio, sendo 28 casos novos na matriz de `ExpenseAccess` e 9 nos serviços; 26 da regra e do DTO da justificativa, sendo 14 de `ExpenseRules` e 12 de `RejectExpenseRequest`; e 73 dos serviços de decisão, sendo 30 de aprovação e 43 de reprovação), contando cada caso de `DataRow`.
 - Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService` e de `ExpenseService` usam fakes escritos à mão das stores e do repositório, e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core.
-- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02, da I03 e da I04), e não por teste unitário.
+- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02, da I03, da I04, da I05, da I06 e da I07), e não por teste unitário.
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -249,11 +252,12 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 
 - I01: `dotnet build` com 0 erros e 0 avisos, `dotnet test` com 13 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes). Essa execução usou `-SkipGitleaks`, então a varredura de segredos do Gitleaks só roda no CI.
 - Na PR #1, o workflow code-quality no GitHub também deu 100/100 (com Gitleaks 8.30.1), sem bloqueantes e sem achados.
-- I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. O score do pipeline da I02 é o da execução na PR.
-- I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
-- I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`.
-- I05: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 250 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Depois dos commits da I04, o Smart App Control do Windows chegou a bloquear a DLL de testes nesta máquina e o script mostrou 96 por um falso "teste falhou"; o score oficial é o do workflow na PR.
-- I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. O score oficial é o do workflow na PR.
+- I02: `dotnet build --no-incremental` com 0 erros e 0 avisos e `dotnet test` com 38 testes aprovados. Score oficial na PR #2 (execução #14): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados. Uma execução anterior na branch (#12) deu 9/100 pela regra FIAP1002, porque os testes tinham valores literais atribuídos a campos sensíveis; os valores foram removidos antes da PR e as execuções seguintes passaram.
+- I03: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 86 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #3 (execução #18): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I04: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 196 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #4 (execução #22): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I05: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 250 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Depois dos commits da I04, o Smart App Control do Windows chegou a bloquear a DLL de testes nesta máquina e o script mostrou 96 por um falso "teste falhou"; o score oficial na PR #5 (execução #26) é **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #6 (execução #29): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I07: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 486 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #7 (execução #37): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -276,32 +280,38 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **Ordem das respostas em `PUT /api/admin/users/{id}/roles`:** `401` (sem token), `403` (sem a role Admin), `400` (corpo ou role inválidos), `404` (usuário inexistente) e `403` (Admin removendo a própria role Admin). A regra da própria role é de autorização, por isso `403`, como nas regras de dono das despesas.
 - **Nunca sem Admin:** como o Admin que faz a chamada não pode tirar a própria role Admin, sempre resta pelo menos um Admin. Ele pode remover a role de outro Admin e pode acumular outras roles.
 - **Novo login após alterar roles, de verdade:** o token bearer nativo carrega as roles do momento do login e não consulta o banco por conta própria, então sem tratamento a role removida continuaria valendo até o token expirar (1 hora). Cada troca de roles renova o `SecurityStamp` do usuário, e o `SecurityStampValidationMiddleware` compara o stamp do token com o do banco a cada requisição autenticada. Token antigo vira `401`, e o usuário precisa fazer login de novo. Custo: uma leitura do usuário por requisição autenticada. Trocar para as mesmas roles que o usuário já tem não escreve nada e não invalida o token.
-- **Repositório de despesas e filtro na consulta:** `IExpenseRepository.FindOwnedAsync(id, ownerId)` aplica o filtro de dono na própria consulta, antes de materializar. A despesa de outro usuário nunca é carregada e responde `404`, igual à inexistente, como nas decisões do projeto. A criação grava a despesa e a linha de histórico em um único `SaveChanges`, e a edição também (a linha `Edited` entra no histórico da despesa rastreada antes do salvamento).
-- **Ordem das respostas em `PUT /api/expenses/{id}`:** `401` (sem token), `403` (sem a role Employee), `400` (dados inválidos), `404` (inexistente ou fora do escopo de leitura), `403` (visível por outra role, mas de outro dono) e `409` (fora de `Draft`). Desde a I06 o `PUT` segue a mesma regra do envio, pela mesma `ExpenseAccess`.
+- **Repositório de despesas e filtro na consulta:** `IExpenseRepository.FindVisibleAsync(id, scope)` aplica o escopo de leitura do usuário na própria consulta, antes de materializar, e serve só às leituras (listagem e detalhe): a despesa fora do escopo nunca é carregada e responde `404`, igual à inexistente. As ações que escrevem (editar, enviar, aprovar e reprovar) usam `FindByIdAsync(id)`, que busca só por `Id` (e rastreia a despesa para o `UPDATE`), porque nelas o `404` é só para despesa inexistente. A criação grava a despesa e a linha de histórico em um único `SaveChanges`, e a edição também (a linha `Edited` entra no histórico da despesa rastreada antes do salvamento).
+- **Ordem das respostas em `PUT /api/expenses/{id}`:** `401` (sem token), `403` (sem a role Employee), `400` (dados inválidos), `404` (despesa inexistente), `403` (despesa de outro dono) e `409` (fora de `Draft`). Desde a I06 o `PUT` segue a mesma regra do envio, pela mesma `ExpenseAccess`; desde a I07 o escopo de leitura não entra mais nessa ordem (alterado na I07).
 - **O `PUT` é uma substituição completa:** `description`, `amount` e `expenseDate` são obrigatórios; a ausência de qualquer um é `400` e nunca "mantém o valor antigo". O servidor define o dono, o estado, o ator e os horários, e os DTOs não têm esses membros, então o que o cliente enviar a mais é ignorado (mass assignment impedido).
 - **Valor:** de R$ 0,01 até `Int32.MaxValue`, com no máximo duas casas decimais. O DTO e o serviço **rejeitam** mais de duas casas, e o conversor para centavos nunca arredonda entrada de usuário. O valor é gravado em centavos (`MoneyConversion`).
 - **Descrição:** de 10 a 500 caracteres depois de aparar os espaços das pontas, e é gravada já aparada. Uma descrição de 495 caracteres com muitos espaços nas pontas pode passar de 500 no corpo bruto e ser rejeitada pelo DTO; é um limite conservador.
 - **Data não futura, em Brasília:** a data da despesa não pode ser posterior à data de hoje no fuso de Brasília (`America/Sao_Paulo`, ou o nome equivalente do Windows). Assim, às 23h30 em Brasília, quando a data em UTC já virou, a data de hoje continua valendo e a de amanhã é rejeitada.
 - **Histórico de edição:** toda edição grava uma linha `Edited` (de `Draft` para `Draft`) com o resumo do que mudou, de cada campo com o valor antigo e o novo. Se o `PUT` mandar os mesmos valores já gravados, a linha também é gravada, com `No field changed.`. O resumo é truncado para caber em 2000 caracteres.
 - **Resposta da criação:** `POST /api/expenses` responde `201` com o corpo e, desde a I05 (quando o `GET` por id passou a existir), com o cabeçalho `Location` (`/api/expenses/{id}`).
-- **Limitação da I04, resolvida na I06:** na I04 e na I05, um usuário com `Employee` e outra role (por exemplo `Auditor`) que tentasse editar (`PUT`) a despesa de outra pessoa recebia `404`, porque a edição só enxergava as despesas do dono. Desde a I06 o `PUT` aplica a regra completa (`404`, depois `403`, depois `409`), e esse usuário recebe `403`.
+- **Limitação da I04, resolvida na I06:** na I04 e na I05, um usuário com `Employee` e outra role (por exemplo `Auditor`) que tentasse editar (`PUT`) a despesa de outra pessoa recebia `404`, porque a edição só enxergava as despesas do dono. Desde a I06 o `PUT` aplica a regra completa, e esse usuário recebe `403`. Desde a I07 isso vale para qualquer Employee: a despesa de outra pessoa existe, então o `PUT` dá `403` (e não `404`), tenha o usuário outra role ou não.
 - **Visibilidade por perfil (I05), aplicada na consulta:** `ExpenseVisibility` calcula o escopo do usuário a partir das roles do token (Employee: as próprias; Approver: as `Submitted`; Finance: as `Approved` e `Paid`; Auditor: todas; o Admin sozinho não lê nada), e roles acumuladas **somam** os escopos (união). O escopo é um predicado que o repositório aplica dentro da própria consulta (`WHERE`), antes de materializar, e nunca carrega tudo para filtrar na memória. Os valores do escopo viajam como parâmetros da consulta, então o EF a traduz uma vez para todos os usuários.
 - **Detalhe sem vazamento:** o `GET` por id usa o mesmo escopo. Uma despesa inexistente e uma fora do escopo recebem exatamente o mesmo `404` (mesmo corpo), então nada revela que o recurso existe. A resposta traz só `id`, `ownerId`, `description`, `amount`, `expenseDate`, `status` e `createdAtUtc`: sem e-mail do dono, sem histórico e sem pagamento. O `ownerId` é o identificador interno do usuário, mantido porque as próximas issues precisam dele (por exemplo, para o Approver não decidir a própria despesa).
-- **Ordem das respostas em `POST /api/expenses/{id}/submit`:** `401` (sem token), `403` (sem a role Employee), `404` (inexistente ou fora do escopo de leitura), `403` (visível por outra role, mas de outro dono) e `409` (fora de `Draft`). Por isso um Employee que também é Auditor recebe `403` ao tentar enviar o rascunho de outra pessoa, e um Employee comum recebe `404`. A regra do dono vem antes da do estado: a despesa `Submitted` de outro usuário dá `403`, e não `409`.
+- **Ordem das respostas em `POST /api/expenses/{id}/submit`:** `401` (sem token), `403` (sem a role Employee), `404` (despesa inexistente), `403` (despesa de outro dono) e `409` (fora de `Draft`). Por isso qualquer Employee, com ou sem outra role, recebe `403` ao tentar enviar o rascunho de outra pessoa (desde a I07; antes, um Employee comum recebia `404`). A regra do dono vem antes da do estado: a despesa `Submitted` de outro usuário dá `403`, e não `409`.
 - **Envio simultâneo e `Status` como token de concorrência:** ler o estado e gravar depois deixaria dois envios simultâneos passarem e duplicaria o histórico, o que a especificação proíbe. O `Status` é um token de concorrência do EF: o `UPDATE` leva `WHERE Id = ... AND Status = <valor lido>`, o segundo envio não altera linha nenhuma, o repositório converte a exceção do EF em `ExpenseConflictException` e o serviço responde `409`. A gravação do estado e do histórico é uma única transação, então o envio perdedor não deixa linha de histórico. O mesmo vale para o `PUT` contra um envio simultâneo. A migration `ExpenseStatusConcurrencyToken` é vazia (o esquema do banco não muda; só o snapshot do modelo ganha o token).
 - **Listagem:** da mais nova para a mais antiga (`CreatedAtUtc`, depois `Id`), sem paginação (fora de escopo na issue). Com muitos dados a lista cresce; a paginação é uma melhoria futura.
 - **Admin e Auditor:** o Admin sozinho recebe `403` nos `GET` e no envio, porque a role Admin não dá acesso funcional. O Auditor lê tudo e nunca escreve: tentar enviar a despesa de outra pessoa dá `403` (e a rota de envio ainda exige a role Employee).
-- **A matriz de acesso numa regra só (`ExpenseAccess`, I06):** o atributo de role de um endpoint só barra quem não teria chance de fazer a ação; a decisão sobre uma despesa concreta combina role, dono e estado e fica na camada de serviço, numa classe pura que não depende do EF nem do controller. `Evaluate(caller, ação, despesa)` devolve `Allowed`, `NotFound` (`404`), `Forbidden` (`403`) ou `WrongState` (`409`), sempre nesta ordem: a role da ação (`403`), o escopo de leitura (`404`), a regra de dono (`403`) e o estado (`409`). Criar, editar e enviar exigem `Employee`; aprovar e reprovar, `Approver`; pagar, `Finance`.
+- **A matriz de acesso numa regra só (`ExpenseAccess`, I06):** o atributo de role de um endpoint só barra quem não teria chance de fazer a ação; a decisão sobre uma despesa concreta combina role, dono e estado e fica na camada de serviço, numa classe pura que não depende do EF nem do controller. `Evaluate(caller, ação, despesa)` devolve `Allowed`, `NotFound` (`404`), `Forbidden` (`403`) ou `WrongState` (`409`), sempre nesta ordem: a role da ação (`403`), a existência da despesa (`404`, só para despesa inexistente), a regra de dono (`403`) e o estado (`409`). Desde a I07 o escopo de leitura não entra em `Evaluate`: ele só define o que se lista e se lê (a despesa fora do escopo continua `404` nas leituras). Criar, editar e enviar exigem `Employee`; aprovar e reprovar, `Approver`; pagar, `Finance`.
 - **Regra de dono:** só o dono edita e envia o próprio rascunho. **Ninguém aprova, reprova nem paga a própria despesa**, mesmo acumulando `Employee` com `Approver` ou `Finance`: acumular roles soma permissões, mas não remove a proibição sobre o recurso próprio. A resposta é `403`, a regra "o dono proíbe" do `CLAUDE.md`.
-- **O serviço exige a role por dentro:** `CreateAsync`, `UpdateAsync` e `SubmitAsync` conferem a role `Employee` sozinhos, e não só o atributo do controller. Quem não tem a role recebe `403` antes de qualquer validação ou consulta, como o atributo já fazia, e o serviço nunca trata a decisão como responsabilidade do controller.
-- **Aprovar, reprovar e pagar:** os endpoints são da I07 e da I08. A I06 entrega a regra (`ExpenseAction.Approve`, `Reject` e `Pay` em `ExpenseAccess`) e a prova por teste unitário: a autoaprovação e o autopagamento são proibidos e o estado exigido é `Submitted` para decidir e `Approved` para pagar. As próximas issues só precisam chamar `ExpenseAccess.Evaluate`.
-- **O que cada perfil enxerga define o `404`:** um Approver só enxerga as `Submitted`, então tentar decidir sobre um `Draft` de outro dá `404` (e não `409`); um Finance só enxerga as `Approved` e `Paid`. Trocar identificadores na URL não expõe dados, porque a despesa fora do escopo responde exatamente como uma despesa que não existe.
+- **O serviço exige a role por dentro:** `CreateAsync`, `UpdateAsync` e `SubmitAsync` (role `Employee`) e, desde a I07, `ApproveAsync` e `RejectAsync`, que exigem a role `Approver`, conferem a role sozinhos, e não só o atributo do controller. Quem não tem a role recebe `403` antes de qualquer validação ou consulta, como o atributo já fazia, e o serviço nunca trata a decisão como responsabilidade do controller.
+- **Aprovar, reprovar e pagar:** a I06 entregou a regra (`ExpenseAction.Approve`, `Reject` e `Pay` em `ExpenseAccess`) e a prova por teste unitário: a autoaprovação e o autopagamento são proibidos e o estado exigido é `Submitted` para decidir e `Approved` para pagar. A I07 ligou aprovar e reprovar aos endpoints, pelo `ExpenseService`; o pagamento e o endpoint dele são da I08 e só precisam chamar `ExpenseAccess.Evaluate` com `Pay`, que já segue a mesma regra de existência.
+- **O que cada perfil enxerga define o `404` nas leituras:** um Approver só lê as `Submitted` e um Finance só lê as `Approved` e `Paid`, e uma despesa fora do escopo responde exatamente como uma que não existe. Desde a I07 isso vale só para as leituras (listagem e detalhe). Nas ações que escrevem, o `404` é só para despesa inexistente: um Approver que tenta decidir sobre uma despesa em `Draft`, `Approved`, `Rejected` ou `Paid` recebe `409`, e uma despesa de outro dono recebe `403` (alterado na I07). Trocar identificadores na URL não expõe o conteúdo, porque a leitura fora do escopo continua `404`.
 - **Histórico:** o `GET /api/expenses/{id}/history` é da I08 e deve reaproveitar o mesmo escopo de leitura (`ExpenseScope`), com a mesma visibilidade da despesa (o Auditor vê todos, sem poder alterar).
+- **`404`, `403` e `409` nas ações que escrevem (respostas do professor, I07):** o professor respondeu que, em qualquer ação que escreve (editar, enviar, aprovar, reprovar e pagar), uma despesa que existe mas está em outro estado dá `409`, inclusive `Draft`, porque "ainda que em rascunho, existe"; que o `404` serve para o que não existe (URL incorreta, rota que mudou); e que um Employee editar ou enviar o `Draft` de outro Employee é `403`, porque "o erro é de auth/authz, não de not found". A ordem é: role pelo atributo (`403`), corpo (`400`), despesa inexistente (`404`), regra de dono (`403`) e estado (`409`). O escopo de leitura só vale para as leituras (listagem, detalhe e, na I08, histórico). O custo aceito: quem tem a role da ação passa a saber que um `Guid` existe e em que situação ele está (`403` ou `409`), mas o `Guid` não é adivinhável e a resposta não revela o conteúdo nem o estado atual.
+- **Justificativa da reprovação (I07):** o campo é `reason`, aparado antes de validar, de 10 a 500 caracteres, o mesmo limite de `ExpenseHistory.Reason`. Fica só no histórico (a consulta do histórico é da I08) e não aparece em `ExpenseResponse`. A regra é `ExpenseRules.ValidateRejectionReason`, usada pelo serviço e pelo atributo `RejectionReason` do DTO `RejectExpenseRequest`, que só tem esse campo.
+- **Aprovar e reprovar num único caminho (I07):** `ExpenseService.ApproveAsync` e `RejectAsync` conferem a role, o `reject` valida a justificativa, e um método privado carrega a despesa por identificador, decide pelo `ExpenseAccess`, muda o `Status` e acrescenta a linha de histórico (ator do token, horário do servidor, estado anterior e novo, justificativa) na mesma gravação. O `Status` como token de concorrência garante que duas decisões simultâneas deem um `200` e um `409`, sem histórico duplicado.
+- **Título do `409` por ação (I07):** `PUT` e envio respondem "The expense is not a draft."; aprovar e reprovar respondem "The expense is not submitted.". O título não revela o estado atual da despesa.
+- **Pagamento (I08):** o `Pay` já segue a mesma regra de existência em `ExpenseAccess` (Finance sobre despesa em `Draft`, `Submitted`, `Rejected` ou `Paid` dá `409`, e não `404`); o serviço e o endpoint de pagamento são da I08.
 
 ## Solução de problemas
 
 - `dotnet ef` não encontrado: rode `dotnet tool restore` na raiz do repositório.
 - `no such table`: o banco ainda não foi criado ou está desatualizado; rode `dotnet ef database update`.
+- A aplicação não inicia e o log mostra `SQLite Error 1: 'no such table: AspNetRoles'`: o seed roda na inicialização e exige o banco já migrado. Rode `dotnet ef database update` antes de `dotnet run`. A tentativa sem migrations deixa um arquivo `.db` vazio (0 bytes), e ele pode ficar onde está: o `dotnet ef database update` o aproveita, aplica todas as migrations e a aplicação inicia normalmente depois (testado com um arquivo vazio de 0 bytes).
 - `Format of the initialization string does not conform to specification`: o valor de `ConnectionStrings__ExpenseHub` está sem o prefixo `Data Source=`.
 - O arquivo `.db` não está onde se esperava: confira se a variável `ConnectionStrings__ExpenseHub` está definida no terminal; sem ela o arquivo fica em `sources/ExpenseHub.Api/expensehub.db`.
 - `Generating idempotent scripts for migrations is not currently supported for SQLite`: use `dotnet ef migrations script` sem `--idempotent`.
@@ -318,9 +328,12 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - `GET /api/expenses` vem vazia ou sem uma despesa que você esperava: a listagem só mostra o que o perfil lê (por exemplo, um Approver só vê as `Submitted`, e um Employee só vê as próprias). Para ver uma despesa em outro estado, use um usuário com a role certa ou `Auditor`.
 - `GET /api/expenses/{id}` devolve `404` para uma despesa que existe: ela está fora do escopo do seu perfil. A resposta é igual à de uma despesa que não existe, de propósito.
 - `POST /api/expenses/{id}/submit` devolve `409`: a despesa já foi enviada (ou não está em `Draft`). Enviar de novo nunca grava histórico novo.
-- `POST /api/expenses/{id}/submit` devolve `403` com um usuário que tem `Employee` e outra role: a despesa é de outra pessoa e está visível pela outra role, mas só o dono envia.
-- `PUT /api/expenses/{id}` devolve `403` (e não `404`) para um usuário com `Employee` e outra role, como `Auditor` ou `Approver`: a despesa é de outra pessoa e ele consegue vê-la pela outra role, mas só o dono edita. Se a despesa estiver fora do que o perfil enxerga, a resposta é `404`.
-- Um Approver recebe `404` ao tentar decidir sobre uma despesa que não está `Submitted`, e um Finance ao tentar pagar uma que não está `Approved` ou `Paid`: fora desses estados a despesa não faz parte do escopo de leitura do perfil.
+- `POST /api/expenses/{id}/submit` devolve `403` para um Employee que não é o dono, tenha ele outra role ou não: a despesa existe e é de outra pessoa, e só o dono envia. O `404` é só para despesa inexistente (alterado na I07: antes, um Employee sem outra role recebia `404`).
+- `PUT /api/expenses/{id}` devolve `403` (e não `404`) para um Employee que não é o dono, com ou sem outra role, como `Auditor` ou `Approver`: a despesa existe e é de outra pessoa, e só o dono edita. O `404` é só para despesa inexistente (alterado na I07).
+- `POST /api/expenses/{id}/approve` ou `.../reject` devolve `409`: a despesa existe, mas não está `Submitted` (já foi aprovada, reprovada ou paga, ou ainda é `Draft`). Repetir a decisão nunca grava histórico novo. O `404` é só para despesa inexistente (alterado na I07: antes, o Approver recebia `404` para as despesas fora do escopo de leitura).
+- `POST /api/expenses/{id}/approve` ou `.../reject` devolve `403`: o usuário não tem a role `Approver`, ou a despesa é dele mesmo (ninguém decide a própria despesa, mesmo acumulando `Employee` com `Approver`).
+- `POST /api/expenses/{id}/reject` devolve `400`: a justificativa (`reason`) está ausente, vazia, só com espaços ou fora de 10 a 500 caracteres depois de aparada, ou o corpo não é um JSON válido.
+- `POST /api/expenses/{id}/reject` sem corpo e sem o cabeçalho `Content-Type: application/json` devolve `415`, e não `400`: é o comportamento padrão do ASP.NET para endpoints com corpo; com o cabeçalho e o corpo vazio, a resposta é `400`.
 
 ## Fora de escopo
 
@@ -483,7 +496,7 @@ Critérios de aceite:
 | `POST /api/expenses` exige Employee e cria estado `Draft` | Atendido | sem token `401`; sem a role (inclusive o Admin) `403`; Employee `201` com `status` `Draft` |
 | O proprietário é obtido da identidade autenticada | Atendido | `ownerId` da resposta e da coluna `OwnerId` é o id do usuário do token, mesmo com outro `ownerId` no corpo |
 | Descrição, valor e data respeitam o contrato de validação | Atendido | descrição de 10 a 500 caracteres (aparada), valor de 0,01 a 2.147.483.647 com no máximo duas casas e data não posterior a hoje em Brasília; cada violação é `400` e os limites exatos são aceitos |
-| `PUT /api/expenses/{id}` edita somente Draft próprio | Atendido | dono em `Draft`: `200`; outro usuário: `404`; `Submitted`, `Approved`, `Rejected` e `Paid`: `409` |
+| `PUT /api/expenses/{id}` edita somente Draft próprio | Atendido | dono em `Draft`: `200`; outro usuário: `403` (era `404` até a I06; alterado na I07); `Submitted`, `Approved`, `Rejected` e `Paid`: `409` |
 | DTOs impedem mass assignment de proprietário, estado, ator e horários | Atendido | `ExpenseRequest` só tem `description`, `amount` e `expenseDate` (teste `ExpenseRequest_HasOnlyDescriptionAmountAndDate`); `ownerId`, `status`, `createdAtUtc`, `actorId`, `id` e `payment` no corpo são ignorados |
 | A persistência e as respostas são consistentes | Atendido | valor gravado em centavos (87,50 vira 8750); um histórico `Created` por despesa criada e um `Edited` por edição, na mesma operação; `ProblemDetails` em todas as falhas |
 
@@ -491,7 +504,7 @@ Casos negativos:
 
 - **Valor menor que R$ 0,01 ou maior que `Int32.MaxValue`:** `0`, `0.009`, `-1` e `2147483647.01` devolvem `400`; `0.01` e `2147483647` são aceitos. Mais de duas casas decimais (`12.345`) também é `400`.
 - **Data futura e descrição fora dos limites:** a data de amanhã em Brasília, 9 caracteres, 501 caracteres, só espaços e data inválida (`2026-02-30`) devolvem `400`.
-- **Outro usuário não edita o rascunho:** outro Employee recebe `404` e a despesa continua igual; nenhum histórico é gravado.
+- **Outro usuário não edita o rascunho:** outro Employee recebe `403` (alterado na I07; até a I06 era `404`) e a despesa continua igual; nenhum histórico é gravado.
 - **Expense fora de Draft não é editada:** `409`, sem alterar a despesa e sem gravar histórico.
 
 Respostas por endpoint:
@@ -501,7 +514,8 @@ Respostas por endpoint:
 | Sem token | `401` | `401` |
 | Sem a role Employee | `403` | `403` |
 | Dados inválidos ou campo ausente | `400` | `400` |
-| Inexistente, `id` que não é Guid ou de outro usuário | - | `404` |
+| Inexistente ou `id` que não é Guid | - | `404` |
+| De outro usuário | - | `403` |
 | Fora de Draft | - | `409` |
 | Sucesso | `201` | `200` |
 
@@ -523,7 +537,7 @@ Decisões (o raciocínio completo está em Decisões de projeto):
 - Edição com os mesmos valores grava histórico com `No field changed.`.
 - `201` da criação sem `Location` na I04; desde a I05, que criou o `GET` por id, a criação devolve o cabeçalho `Location`.
 - A data não futura usa a data de hoje em Brasília.
-- Despesa de outro usuário é `404` (o filtro de dono está na consulta); a visibilidade completa por role fica na I06.
+- Despesa de outro usuário era `404` na I04 (o filtro de dono estava na consulta); desde a I07 é `403`, e o `404` fica só para despesa inexistente.
 
 Como validar (com um banco fora do repositório):
 
@@ -543,15 +557,15 @@ Critérios de aceite:
 | Critério | Situação | Evidência |
 |---|---|---|
 | `POST /api/expenses/{id}/submit` executa `Draft` para `Submitted` | Atendido | dono em `Draft`: `200` com `status` `Submitted`; histórico `Created` e `Submitted` (anterior `Draft`, novo `Submitted`, ator = dono) na mesma gravação |
-| Somente o proprietário envia o Draft | Atendido | outro Employee `404`; Employee que também é Auditor `403`; Approver, Finance, Auditor e Admin sozinhos `403` (falta a role Employee) |
+| Somente o proprietário envia o Draft | Atendido | outro Employee `403`, tenha ele outra role ou não (era `404` até a I06; alterado na I07); Approver, Finance, Auditor e Admin sozinhos `403` (falta a role Employee) |
 | `GET /api/expenses` aplica o filtro do perfil antes de materializar dados | Atendido | o escopo é um predicado aplicado dentro da consulta (`WHERE`); Employee, Approver, Finance e Auditor veem exatamente o conjunto do perfil, e roles acumuladas somam |
 | `GET /api/expenses/{id}` não vaza recursos fora do escopo | Atendido | fora do escopo: `404` com o mesmo corpo de uma despesa inexistente; a resposta não traz e-mail, histórico nem pagamento |
-| Recurso inexistente ou invisível retorna `404` | Atendido | `id` inexistente, `id` que não é Guid e despesa de outro perfil dão `404` |
+| Recurso inexistente ou invisível retorna `404` | Atendido | no `GET`, `id` inexistente, `id` que não é Guid e despesa de outro perfil dão `404`; no envio, só o `id` inexistente dá `404` (alterado na I07) |
 | Transição incompatível ou repetida retorna `409` | Atendido | reenvio, `Submitted`, `Approved`, `Rejected` e `Paid` dão `409`, sem histórico novo; 12 pares de envios simultâneos deram sempre um `200`, um `409` e um único histórico `Submitted` |
 
 Casos negativos:
 
-- **Outro Employee não envia o Draft:** `404` (a despesa está fora do escopo dele), e a despesa continua `Draft` com um único histórico.
+- **Outro Employee não envia o Draft:** `403` (a despesa existe, mas não é dele; alterado na I07, antes era `404`), e a despesa continua `Draft` com um único histórico.
 - **Submitted não é enviado novamente:** `409`, sem linha de histórico nova.
 - **Auditor não ganha escrita:** o Auditor sozinho recebe `403` na rota de envio, e mesmo um Employee que também é Auditor recebe `403` ao tentar enviar a despesa de outra pessoa; nada é alterado.
 - **Admin não ganha acesso funcional por ser Admin:** `403` na listagem, no detalhe e no envio.
@@ -574,8 +588,9 @@ Respostas por endpoint:
 |---|---|---|---|
 | Sem token | `401` | `401` | `401` |
 | Sem role que sirva (inclusive Admin sozinho) | `403` | `403` | `403` |
-| Inexistente ou fora do escopo | `404` | - | `404` |
-| Visível por outra role, mas de outro dono | `403` | - | - |
+| Inexistente | `404` | - | `404` |
+| Existente, mas fora do escopo de leitura | - | - | `404` |
+| De outro dono | `403` | - | - |
 | Fora de `Draft` (inclusive reenvio e envio simultâneo) | `409` | - | - |
 | Sucesso | `200` | `200` | `200` |
 
@@ -584,7 +599,7 @@ Tabelas e dados: a migration `ExpenseStatusConcurrencyToken` é vazia, porque o 
 Decisões (o raciocínio completo está em Decisões de projeto):
 
 - O `Status` é um token de concorrência, para dois envios simultâneos não passarem nem duplicarem o histórico.
-- A regra do envio segue o `CLAUDE.md`: `404` fora do escopo de leitura, `403` quando é visível mas de outro dono, `409` quando o estado não aceita.
+- A regra do envio segue o `CLAUDE.md`: `404` só para despesa inexistente, `403` quando a despesa é de outro dono e `409` quando o estado não aceita (alterado na I07; na I05 o `404` valia para a despesa fora do escopo de leitura).
 - A criação passa a devolver `Location`, agora que o `GET` por id existe.
 - O `ownerId` fica na resposta (identificador interno, sem e-mail).
 - A listagem não tem paginação (fora de escopo), e fica da mais nova para a mais antiga.
@@ -598,7 +613,7 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
-Depois: cadastre usuários, conceda as roles pelo Admin (`Employee`, `Approver`, `Finance`, `Auditor` e combinações) e faça login de novo com cada um; crie despesas, envie algumas, e compare o que cada perfil lista e consulta. Aprovar e pagar ainda não existem (I07 e I08), então, para ver `Approved`, `Paid` e `Rejected`, mude o `Status` direto no banco temporário. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
+Depois: cadastre usuários, conceda as roles pelo Admin (`Employee`, `Approver`, `Finance`, `Auditor` e combinações) e faça login de novo com cada um; crie despesas, envie algumas, e compare o que cada perfil lista e consulta. Na I05, aprovar e pagar ainda não existiam, então, para ver `Approved`, `Paid` e `Rejected`, era preciso mudar o `Status` direto no banco temporário; desde a I07, aprovar e reprovar existem, e só o `Paid` ainda exige isso (o pagamento é da I08). Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
 ## Detalhe da I06: Ownership e matriz de acesso
 
@@ -606,24 +621,24 @@ Critérios de aceite:
 
 | Critério | Situação | Evidência |
 |---|---|---|
-| Employees acessam somente seus próprios reembolsos | Atendido | um Employee lê, edita e envia só o que é seu; as despesas de outro Employee dão `404`, com o mesmo corpo de uma inexistente; a lista traz só as próprias |
+| Employees acessam somente seus próprios reembolsos | Atendido | um Employee lê, edita e envia só o que é seu; na leitura, as despesas de outro Employee dão `404`, com o mesmo corpo de uma inexistente; no `PUT` e no envio dão `403` (alterado na I07); a lista traz só as próprias |
 | Approver consulta `Submitted` e não decide sobre despesa própria | Atendido | o Approver lê as `Submitted` de qualquer dono; a regra `ExpenseAccess` proíbe aprovar e reprovar a própria despesa (`403`), inclusive para quem acumula `Employee` |
 | Finance consulta `Approved` e `Paid` e não paga despesa própria | Atendido | o Finance lê as `Approved` e `Paid`; a regra proíbe pagar a própria despesa (`403`), inclusive para quem acumula `Employee` |
 | Auditor consulta todos os reembolsos e históricos sem alterar dados | Atendido | o Auditor lê qualquer despesa em qualquer estado e nunca escreve (`403` em criar, editar e enviar); o histórico (I08) reaproveita o mesmo escopo |
 | Admin não recebe acesso funcional implícito | Atendido | o Admin sozinho recebe `403` em todas as rotas de despesa (ler, listar, criar, editar e enviar) |
 | As decisões contextuais estão na camada de serviço, não apenas no controller | Atendido | `ExpenseAccess` decide role, dono e estado dentro do `ExpenseService`; o serviço exige a role sozinho, e o atributo do controller é só a primeira barreira |
-| Respostas `401`, `403` e `404` seguem o contrato | Atendido | `401` sem token; `403` sem role ou quando a regra de dono proíbe; `404` fora do escopo de leitura; `409` quando o estado não aceita |
+| Respostas `401`, `403` e `404` seguem o contrato | Atendido | `401` sem token; `403` sem role ou quando a regra de dono proíbe; `404` fora do escopo de leitura nas leituras e só para despesa inexistente nas ações que escrevem (alterado na I07); `409` quando o estado não aceita |
 
 Casos negativos:
 
-- **Trocar identificadores na URL não expõe dados:** um Employee que troca o id por o de outro Employee recebe `404` em `GET`, `PUT` e `submit`, igual ao de uma despesa inexistente, e a despesa atacada não muda (nem o histórico).
+- **Trocar identificadores na URL não expõe dados:** um Employee que troca o id por o de outro Employee recebe `404` no `GET`, igual ao de uma despesa inexistente, e `403` no `PUT` e no `submit` (alterado na I07; até a I06 era `404` nos três), e a despesa atacada não muda (nem o histórico).
 - **Combinar Employee com outra role não remove a proibição sobre recurso próprio:** `Employee` mais `Approver` não aprova a própria despesa, e `Employee` mais `Finance` não paga a própria; e `Employee` mais `Auditor` continua podendo editar e enviar a própria despesa, mas não a de outro (`403`).
 - **O filtro não é aplicado apenas em memória:** o escopo vai no `WHERE` da consulta (conferido no log do EF). A única consulta sem `WHERE` é a do Auditor, cujo escopo é "todas".
-- **Atributo de role isolado não substitui a autorização contextual:** o serviço confere a role e decide dono e estado por conta própria; o `PUT` e o envio dão `403` ou `404` conforme a despesa, e não só conforme a role.
+- **Atributo de role isolado não substitui a autorização contextual:** o serviço confere a role e decide dono e estado por conta própria; o `PUT` e o envio dão `403`, `404` ou `409` conforme a despesa, e não só conforme a role.
 
 A matriz de acesso (role, dono e estado numa regra só, `ExpenseAccess`):
 
-| Ação | Role exigida | Dono | Estado exigido | Sem a role | Despesa fora do escopo de leitura | Dono não permitido | Estado errado |
+| Ação | Role exigida | Dono | Estado exigido | Sem a role | Despesa inexistente | Dono não permitido | Estado errado |
 |---|---|---|---|---|---|---|---|
 | Criar | Employee | cria a própria | - | `403` | - | - | - |
 | Editar | Employee | só o dono | `Draft` | `403` | `404` | `403` | `409` |
@@ -632,9 +647,9 @@ A matriz de acesso (role, dono e estado numa regra só, `ExpenseAccess`):
 | Reprovar | Approver | nunca o dono | `Submitted` | `403` | `404` | `403` | `409` |
 | Pagar | Finance | nunca o dono | `Approved` | `403` | `404` | `403` | `409` |
 
-Aprovar, reprovar e pagar ainda não têm endpoint (I07 e I08): a regra existe e está provada por teste unitário, e as próximas issues só precisam chamar `ExpenseAccess.Evaluate`.
+A coluna "Despesa inexistente" vale para todas as ações que escrevem desde a I07; na I06 ela era "Despesa fora do escopo de leitura". Aprovar e reprovar têm endpoint desde a I07; o pagamento é da I08, e a regra de `Pay` já existe e está provada por teste unitário.
 
-O que cada perfil lê (escopo de leitura, que define o `404`):
+O que cada perfil lê (escopo de leitura, que define o `404` das leituras):
 
 | Role | Leitura (`GET /api/expenses` e `GET /api/expenses/{id}`) |
 |---|---|
@@ -650,21 +665,21 @@ Matriz por perfil, com os resultados observados nas requisições e confirmados 
 
 | Perfil | Ler | Editar e enviar o próprio `Draft` | Editar e enviar o `Draft` de outro | Criar |
 |---|---|---|---|---|
-| Employee | só o próprio (`404` nos de outros) | `200` | `404` | `201` |
+| Employee | só o próprio (`404` nos de outros) | `200` | `403` | `201` |
 | Employee mais Auditor | tudo (`200`) | `200` | `403` | `201` |
-| Employee mais Approver | o próprio e as `Submitted` | `200` | `404` no `Draft`; `403` na `Submitted` | `201` |
-| Employee mais Finance | o próprio e as `Approved` e `Paid` | `200` | `404` no `Draft`; `403` na `Approved` | `201` |
+| Employee mais Approver | o próprio e as `Submitted` | `200` | `403` no `Draft` e na `Submitted` | `201` |
+| Employee mais Finance | o próprio e as `Approved` e `Paid` | `200` | `403` no `Draft` e na `Approved` | `201` |
 | Approver, Finance ou Auditor sozinho | o escopo do perfil | `403` | `403` | `403` |
 | Admin sozinho | `403` | `403` | `403` | `403` |
 | Sem token | `401` | `401` | `401` | `401` |
 
 Decisões (o raciocínio completo está em Decisões de projeto):
 
-- `ExpenseAccess` é a única fonte da regra de acesso: a ordem é role (`403`), escopo (`404`), dono (`403`), estado (`409`).
+- `ExpenseAccess` é a única fonte da regra de acesso: a ordem é role (`403`), existência (`404`), dono (`403`), estado (`409`) (alterado na I07; na I06 o segundo passo era o escopo de leitura).
 - O `PUT` passa a usar a mesma regra do envio (resolve a limitação da I04: um Employee que também é Auditor recebe `403`).
 - `NotOwner` virou `Forbidden`, um `403` único, que também cobre a falta de role e a autoaprovação.
 - O serviço exige a role `Employee` por dentro, e não só pelo atributo.
-- Aprovar, reprovar e pagar entram como regra (sem endpoint), para a I07 e a I08.
+- Aprovar, reprovar e pagar entram como regra; a I07 ligou os endpoints de aprovar e reprovar, e o de pagar é da I08.
 
 Como validar (com um banco fora do repositório):
 
@@ -675,18 +690,83 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
-Depois: cadastre vários usuários, conceda a cada um um perfil diferente (`Employee`, `Approver`, `Finance`, `Auditor` e as combinações com `Employee`), faça login de novo com cada um e compare, nas rotas de despesa, o que cada identidade lê, edita, envia e cria, trocando os identificadores na URL. Aprovar e pagar ainda não existem (I07 e I08), então a proibição de autoaprovação e de autopagamento é provada pelos testes unitários de `ExpenseAccess`. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
+Depois: cadastre vários usuários, conceda a cada um um perfil diferente (`Employee`, `Approver`, `Finance`, `Auditor` e as combinações com `Employee`), faça login de novo com cada um e compare, nas rotas de despesa, o que cada identidade lê, edita, envia e cria, trocando os identificadores na URL. Aprovar e reprovar existem desde a I07 (veja o detalhe da I07); o pagamento é da I08, então a proibição de autopagamento é provada pelos testes unitários de `ExpenseAccess`. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
+
+## Detalhe da I07: Aprovar e reprovar com justificativa
+
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| `POST /api/expenses/{id}/approve` executa `Submitted` para `Approved` | Atendido | Approver sobre `Submitted` de outro dono: `200` com `status` `Approved`; histórico `Approved` (anterior `Submitted`, novo `Approved`, ator = aprovador, horário do servidor, `Reason` nula) na mesma gravação |
+| `POST /api/expenses/{id}/reject` executa `Submitted` para `Rejected` | Atendido | `200` com `status` `Rejected`; histórico `Rejected` com a justificativa, na mesma gravação |
+| Reprovar exige justificativa de 10 a 500 caracteres | Atendido | ausente, vazia, só espaços, 9 e 501 caracteres e corpo `{}`: `400`; 10 e 500 caracteres: `200`; a justificativa é aparada antes de validar e gravada já aparada |
+| Só decide o Approver que não é dono | Atendido | Employee, Finance, Auditor, Admin e sem role: `403`; Employee mais Approver sobre a própria despesa, em `Draft` ou `Submitted`: `403` |
+| Ator e horário vêm do servidor | Atendido | o ator é o id do token e o horário vem do `TimeProvider`; o corpo do `reject` só tem `reason` e o `approve` não tem corpo |
+| Repetição ou estado incompatível retorna `409` sem histórico duplicado | Atendido | repetir, aprovar depois de reprovar, reprovar depois de aprovar, `Draft`, `Rejected` e `Paid`: `409` e a contagem de histórico não muda; 10 rodadas com dois Approvers ao mesmo tempo deram sempre um `200`, um `409` e uma única linha de decisão |
+
+Casos negativos:
+
+- **Quem não é Approver não decide:** Employee, Finance, Auditor, Admin e usuário sem role recebem `403` ao aprovar e ao reprovar; sem token, `401`.
+- **O dono não decide a própria despesa:** `403`, e a regra de dono vem antes da de estado (a própria despesa em `Draft` também dá `403`).
+- **Justificativa vazia, curta ou longa:** `400`. A role vem antes do corpo (sem a role, `403` mesmo com corpo inválido), e o corpo vem antes do dono (o dono com corpo inválido recebe `400`).
+- **`Draft`, `Approved`, `Rejected` e `Paid` não recebem nova decisão:** `409`, sem alterar a despesa nem gravar histórico.
+
+Respostas por endpoint:
+
+| Situação | `POST .../approve` | `POST .../reject` |
+|---|---|---|
+| Sem token | `401` | `401` |
+| Sem a role Approver | `403` | `403` |
+| Corpo ausente ou `reason` inválido | - | `400` |
+| Inexistente ou `id` que não é Guid | `404` | `404` |
+| Despesa do próprio usuário | `403` | `403` |
+| Fora de `Submitted` (`Draft`, `Approved`, `Rejected`, `Paid`, decisão repetida ou simultânea) | `409` | `409` |
+| Sucesso | `200` | `200` |
+
+A ordem é: role pelo atributo (`403`), corpo (`400`), despesa inexistente (`404`), regra de dono (`403`) e estado (`409`). O `404` não usa o escopo de leitura.
+
+O que mudou em relação à I06, por resposta do professor (o raciocínio está em Decisões de projeto):
+
+| Situação | Até a I06 | Desde a I07 |
+|---|---|---|
+| Employee edita ou envia a despesa de outro Employee | `404` | `403` |
+| Approver decide sobre `Draft`, `Approved`, `Rejected` ou `Paid` de outro dono | `404` (fora do escopo) | `409` |
+| Finance, na regra de pagamento, sobre `Draft`, `Submitted`, `Rejected` ou `Paid` | `404` ou `409` conforme o estado | `409` |
+| Leitura (`GET`) de despesa fora do escopo do perfil | `404` | `404` (não mudou) |
+
+Tabelas e dados: nenhuma migration nova. A decisão grava uma linha `Approved` ou `Rejected` em `ExpenseHistories` e atualiza `Expenses.Status` na mesma gravação; a justificativa fica em `ExpenseHistories.Reason`.
+
+Evidências:
+
+- **Testes unitários:** 486 aprovados, 136 deles novos. A matriz de `ExpenseAccess` foi reescrita sem a etapa de escopo, e três propriedades cobrem todas as combinações de roles: com despesa existente nunca há `404`, a decisão depende só da role da ação, do dono e do estado, e o que se pode escrever está dentro do que se pode ler.
+- **Verificação de mutação:** 10 mutações no código (remover a regra de dono, remover a de estado, voltar ao escopo de leitura, voltar a carregar por escopo em edição, envio e decisão, não aparar a justificativa, pular o histórico, deixar de tratar o conflito de concorrência, e mudar os limites 10 e 500) foram todas pegas pelos testes; cada arquivo foi restaurado e os 486 testes voltaram a passar.
+- **Requisições HTTP em banco temporário:** 60 cenários com os perfis acima, todos com o resultado esperado, incluindo `PUT` e envio de despesa alheia (`403`, também para Employee mais Auditor), id inexistente (`404`), a leitura fora do escopo (`404`) e o token antigo depois de mudar roles (`401`, e novo login `200`).
+- **Banco:** a despesa aprovada tem `Created`, `Submitted` e `Approved`, com o ator certo, estado anterior e novo, `Reason` nula e horário do servidor; a reprovada tem a justificativa aparada (e as de 10 e 500 caracteres foram gravadas inteiras); as requisições que deram `403`, `404`, `409` ou `400` não mudaram a contagem de histórico; nas 10 rodadas simultâneas, cada despesa tem uma única decisão.
+- **SQL:** a busca por identificador é `WHERE "Id" = @id LIMIT 1`, sem o predicado de escopo; o `GET` mantém o escopo; o `UPDATE` leva `WHERE "Id" = @p1 AND "Status" = @p2`, e o `INSERT` do histórico vai imediatamente antes dele, no mesmo `SaveChanges` (35 de 35 atualizações).
+
+Decisões (o raciocínio completo está em Decisões de projeto):
+
+- `404` só para despesa inexistente, `403` para despesa de outro dono e `409` para qualquer estado errado, nas ações que escrevem.
+- A justificativa é `reason`, aparada, de 10 a 500 caracteres, e fica só no histórico; `ExpenseResponse` não a devolve.
+- Aprovar e reprovar usam um único caminho no serviço e o `Status` como token de concorrência.
+- O título do `409` é "The expense is not submitted.", sem revelar o estado atual.
+
+Como validar (com um banco fora do repositório):
+
+```powershell
+$env:ConnectionStrings__ExpenseHub = "Data Source=$env:TEMP\expensehub-teste.db"
+$env:Seed__Admin__Password = "<senha do Admin>"
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+```
+
+Depois: cadastre usuários, conceda as roles pelo Admin (`Employee`, `Approver` e combinações) e faça login de novo com cada um; crie despesas, envie algumas e tente aprovar e reprovar com cada perfil, repetindo a decisão, usando justificativas válidas e inválidas, sobre despesas em `Draft` e inexistentes, e sobre a despesa do próprio Approver. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
 ## Próximas issues
 
 Os critérios de cada issue estão no backlog central, e não são copiados aqui.
 
-- I02: [Racass/checkpoint-csharpracass-expensehub#2](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/2)
-- I03: [Racass/checkpoint-csharpracass-expensehub#3](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/3)
-- I04: [Racass/checkpoint-csharpracass-expensehub#4](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/4)
-- I05: [Racass/checkpoint-csharpracass-expensehub#5](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/5)
-- I06: [Racass/checkpoint-csharpracass-expensehub#6](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/6)
-- I07: [Racass/checkpoint-csharpracass-expensehub#7](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/7)
 - I08: [Racass/checkpoint-csharpracass-expensehub#8](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/8)
 - I09: [Racass/checkpoint-csharpracass-expensehub#9](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/9)
 - I10: [Racass/checkpoint-csharpracass-expensehub#10](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/10)

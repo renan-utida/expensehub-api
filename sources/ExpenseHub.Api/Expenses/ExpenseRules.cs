@@ -27,6 +27,12 @@ public static class ExpenseRules
     /// <summary>Maximum length of the summary of the changes kept in the history, matching the mapping.</summary>
     public const int ChangesMaxLength = 2000;
 
+    /// <summary>Minimum length of the rejection reason, after trimming.</summary>
+    public const int RejectionReasonMinLength = 10;
+
+    /// <summary>Maximum length of the rejection reason, after trimming, matching the mapping of the history.</summary>
+    public const int RejectionReasonMaxLength = 500;
+
     /// <summary>
     /// Checks every field of an expense.
     /// </summary>
@@ -81,6 +87,28 @@ public static class ExpenseRules
         if (trimmed.Length < DescriptionMinLength || trimmed.Length > DescriptionMaxLength)
         {
             return $"The description must have between {DescriptionMinLength} and {DescriptionMaxLength} characters.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks the reason given when an expense is rejected, ignoring spaces at both ends.
+    /// </summary>
+    /// <param name="reason">The reason.</param>
+    /// <returns>The problem found, or <c>null</c> when it is valid.</returns>
+    public static string? ValidateRejectionReason(string? reason)
+    {
+        string? trimmed = reason?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return "The reason is required.";
+        }
+
+        if (trimmed.Length < RejectionReasonMinLength || trimmed.Length > RejectionReasonMaxLength)
+        {
+            return $"The reason must have between {RejectionReasonMinLength} and {RejectionReasonMaxLength} characters.";
         }
 
         return null;

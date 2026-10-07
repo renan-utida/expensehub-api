@@ -7,13 +7,13 @@ Registro temporário do andamento por issue. Esta pasta será removida antes do 
 - **Prazo:** quarta-feira, 14/10/2026, às 23:59, no Teams (confirmado pelo professor; o ENUNCIADO e o README dele ainda dizem 13/10). Vale planejar para fechar antes e deixar folga para o score, o README e o SHA final.
 - **ExpenseCategory:** nenhuma issue cobra categoria. Fica só a entidade mínima (`Id` e `Name`), sem endpoint, seed nem vínculo com `Expense`.
 - **Testes unitários:** sem EF Core InMemory e sem SQLite em memória. O acesso a dados é simulado por interface de repositório injetada, com fakes ou mocks. O banco em si seria coberto por testes funcionais, que são opcionais e não pontuam.
-- **Códigos de status:** o professor pediu que a equipe decida pelo significado de cada código (401 é autenticação, 403 é autorização, 404 é recurso inexistente ou fora do escopo, 409 é conflito de estado). As escolhas atuais estão na seção Decisions do `CLAUDE.md`. Documentar o raciocínio no README quando a I06 for concluída.
+- **Códigos de status:** o professor pediu que a equipe decida pelo significado de cada código (401 é autenticação, 403 é autorização, 404 é recurso inexistente, 409 é conflito de estado). Respostas dele no Teams, já tomadas e que a I07 aplica: em toda ação que escreve (editar, enviar, aprovar, reprovar e pagar), uma despesa que existe em outro estado dá 409, inclusive `Draft`; o 404 é só para despesa inexistente (URL incorreta); despesa de outro dono dá 403, inclusive quando um Employee edita ou envia o `Draft` de outro Employee ("o erro é de auth/authz, não de not found"). A leitura (listagem, detalhe e, na I08, histórico) continua com 404 fora do escopo de leitura. Ordem das ações de escrita: role pelo atributo (403), corpo (400), despesa inexistente (404), regra de dono (403), estado (409). Os textos do `CLAUDE.md` e do README são atualizados na I07.
 
 ## Divisão e marcos
 
 - **Responsáveis previstos** (tabela do README): Renan fica com a I01 e da I07 à I10; Pedro fica com da I02 à I06.
-- **Meta proposta, a confirmar entre os dois:** Pedro fecha da I02 à I06 até domingo, 04/10, que serve de ponto de controle. A I07 e a I08 dependem do desenho de autorização da I06, então quem terminar a I06 avisa o outro na hora. Se a I06 atrasar, dividir o restante em vez de esperar.
-- **Reta final:** funcionalidades prontas até domingo, 11/10; segunda e terça (12 e 13/10) para score, README e SHA final; entrega até quarta, 14/10, com folga.
+- **Ponto de controle superado:** o Pedro terminou da I02 à I06 no sábado, 03/10, antes do ponto de controle de domingo, 04/10. As PRs #2 a #6 estão mescladas. O Renan segue com da I07 à I10.
+- **Reta final:** funcionalidades prontas até domingo, 11/10; segunda e terça (12 e 13/10) para score, README e SHA final; prazo de entrega quarta, 14/10, às 23:59, no Teams.
 - Quem sentir aperto avisa cedo. Cada issue mergeada na `main` libera a seguinte.
 
 ## Avisos para a I02 a I06
@@ -26,7 +26,7 @@ Estes pontos vêm da I01 e evitam retrabalho:
 - (d) **Rotas:** `Expense.Id` é `Guid`. Use `{id:guid}` nas rotas de `/api/expenses/{id}`.
 - (e) **Instantes:** qualquer novo `DateTimeOffset` persistido precisa de `UtcDateTimeOffsetConverter` (ticks UTC em `INTEGER`), senão `OrderBy`, `Max` e `Where` falham no SQLite. Atenção na I02: `IdentityUser.LockoutEnd` é `DateTimeOffset?`; só precisa de conversor se alguma consulta ordenar ou filtrar por ele.
 - (f) **Testes unitários:** sem banco, sem EF Core InMemory e sem SQLite em memória. Use fakes escritos à mão dos repositórios.
-- (g) **Commits:** em inglês, no padrão convencional, com o identificador da issue entre parênteses no fim da primeira linha, por exemplo `feat(identity): add login endpoint (I02)`. Não use `#2` no texto, porque o GitHub liga a um item do repositório da equipe. Acrescente a frase "Commit messages in English" ao `CLAUDE.md` na primeira edição que fizer nele.
+- (g) **Commits:** em inglês, no padrão convencional, com o identificador da issue entre parênteses no fim da primeira linha, por exemplo `feat(identity): add login endpoint (I02)`. Não use `#2` no texto, porque o GitHub liga a um item do repositório da equipe. A frase "Commit messages in English" já está no `CLAUDE.md` (acrescentada na I02).
 - (h) **Merge da PR:** escolha "Create a merge commit". Não use Squash nem Rebase, porque o professor avalia os commits de cada integrante. Mantenha as branches das issues depois do merge.
 
 ## I01: Fundação da solução e Entity Framework Core
@@ -164,7 +164,7 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ## I02: Identity, Admin e autenticação
 
-**Status:** implementada e commitada na branch; aguardando o score do pipeline e a abertura da PR. Só passa a "Concluída" (README e este arquivo) depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #2 (pipeline oficial 100/100, execução #14, com Gitleaks 8.30.1).
 
 **Branch:** `i02-identity-auth`.
 
@@ -215,11 +215,9 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ### Pendências
 
-- **Score do pipeline:** o `pwsh` (PowerShell 7) não está instalado na máquina do Pedro, então `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks` ainda não foi rodado para a I02. Rodar antes do push final, ou conferir o score do workflow na PR. O README só registra build e testes para a I02.
+- **Feitos:** PR #2 aberta e mesclada com "Create a merge commit"; score oficial 100/100 (execução #14, com Gitleaks 8.30.1); status "Concluída" no README.
+- **Execução vermelha #12 (já explicada):** na branch `i02-identity-auth`, a regra `FIAP1002` achou valores literais atribuídos a campos sensíveis em arquivos de teste (introduzidos no commit `8b0278f`), e o score foi 9/100 pelo teto "secret-detected". O commit `aac8de8` removeu os literais e as execuções seguintes passaram. Ver "Lições da equipe".
 - **Bloqueio por tentativas (`lockoutOnFailure`):** ligado no código, mas não foi testado à mão com várias senhas erradas.
-- **Número da PR:** preencher na tabela do README e no texto da PR, em um commit seguinte, depois de abrir a PR.
-- **Status:** trocar "Implementada, aguardando PR" por "Concluída" na tabela do README depois do merge, e marcar aqui.
-- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
 
 ### Como validar
 
@@ -284,7 +282,7 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ## I03: Cadastro HTTP e gerenciamento de roles
 
-**Status:** implementada na branch `i03-user-roles`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #3 (pipeline oficial 100/100, execução #18, com Gitleaks 8.30.1).
 
 **Branch:** `i03-user-roles`.
 
@@ -334,11 +332,7 @@ Script descartável no diretório temporário da sessão, 44 verificações: 43 
 
 ### Pendências
 
-- **Commits:** nada commitado. Sugestão de divisão: store e serviço, cadastro, rotas de roles com o middleware, testes, documentação.
-- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
-- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
-- **Linha da I02 no README:** continua "Implementada, aguardando PR" e a seção de qualidade diz que o score da I02 "é o da execução na PR". A I02 já foi mergeada (PR #2); trocar para "Concluída" e registrar o score oficial, num commit à parte.
-- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+- **Feitos:** commits, PR #3 e merge com "Create a merge commit"; score oficial 100/100 (execução #18, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
 
 ### Modelo de PR
 
@@ -398,7 +392,7 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ## I04: Criar e editar rascunho
 
-**Status:** implementada na branch `i04-expense-draft`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #4 (pipeline oficial 100/100, execução #22, com Gitleaks 8.30.1).
 
 **Branch:** `i04-expense-draft`.
 
@@ -455,11 +449,8 @@ Script descartável no diretório temporário da sessão, 60 verificações, tod
 
 ### Pendências
 
-- **Commits:** nada commitado. Sugestão de divisão: regras e relógio, repositório, serviço, DTOs e controller, testes, documentação.
-- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
-- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
-- **Linhas da I02 e da I03 no README:** continuam "Implementada, aguardando PR" e as seções de qualidade da I02 e da I03 não trazem o score oficial. As duas PRs já foram mergeadas; trocar para "Concluída" e registrar os scores oficiais num commit à parte.
-- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+- **Feitos:** commits, PR #4 e merge com "Create a merge commit"; score oficial 100/100 (execução #22, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
+- **Superado na I07:** o 404 do `PUT` para despesa de outro usuário virou 403; o 404 do `PUT` vale só para despesa inexistente.
 
 ### Modelo de PR
 
@@ -524,7 +515,7 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ## I05: Enviar, listar e consultar
 
-**Status:** implementada na branch `i05-submit-query`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #5 (pipeline oficial 100/100, execução #26, com Gitleaks 8.30.1).
 
 **Branch:** `i05-submit-query`.
 
@@ -576,11 +567,8 @@ Script descartável no diretório temporário da sessão, 56 verificações, tod
 
 ### Pendências
 
-- **Commits:** nada commitado. Sugestão de divisão: visibilidade, repositório e concorrência (com a migration), serviço, controller, testes, documentação.
-- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
-- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
-- **Linhas da I02, da I03 e da I04 no README:** conferir o status e os scores oficiais, num commit à parte.
-- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+- **Feitos:** commits, PR #5 e merge com "Create a merge commit"; score oficial 100/100 (execução #26, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
+- **Superado na I07:** o 404 do envio para despesa de outro Employee virou 403; o 404 do envio vale só para despesa inexistente. O `GET` por id e a listagem não mudaram (404 fora do escopo de leitura).
 
 ### Modelo de PR
 
@@ -647,7 +635,7 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ## I06: Ownership e matriz de acesso
 
-**Status:** implementada na branch `i06-ownership-access`, sem commit ainda (o Pedro revisa o diff e commita); aguardando commits, pipeline oficial e PR. Só passa a "Concluída" depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #6 (pipeline oficial 100/100, execução #29, com Gitleaks 8.30.1). Parte do comportamento desta issue (404 por escopo de leitura nas ações de escrita) foi superada pelas decisões do professor e muda na I07.
 
 **Branch:** `i06-ownership-access`.
 
@@ -700,11 +688,8 @@ Script descartável no diretório temporário da sessão, 40 verificações, tod
 
 ### Pendências
 
-- **Commits:** nada commitado. Sugestão de divisão: regra de acesso e escopo, serviço, controller e repositório, testes, documentação.
-- **Score oficial:** conferir o workflow na PR (com Gitleaks) e preencher aqui, no README e no texto da PR.
-- **Número da PR e status:** depois de abrir a PR, preencher o número e, depois do merge, trocar "Implementada, aguardando PR" por "Concluída" na tabela do README.
-- **Linhas das issues anteriores no README:** conferir o status e os scores oficiais, num commit à parte.
-- **Merge:** "Create a merge commit", sem Squash nem Rebase, e sem apagar a branch.
+- **Feitos:** commits, PR #6 e merge com "Create a merge commit"; score oficial 100/100 (execução #29, com Gitleaks 8.30.1); status "Concluída" no README.
+- **Superado na I07:** a ordem "role, escopo de leitura (404), dono (403), estado (409)" de `ExpenseAccess` passa a valer só para leituras. Nas ações de escrita a ordem é role, despesa inexistente (404), dono (403), estado (409), conforme as respostas do professor. Isso muda `ExpenseAccess`, o serviço (`UpdateAsync` e `SubmitAsync`), os testes da matriz e a documentação.
 
 ### Modelo de PR
 
@@ -770,6 +755,101 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [ ] Documentação atualizada
 ```
 
+## I07: Aprovar e reprovar com justificativa
+
+**Status:** concluída na branch `i07-approve-reject`, com a PR #7 aberta e o pipeline oficial em 100/100 (execução #37, com Gitleaks 8.30.1, sem bloqueantes e sem achados). O workflow da branch também passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras). Passa a mergeada depois do merge.
+
+**Branch:** `i07-approve-reject`.
+
+### O que foi feito
+
+- **Regra única de existência para as ações que escrevem:** `ExpenseAccess.Evaluate` não usa mais o escopo de leitura. Ordem: role (403), despesa inexistente (404), dono (403), estado (409), para editar, enviar, aprovar, reprovar e pagar. `ExpenseScope.Allows` (sem uso) foi removido. Novo `IExpenseRepository.FindByIdAsync` (busca só por `Id`, com tracking); `FindVisibleAsync` ficou só nas leituras.
+- **`PUT` e envio:** passam a carregar por identificador. Despesa de outro dono dá 403 (inclusive para Employee sem outra role), inexistente dá 404 e fora de `Draft` dá 409.
+- **Conflito genérico:** `NotDraft` virou `WrongState`; o título do 409 vem do controller por ação.
+- **Justificativa:** `ExpenseRules.ValidateRejectionReason` (aparada, 10 a 500), `RejectionReasonAttribute` e `RejectExpenseRequest` (só `Reason`).
+- **Decisão:** `ExpenseService.ApproveAsync` e `RejectAsync` com um caminho privado único (`DecideAsync`): role, justificativa (só no reject), busca por identificador, `Evaluate`, `Status`, linha de histórico (ator do token, horário do `TimeProvider`, estado anterior e novo, `Reason`) e um único `SaveChanges`. O conflito de concorrência vira `WrongState`.
+- **Endpoints:** `POST /api/expenses/{id}/approve` (sem corpo) e `/reject` (corpo `{"reason": "..."}`), ambos `[Authorize(Roles = Approver)]`.
+- **Testes:** 486 no total, 136 novos (28 na matriz de `ExpenseAccess`, 9 de edição e envio, 14 de `ExpenseRules`, 12 de `RejectExpenseRequest`, 30 de aprovação e 43 de reprovação). Três propriedades novas na matriz protegem a regra: nunca há 404 para despesa existente, a decisão depende só da role da ação, do dono e do estado, e o que se escreve está dentro do que se lê.
+- **Documentação:** `CLAUDE.md` (seção Decisions), README (endpoints, decisões, detalhe da I07 e as seções da I04 a I06 que falavam de 404 para despesa alheia) e este arquivo.
+
+### Decisões que afetam as próximas issues
+
+- **Respostas do professor (Teams):** em toda ação que escreve, despesa existente em outro estado dá 409 (inclusive `Draft`); o 404 é só para despesa inexistente; despesa de outro dono dá 403 (o erro é de auth/authz, não de not found); a leitura continua com 404 fora do escopo.
+- **Pagamento (I08):** `Pay` já está na regra de existência e nos testes da matriz: Finance sobre `Draft`, `Submitted`, `Rejected` ou `Paid` dá 409. Falta o serviço de pagamento, o `PaymentRecord`, o endpoint e o histórico.
+- **Justificativa:** campo `reason`, aparado, 10 a 500, só no histórico; `ExpenseResponse` não a devolve.
+- **Título do 409:** "The expense is not a draft." (`PUT`, envio) e "The expense is not submitted." (aprovar, reprovar). Para o pagamento, usar um título próprio, sem revelar o estado.
+- **Observação do 415:** `POST` com `[FromBody]` sem corpo e sem `Content-Type: application/json` devolve 415, não 400 (padrão do ASP.NET, igual a `/login` e `/register`). Com o cabeçalho e corpo vazio, a resposta é 400.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 486 aprovados. `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, só o FIAP0002 informativo.
+- **Mutação:** 10 de 10 mutações pegas (dono, estado, escopo em `Evaluate`, escopo em edição e envio, escopo na decisão, justificativa sem aparar, histórico pulado, `catch` de concorrência, limites 9 e 501). Cada arquivo foi restaurado com a árvore limpa, com `dotnet build --no-incremental` antes de testar.
+- **HTTP em banco temporário (senha aleatória só em memória):** 60 cenários OK, incluindo aprovar, repetir, reprovar com `reason` válido e inválido, `Draft` e `Paid` com 409, id inexistente com 404, autoaprovação com 403, token antigo com 401, `PUT` e envio de despesa alheia com 403 (também Employee mais Auditor) e `GET` fora do escopo com 404.
+- **Concorrência:** 10 de 10 rodadas com dois Approvers aprovando a mesma despesa deram um 200 e um 409, sem "database is locked" nem 500.
+- **Banco:** histórico `Created`, `Submitted` e `Approved` (ou `Rejected`) com ator, estado anterior e novo e horário certos; `Reason` aparada; 13 `Approved` e 3 `Rejected` no total, nenhuma despesa com duas decisões; contagem de histórico inalterada nas requisições que deram 400, 403, 404 ou 409.
+- **SQL:** a busca por identificador é `WHERE "Id" = @id LIMIT 1`; o `UPDATE` leva `AND "Status" = @p2`; o `INSERT` do histórico vem imediatamente antes dele, no mesmo `SaveChanges` (35 de 35).
+
+### Pendências
+
+- **Feitos:** PR #7 aberta (`I07: Aprovar e reprovar com justificativa`), número no README e score oficial registrado (execução #37, 100/100, com Gitleaks 8.30.1, sem bloqueantes e sem achados).
+- **Merge:** marcar "Pipeline analisado" na descrição da PR, fazer o merge com "Create a merge commit" e manter a branch.
+- **Para a I08:** serviço de pagamento, `PaymentRecord`, `POST /api/expenses/{id}/pay` e `GET /api/expenses/{id}/history` (este reaproveita o escopo de leitura, com a mesma visibilidade da despesa).
+- **Pergunta ao professor:** a confirmação de que o pagamento segue a regra de existência (409 para `Draft`, `Submitted`, `Rejected` e `Paid`) já está refletida no código e nos testes; se ele disser o contrário, mudar `ExpenseAccess` e as linhas de `Pay` da matriz.
+
+### Como validar
+
+```shell
+unset ConnectionStrings__ExpenseHub        # PowerShell: Remove-Item Env:ConnectionStrings__ExpenseHub
+dotnet build ./sources/ExpenseHub.slnx --no-incremental   # 0 avisos, 0 erros
+dotnet test ./sources/ExpenseHub.slnx                     # 486 aprovados
+```
+
+Para as requisições, use um banco fora do repositório e uma senha do Admin gerada na hora (nunca em arquivo): `ConnectionStrings__ExpenseHub="Data Source=<arquivo temporário>"`, `Seed__Admin__Password=<senha gerada>`, `dotnet ef database update`, `dotnet run`. Depois siga a seção "Como validar" do detalhe da I07 no README e apague o banco e as variáveis.
+
+### Modelo de PR
+
+Título: `I07: Aprovar e reprovar com justificativa`
+
+```text
+Implementa a aprovação e a reprovação (com justificativa) de despesas enviadas e unifica a regra de resposta das ações que escrevem.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#7
+
+## Resumo técnico
+- POST /api/expenses/{id}/approve e /reject, só para Approver que não é dono; estado e histórico (ator, horário, justificativa) na mesma gravação, com o Status como token de concorrência.
+- Regra única de existência em ExpenseAccess: 404 só para despesa inexistente, 403 para despesa de outro dono e 409 para qualquer estado errado, em editar, enviar, aprovar, reprovar e pagar. O escopo de leitura vale só para as leituras.
+- Justificativa (reason) aparada, de 10 a 500 caracteres, só no histórico.
+
+## Decisões e concessões
+- Respostas do professor no Teams: 409 para despesa existente em outro estado (inclusive Draft), 404 só para inexistente, 403 para despesa de outro dono.
+- O Guid de uma despesa alheia passa a ser distinguível (403 ou 409) por quem tem a role da ação; o Guid não é adivinhável e a resposta não revela conteúdo nem estado.
+- Pay já segue a regra; o endpoint de pagamento é da I08.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx --no-incremental
+dotnet test ./sources/ExpenseHub.slnx
+(requisições em banco temporário: ver o detalhe da I07 no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 486 testes unitários aprovados (136 novos).
+- Verificação de mutação: 10 de 10 mutações pegas pelos testes.
+- 60 cenários HTTP em banco temporário; 10 rodadas simultâneas com um 200 e um 409.
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks); pipeline code-quality da branch: 100/100, com Gitleaks.
+
+## Impacto em segurança e autorização
+- PUT e envio de despesa alheia passam de 404 para 403; decisões e leituras seguem as roles e o dono.
+- Nenhum segredo versionado; a senha usada nos testes manuais era aleatória e só existiu em memória.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados ou atualizados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
@@ -793,6 +873,28 @@ git switch -c iNN-nome-curto
 7. **PR:** título `I0N: Título da issue`, descrição no modelo acima, citando `Racass/checkpoint-csharpracass-expensehub#N` sem `Closes`, `Fixes` ou `Resolves`. Esperar o workflow `code-quality` ficar verde. O score oficial está na aba Actions, na execução da PR, em Summary e no artefato `code-quality-report`.
 8. **Merge:** marcar "Pipeline analisado" na descrição, escolher "Create a merge commit" (nunca Squash nem Rebase) e não apagar a branch.
 
-## Primeira issue do Pedro: I02
+## Lições da equipe
 
-Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#2`). Atenção aos avisos (a), (e) e (g). A senha inicial do Admin vem de configuração segura (user-secrets ou variável de ambiente) e nunca de arquivo versionado; o `.gitignore` já ignora `appsettings.Development.json`, `appsettings.Local.json` e `secrets.json`.
+- **FIAP1002 (segredo versionado):** é uma checagem própria do `scripts/Invoke-CodeQuality.ps1` (função `Test-CustomSecrets`), e não do Gitleaks. Procura, em arquivos rastreados (`json`, `yml`, `xml`, `config`, `props`, `targets`, `cs` e `env`), nomes com `password`, `passwd`, `pwd`, `senha`, `secret`, `token` ou `api_key` seguidos de um valor literal de 4 ou mais caracteres (em `.cs`, a forma `nome = "valor"`). Um achado limita o score a 9 e derrubaria o I10 (25% da nota) para cerca de 0,2 ponto. Em arquivo ainda não rastreado, o mesmo achado vira FIAP2102 (aviso, 2 pontos de Segurança).
+- **O caso da I02:** os literais entraram no commit `8b0278f` (testes) e saíram em `aac8de8`. Padrão adotado depois: credencial de teste montada em tempo de execução, por exemplo `new string('a', 12)`, ou lida de configuração. Nenhum literal atribuído a campo ou variável com esses nomes, nem em testes.
+- **O `-SkipGitleaks` não esconde a FIAP1002:** ele só dispensa o Gitleaks, que varre o histórico do Git. Rodar o script depois do `git add` ou do commit e antes do push, ler os IDs dos findings (não só o score) e conferir o CI da PR antes do merge.
+- **Build incremental:** `dotnet ef` com `--no-build` usa o assembly antigo, e o build incremental pode reaproveitar uma DLL quebrada. Depois de qualquer `git restore` ou mutação de teste, rodar `dotnet build --no-incremental` antes de testar.
+- **Banco:** `ConnectionStrings__ExpenseHub` exige o prefixo `Data Source=`; o script de migrations do SQLite não é idempotente; um arquivo `.db` vazio (0 bytes), deixado por uma execução sem migrations, pode ficar onde está e o `dotnet ef database update` o aproveita.
+- **Commits direto na `main`, pelo site do GitHub:** `36307af`, `3192e5f`, `4937e7a` e `fdaf1fe`, só para preencher links de PR no README (autor "Pedro Almeida e Camacho"). Preferir sempre commits na branch da issue; os demais seguem o fluxo e o padrão combinado.
+
+## Passagem para a I08
+
+Responsável: Renan, em uma branch nova a partir da `main` com a I07 mesclada (nome sugerido na issue: `i08-payment-history`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#8`).
+
+- **Leitura:** README (detalhe da I07 e Decisões de projeto), este arquivo, `CLAUDE.md` (seção Decisions), `docs/REQUISITOS.md` (histórico) e `docs/MATRIZ-AUTORIZACAO.md`.
+- **Base pronta:**
+  - `ExpenseAccess.Evaluate` com `Pay` e a matriz de testes do pagamento (Finance sobre `Draft`, `Submitted`, `Rejected` e `Paid` dá 409; o dono dá 403).
+  - O padrão de `ExpenseService.DecideAsync`: role, busca por `FindByIdAsync`, `Evaluate`, estado e histórico numa gravação, `ExpenseConflictException` vira `WrongState`.
+  - `Status` como token de concorrência, `PaymentRecord` com índice único em `ExpenseId` e `FakeExpenseRepository` com `FindByIdCalls` e `FindVisibleCalls`.
+- **O que falta:**
+  - `PayAsync` no serviço: grava o `PaymentRecord` (ator e horário do servidor), muda `Approved` para `Paid` e acrescenta o histórico, tudo no mesmo `SaveChanges`.
+  - `POST /api/expenses/{id}/pay`, só Finance e nunca o dono, com um título de 409 próprio.
+  - `GET /api/expenses/{id}/history`, com a mesma visibilidade da despesa (`ExpenseScope` na consulta; o Auditor vê todos). Fora do escopo é 404, como nas leituras.
+  - Testes de unidade do pagamento e do histórico; evidências em banco temporário.
+- **Atenção:** o pagamento usa a regra de existência (404 só para inexistente); o histórico usa o escopo de leitura. Não misture as duas.
+- **Prazo:** quarta-feira, 14/10, às 23:59, no Teams.

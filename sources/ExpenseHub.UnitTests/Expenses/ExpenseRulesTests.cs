@@ -6,7 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace ExpenseHub.UnitTests.Expenses;
 
 /// <summary>
-/// Tests of the validation contract of an expense: description, amount and date.
+/// Tests of the validation contract of an expense: description, amount and date, and of the reason of a rejection.
 /// </summary>
 [TestClass]
 public sealed class ExpenseRulesTests
@@ -62,6 +62,68 @@ public sealed class ExpenseRulesTests
         string padded = new string('a', 9) + " ";
 
         Assert.IsNotNull(ExpenseRules.ValidateDescription(padded));
+    }
+
+    /// <summary>A rejection reason with 10 to 500 characters is valid.</summary>
+    /// <param name="length">The number of characters.</param>
+    [TestMethod]
+    [DataRow(10)]
+    [DataRow(11)]
+    [DataRow(499)]
+    [DataRow(500)]
+    public void ValidateRejectionReason_LengthInsideLimits_IsValid(int length)
+    {
+        Assert.IsNull(ExpenseRules.ValidateRejectionReason(new string('a', length)));
+    }
+
+    /// <summary>Spaces around the reason are ignored: the trimmed text is what must fit the limits, so ten characters padded with spaces are valid.</summary>
+    [TestMethod]
+    public void ValidateRejectionReason_PaddedWithSpaces_IsMeasuredAfterTrimming()
+    {
+        string padded = "   " + new string('a', 10) + "   ";
+
+        Assert.IsNull(ExpenseRules.ValidateRejectionReason(padded));
+    }
+
+    /// <summary>A reason of exactly 500 characters with spaces around it is valid, even though the raw text is longer than 500.</summary>
+    [TestMethod]
+    public void ValidateRejectionReason_FiveHundredCharactersPaddedWithSpaces_IsValid()
+    {
+        string padded = "  " + new string('a', 500) + "  ";
+
+        Assert.IsNull(ExpenseRules.ValidateRejectionReason(padded));
+    }
+
+    /// <summary>A rejection reason shorter than 10 or longer than 500 characters is rejected.</summary>
+    /// <param name="length">The number of characters.</param>
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(9)]
+    [DataRow(501)]
+    [DataRow(1000)]
+    public void ValidateRejectionReason_LengthOutsideLimits_IsInvalid(int length)
+    {
+        Assert.IsNotNull(ExpenseRules.ValidateRejectionReason(new string('a', length)));
+    }
+
+    /// <summary>A missing, empty or blank rejection reason is rejected.</summary>
+    /// <param name="reason">A reason that is missing or blank.</param>
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow("     ")]
+    public void ValidateRejectionReason_MissingOrBlank_IsInvalid(string? reason)
+    {
+        Assert.IsNotNull(ExpenseRules.ValidateRejectionReason(reason));
+    }
+
+    /// <summary>Nine meaningful characters padded with spaces up to ten are still too short.</summary>
+    [TestMethod]
+    public void ValidateRejectionReason_NineCharactersPaddedToTen_IsInvalid()
+    {
+        string padded = new string('a', 9) + " ";
+
+        Assert.IsNotNull(ExpenseRules.ValidateRejectionReason(padded));
     }
 
     /// <summary>An amount from 0.01 to Int32.MaxValue with at most two decimal places is valid.</summary>
