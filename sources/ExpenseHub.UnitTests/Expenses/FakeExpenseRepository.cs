@@ -9,9 +9,9 @@ namespace ExpenseHub.UnitTests.Expenses;
 
 /// <summary>
 /// Hand-written in-memory fake of <see cref="IExpenseRepository"/>; it never touches a database.
-/// Like the real repository, it only finds an expense inside the scope it is given (the scope is a predicate applied
-/// before anything is returned) and returns the same tracked instance, so the changes the service makes are visible
-/// to the tests. It also records how many history entries the expense had when it was saved, to check that the change
+/// Like the real repository, a scoped search only finds an expense inside the scope it is given (the scope is a predicate
+/// applied before anything is returned), the search by identifier ignores the scope, and both return the same tracked
+/// instance, so the changes the service makes are visible to the tests. It also records how many history entries the expense had when it was saved, to check that the change
 /// and its history are saved together, and it can simulate a concurrent change at save time.
 /// </summary>
 internal sealed class FakeExpenseRepository : IExpenseRepository
@@ -29,6 +29,12 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
 
     /// <summary>Gets how many times the list was asked for.</summary>
     public int ListCalls { get; private set; }
+
+    /// <summary>Gets how many times an expense was searched inside a read scope.</summary>
+    public int FindVisibleCalls { get; private set; }
+
+    /// <summary>Gets how many times an expense was searched by identifier alone.</summary>
+    public int FindByIdCalls { get; private set; }
 
     /// <summary>Gets how many history entries the added expense carried when it was added.</summary>
     public int HistoryCountWhenAdded { get; private set; }
@@ -74,9 +80,18 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
     /// <inheritdoc />
     public Task<Expense?> FindVisibleAsync(Guid id, ExpenseScope scope)
     {
+        FindVisibleCalls++;
         Func<Expense, bool> isVisible = scope.Predicate.Compile();
 
         return Task.FromResult(_expenses.Where(isVisible).FirstOrDefault(expense => expense.Id == id));
+    }
+
+    /// <inheritdoc />
+    public Task<Expense?> FindByIdAsync(Guid id)
+    {
+        FindByIdCalls++;
+
+        return Task.FromResult(_expenses.FirstOrDefault(expense => expense.Id == id));
     }
 
     /// <inheritdoc />

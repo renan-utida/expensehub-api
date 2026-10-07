@@ -35,6 +35,15 @@ public interface IExpenseRepository
     Task<Expense?> FindVisibleAsync(Guid id, ExpenseScope scope);
 
     /// <summary>
+    /// Finds an expense by its identifier alone, with no read scope. The actions that write (edit, submit, approve, reject
+    /// and pay) use it, because for them only an expense that does not exist is "not found": every other wrong situation
+    /// is an ownership or state answer decided by the access rule. Reads must keep using <see cref="FindVisibleAsync"/>.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <returns>The tracked expense, or <c>null</c> when it does not exist.</returns>
+    Task<Expense?> FindByIdAsync(Guid id);
+
+    /// <summary>
     /// Saves the changes made to expenses returned by this repository, together with the history entries added to them,
     /// in a single save.
     /// </summary>
