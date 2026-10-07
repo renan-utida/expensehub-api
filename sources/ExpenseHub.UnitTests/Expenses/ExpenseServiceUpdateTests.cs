@@ -131,19 +131,31 @@ public sealed class ExpenseServiceUpdateTests
         Assert.AreEqual("Almoco com cliente em Campinas", expense.Description);
     }
 
-    /// <summary>Another user cannot edit the draft: it looks as if it did not exist, and nothing changes.</summary>
+    /// <summary>Another Employee cannot edit the draft: the expense exists but is not theirs, so the answer is "forbidden" (an authorization error, not "not found"), and nothing changes.</summary>
     [TestMethod]
-    public async Task UpdateAsync_DraftOfAnotherUser_ReturnsNotFoundAndChangesNothing()
+    public async Task UpdateAsync_DraftOfAnotherUser_ReturnsForbiddenAndChangesNothing()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
         ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Other), expense.Id, ExpenseTestData.Valid);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
         Assert.AreEqual("Taxi para o aeroporto", expense.Description);
         Assert.AreEqual(60.00m, expense.Amount);
         Assert.HasCount(1, expense.History);
         Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>The edit looks the expense up by its identifier alone and never through the read scope.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_LooksTheExpenseUpByIdentifierAndNotThroughTheReadScope()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+
+        await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Other), expense.Id, ExpenseTestData.Valid);
+
+        Assert.AreEqual(1, repository.FindByIdCalls);
+        Assert.AreEqual(0, repository.FindVisibleCalls);
     }
 
     /// <summary>An expense that does not exist is not found.</summary>
@@ -211,15 +223,23 @@ public sealed class ExpenseServiceUpdateTests
         Assert.AreEqual(ExpenseOperationStatus.ValidationFailed, missing.Status);
     }
 
-    /// <summary>Someone else's expense is not found even when it is also outside Draft.</summary>
+    /// <summary>Someone else's expense is forbidden even when it is also outside Draft: the owner rule comes before the state, and nothing changes.</summary>
+    /// <param name="status">A state other than Draft.</param>
     [TestMethod]
-    public async Task UpdateAsync_SubmittedExpenseOfAnotherUser_ReturnsNotFoundBeforeNotDraft()
+    [DataRow(ExpenseStatus.Submitted)]
+    [DataRow(ExpenseStatus.Approved)]
+    [DataRow(ExpenseStatus.Rejected)]
+    [DataRow(ExpenseStatus.Paid)]
+    public async Task UpdateAsync_ExpenseOutsideDraftOfAnotherUser_ReturnsForbiddenBeforeWrongState(ExpenseStatus status)
     {
-        var (repository, expense) = Given(ExpenseStatus.Submitted);
+        var (repository, expense) = Given(status);
 
         ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Other), expense.Id, ExpenseTestData.Valid);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual(status, expense.Status);
+        Assert.HasCount(1, expense.History);
+        Assert.AreEqual(0, repository.SaveCalls);
     }
 
     /// <summary>A user who is Employee and Auditor sees the draft of someone else, so the edit is forbidden (not "not found"), and nothing changes.</summary>
@@ -248,15 +268,17 @@ public sealed class ExpenseServiceUpdateTests
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
-    /// <summary>Another Employee who cannot see the draft still gets "not found", so identifiers in the URL reveal nothing.</summary>
+    /// <summary>An Employee who is also an Approver cannot see the draft of someone else, but the expense exists, so the edit is forbidden and nothing changes.</summary>
     [TestMethod]
-    public async Task UpdateAsync_EmployeeWhoIsAlsoApprover_OnAnotherUsersDraft_ReturnsNotFound()
+    public async Task UpdateAsync_EmployeeWhoIsAlsoApprover_OnAnotherUsersDraft_ReturnsForbidden()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
 
         ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Caller(Other, "Employee", "Approver"), expense.Id, ExpenseTestData.Valid);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual("Taxi para o aeroporto", expense.Description);
+        Assert.HasCount(1, expense.History);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 

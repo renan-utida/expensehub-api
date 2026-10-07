@@ -85,8 +85,8 @@ public sealed class ExpenseService
     /// <summary>
     /// Replaces the description, the amount and the date of a draft, and records the history entry in the same save.
     /// The owner, the state and the creation instant never change.
-    /// The answers follow this order: no role (<c>403</c>), invalid data (<c>400</c>), not found or outside the read scope
-    /// of the caller (<c>404</c>), the expense belongs to someone else (<c>403</c>) and not a draft (<c>409</c>).
+    /// The answers follow this order: no role (<c>403</c>), invalid data (<c>400</c>), the expense does not exist (<c>404</c>),
+    /// the expense belongs to someone else (<c>403</c>) and not a draft (<c>409</c>). The read scope of the caller is not used.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
@@ -111,7 +111,7 @@ public sealed class ExpenseService
             return ExpenseOperationResult.Invalid(errors);
         }
 
-        Expense? expense = await FindVisibleAsync(caller, expenseId);
+        Expense? expense = await _repository.FindByIdAsync(expenseId);
 
         switch (ExpenseAccess.Evaluate(caller, ExpenseAction.Edit, expense))
         {
@@ -158,8 +158,9 @@ public sealed class ExpenseService
 
     /// <summary>
     /// Submits a draft: <c>Draft</c> to <c>Submitted</c>, recording the history entry in the same save.
-    /// The answers follow this order: no role (<c>403</c>), not found or outside the read scope of the caller (<c>404</c>),
+    /// The answers follow this order: no role (<c>403</c>), the expense does not exist (<c>404</c>),
     /// the expense belongs to someone else (<c>403</c>) and not a draft (<c>409</c>, which includes submitting twice).
+    /// The read scope of the caller is not used.
     /// A concurrent submit of the same draft is also answered as not a draft, and writes no extra history.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
@@ -175,7 +176,7 @@ public sealed class ExpenseService
             return ExpenseOperationResult.Forbidden();
         }
 
-        Expense? expense = await FindVisibleAsync(caller, expenseId);
+        Expense? expense = await _repository.FindByIdAsync(expenseId);
 
         switch (ExpenseAccess.Evaluate(caller, ExpenseAction.Submit, expense))
         {

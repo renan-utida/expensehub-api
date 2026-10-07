@@ -87,18 +87,36 @@ public sealed class ExpenseServiceSubmitTests
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
-    /// <summary>Another Employee cannot submit the draft: it is outside their read scope, so it looks as if it did not exist.</summary>
+    /// <summary>Another Employee cannot submit the expense, in any state: it exists but is not theirs, so the owner rule answers "forbidden" (an authorization error, not "not found") before the state, and nothing changes.</summary>
+    /// <param name="status">The state of the expense of someone else.</param>
     [TestMethod]
-    public async Task SubmitAsync_AnotherEmployee_ReturnsNotFoundAndChangesNothing()
+    [DataRow(ExpenseStatus.Draft)]
+    [DataRow(ExpenseStatus.Submitted)]
+    [DataRow(ExpenseStatus.Approved)]
+    [DataRow(ExpenseStatus.Rejected)]
+    [DataRow(ExpenseStatus.Paid)]
+    public async Task SubmitAsync_AnotherEmployee_ReturnsForbiddenAndChangesNothing(ExpenseStatus status)
     {
-        var (repository, expense) = Given(ExpenseStatus.Draft);
+        var (repository, expense) = Given(status);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Employee"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotFound, result.Status);
-        Assert.AreEqual(ExpenseStatus.Draft, expense.Status);
+        Assert.AreEqual(ExpenseOperationStatus.Forbidden, result.Status);
+        Assert.AreEqual(status, expense.Status);
         Assert.HasCount(1, expense.History);
         Assert.AreEqual(0, repository.SaveCalls);
+    }
+
+    /// <summary>The submission looks the expense up by its identifier alone and never through the read scope.</summary>
+    [TestMethod]
+    public async Task SubmitAsync_LooksTheExpenseUpByIdentifierAndNotThroughTheReadScope()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+
+        await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Other, "Employee"), expense.Id);
+
+        Assert.AreEqual(1, repository.FindByIdCalls);
+        Assert.AreEqual(0, repository.FindVisibleCalls);
     }
 
     /// <summary>A user who is Employee and Auditor sees the draft of someone else, so the answer is "not the owner", and nothing changes.</summary>

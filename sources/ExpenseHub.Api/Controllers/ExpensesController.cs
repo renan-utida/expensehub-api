@@ -62,8 +62,8 @@ public sealed class ExpensesController : ControllerBase
     /// <param name="id">The identifier of the expense.</param>
     /// <param name="request">The new description, amount and date.</param>
     /// <returns>
-    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist or is outside the read scope of the user;
-    /// <c>403</c> when the user can see the expense but does not own it; <c>409</c> when the expense is not a draft.
+    /// <c>200</c> with the draft; <c>400</c> for invalid data; <c>404</c> when the expense does not exist;
+    /// <c>403</c> when the expense belongs to someone else; <c>409</c> when the expense is not a draft.
     /// </returns>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = AppRoles.Employee)]
@@ -79,8 +79,8 @@ public sealed class ExpensesController : ControllerBase
     /// </summary>
     /// <param name="id">The identifier of the expense.</param>
     /// <returns>
-    /// <c>200</c> with the submitted expense; <c>404</c> when the expense does not exist or is outside the read scope of the user;
-    /// <c>403</c> when the user can see the expense but does not own it; <c>409</c> when the expense is not a draft
+    /// <c>200</c> with the submitted expense; <c>404</c> when the expense does not exist;
+    /// <c>403</c> when the expense belongs to someone else; <c>409</c> when the expense is not a draft
     /// (including a repeated submit); <c>401</c> without a token; <c>403</c> without the Employee role.
     /// </returns>
     [HttpPost("{id:guid}/submit")]
