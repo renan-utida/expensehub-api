@@ -40,7 +40,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 - Entities: `Expense` (single amount, `decimal`, no item collection), `ExpenseCategory`, `ExpenseHistory`, `PaymentRecord`.
 - State machine: `Draft` -> (submit, owner) `Submitted` -> (approve/reject, Approver non-owner) `Approved`/`Rejected` -> (pay, Finance non-owner) `Paid`. `Rejected`/`Paid` are final. Repeating/invalid transitions return `409` and must not write duplicate history. No generic endpoint may change state.
 - Role attributes on endpoints must be combined with ownership + state checks in the **service layer**. Owner, state, actor, and timestamps always come from the token/server, never the client.
-- Visibility filters (Employee: own; Approver: `Submitted`; Finance: `Approved`/`Paid`; Auditor: all) must be applied in the query before materialization, never load-then-filter. Out-of-scope resources return `404`.
+- Visibility filters (Employee: own; Approver: `Submitted`; Finance: `Approved`/`Paid`; Auditor: all) must be applied in the query before materialization, never load-then-filter. Out-of-scope resources return `404` on reads (list, detail and, in I08, history). The actions that write do not use the read scope (see Decisions).
 - Every change and its `ExpenseHistory` row (action, actor, UTC time, previous/next state, rejection reason, Draft edits) must be persisted in the same logical operation.
 - Errors use `ProblemDetails` with statuses 400/401/403/404/409 as defined in `REQUISITOS.md`.
 - Database provider is the group's choice; document provider, package, config, and migration steps in README. Don't commit credentials.
@@ -77,5 +77,6 @@ pwsh ./scripts/Invoke-CodeQuality.ps1            # add -SkipGitleaks if gitleaks
 
 - `ExpenseCategory` (professor confirmed no issue requires it): map only the minimal entity (Id, Name). No endpoints, no seed and no link to `Expense`.
 - The professor asked the team to choose status codes by their meaning: 401 is about authentication (who am I), 403 about authorization (what may I do), 404 not found, 409 conflict.
-- Order for expense operations: 401 (not authenticated), then 403 from the role attribute (authenticated but without the role), then 400 (DTO validation). Inside the service: 404 (missing or outside the caller's read scope), then 403 (ownership rule forbids the action), then 409 (state does not accept the transition or it was repeated).
-- Approver or Finance acting on their own expense: 403. Employee sending or editing another Employee's expense: 404, because the resource is not visible to them.
+- Order for the actions that write (edit, submit, approve, reject and pay), decided by the professor: 401 (not authenticated), then 403 from the role attribute (authenticated but without the role), then 400 (DTO validation). Inside the service: 404 only when the expense does not exist, then 403 (ownership rule forbids the action), then 409 (the state does not accept the transition or it was repeated, including a `Draft`, `Approved`, `Rejected` or `Paid` expense that gets the wrong action). These actions load the expense by identifier alone and never use the read scope.
+- Reads (list, detail and, in I08, history) keep the read scope: an expense outside it returns `404`, the same answer as one that does not exist.
+- Employee sending or editing another Employee's expense: 403, because the expense exists but is not theirs ("the error is about authentication and authorization, not about not found"). Approver or Finance acting on their own expense: 403.
