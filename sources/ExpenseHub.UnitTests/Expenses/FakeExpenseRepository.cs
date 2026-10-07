@@ -37,6 +37,9 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
     /// <summary>Gets how many times an expense was searched by identifier alone.</summary>
     public int FindByIdCalls { get; private set; }
 
+    /// <summary>Gets how many times an expense was searched inside a read scope together with its history.</summary>
+    public int FindVisibleWithHistoryCalls { get; private set; }
+
     /// <summary>Gets how many history entries the added expense carried when it was added.</summary>
     public int HistoryCountWhenAdded { get; private set; }
 
@@ -108,6 +111,15 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
         FindByIdCalls++;
 
         return Task.FromResult(_expenses.FirstOrDefault(expense => expense.Id == id));
+    }
+
+    /// <inheritdoc />
+    public Task<Expense?> FindVisibleWithHistoryAsync(Guid id, ExpenseScope scope)
+    {
+        FindVisibleWithHistoryCalls++;
+        Func<Expense, bool> isVisible = scope.Predicate.Compile();
+
+        return Task.FromResult(_expenses.Where(isVisible).FirstOrDefault(expense => expense.Id == id));
     }
 
     /// <inheritdoc />

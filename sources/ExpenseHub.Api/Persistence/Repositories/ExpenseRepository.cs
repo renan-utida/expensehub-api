@@ -66,6 +66,18 @@ public sealed class ExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
+    public Task<Expense?> FindVisibleWithHistoryAsync(Guid id, ExpenseScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return _dbContext.Expenses
+            .AsNoTracking()
+            .Where(scope.Predicate)
+            .Include(expense => expense.History)
+            .FirstOrDefaultAsync(expense => expense.Id == id);
+    }
+
+    /// <inheritdoc />
     public async Task SaveChangesAsync()
     {
         try

@@ -44,6 +44,16 @@ public interface IExpenseRepository
     Task<Expense?> FindByIdAsync(Guid id);
 
     /// <summary>
+    /// Finds an expense inside the scope of a user, together with its history entries, without tracking it. The scope is
+    /// part of the query, so the history of an expense outside it is never loaded and looks the same as that of one that
+    /// does not exist.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <param name="scope">What the user is allowed to read.</param>
+    /// <returns>The expense with its history, or <c>null</c> when it does not exist or is outside the scope.</returns>
+    Task<Expense?> FindVisibleWithHistoryAsync(Guid id, ExpenseScope scope);
+
+    /// <summary>
     /// Saves the changes made to expenses returned by this repository, together with the history entries added to them,
     /// in a single save.
     /// </summary>

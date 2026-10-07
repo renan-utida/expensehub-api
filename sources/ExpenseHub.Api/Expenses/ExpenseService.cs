@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Domain.Enums;
@@ -315,6 +316,30 @@ public sealed class ExpenseService
         ArgumentNullException.ThrowIfNull(caller);
 
         return FindVisibleAsync(caller, expenseId);
+    }
+
+    /// <summary>
+    /// Gets the history of an expense the caller can read, oldest entry first. The history has the same visibility as the
+    /// expense: the read scope of the caller is applied by the storage inside the query, and an expense that does not
+    /// exist and one outside the scope are indistinguishable, so both give <c>null</c>.
+    /// </summary>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
+    /// <param name="expenseId">The identifier of the expense.</param>
+    /// <returns>The entries in chronological order, or <c>null</c> when the expense does not exist or is not visible to the caller.</returns>
+    public async Task<IReadOnlyList<ExpenseHistory>?> GetHistoryAsync(ExpenseCaller caller, Guid expenseId)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        ExpenseScope scope = ExpenseVisibility.ScopeFor(caller);
+
+        if (scope.IsEmpty)
+        {
+            return null;
+        }
+
+        Expense? expense = await _repository.FindVisibleWithHistoryAsync(expenseId, scope);
+
+        return expense?.History.OrderBy(entry => entry.OccurredAtUtc).ThenBy(entry => entry.Id).ToList();
     }
 
     private async Task<ExpenseOperationResult> DecideAsync(ExpenseCaller caller, Guid expenseId, ExpenseAction action, string? reason)
