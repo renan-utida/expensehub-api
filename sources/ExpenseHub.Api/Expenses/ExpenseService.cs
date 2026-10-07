@@ -120,7 +120,7 @@ public sealed class ExpenseService
             case AccessDecision.Forbidden:
                 return ExpenseOperationResult.Forbidden();
             case AccessDecision.WrongState:
-                return ExpenseOperationResult.NotDraft();
+                return ExpenseOperationResult.WrongState();
         }
 
         string description = details.Description!.Trim();
@@ -150,7 +150,7 @@ public sealed class ExpenseService
         catch (ExpenseConflictException)
         {
             // The state changed between the read and the save (for example, a concurrent submit).
-            return ExpenseOperationResult.NotDraft();
+            return ExpenseOperationResult.WrongState();
         }
 
         return ExpenseOperationResult.Success(expense);
@@ -185,7 +185,7 @@ public sealed class ExpenseService
             case AccessDecision.Forbidden:
                 return ExpenseOperationResult.Forbidden();
             case AccessDecision.WrongState:
-                return ExpenseOperationResult.NotDraft();
+                return ExpenseOperationResult.WrongState();
         }
 
         expense!.Status = ExpenseStatus.Submitted;
@@ -204,7 +204,7 @@ public sealed class ExpenseService
         }
         catch (ExpenseConflictException)
         {
-            return ExpenseOperationResult.NotDraft();
+            return ExpenseOperationResult.WrongState();
         }
 
         return ExpenseOperationResult.Success(expense);

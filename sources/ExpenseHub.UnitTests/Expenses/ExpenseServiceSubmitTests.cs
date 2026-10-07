@@ -53,7 +53,7 @@ public sealed class ExpenseServiceSubmitTests
 
     /// <summary>Submitting again is a conflict and writes no second history entry.</summary>
     [TestMethod]
-    public async Task SubmitAsync_SubmittingTwice_ReturnsNotDraftAndWritesNoSecondHistory()
+    public async Task SubmitAsync_SubmittingTwice_ReturnsWrongStateAndWritesNoSecondHistory()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
         ExpenseService service = NewService(repository);
@@ -63,7 +63,7 @@ public sealed class ExpenseServiceSubmitTests
         ExpenseOperationResult second = await service.SubmitAsync(owner, expense.Id);
 
         Assert.AreEqual(ExpenseOperationStatus.Succeeded, first.Status);
-        Assert.AreEqual(ExpenseOperationStatus.NotDraft, second.Status);
+        Assert.AreEqual(ExpenseOperationStatus.WrongState, second.Status);
         Assert.HasCount(2, expense.History);
         Assert.AreEqual(1, repository.SaveCalls);
     }
@@ -75,13 +75,13 @@ public sealed class ExpenseServiceSubmitTests
     [DataRow(ExpenseStatus.Approved)]
     [DataRow(ExpenseStatus.Rejected)]
     [DataRow(ExpenseStatus.Paid)]
-    public async Task SubmitAsync_ExpenseOutsideDraft_ReturnsNotDraftAndChangesNothing(ExpenseStatus status)
+    public async Task SubmitAsync_ExpenseOutsideDraft_ReturnsWrongStateAndChangesNothing(ExpenseStatus status)
     {
         var (repository, expense) = Given(status);
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Owner, "Employee"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.WrongState, result.Status);
         Assert.AreEqual(status, expense.Status);
         Assert.HasCount(1, expense.History);
         Assert.AreEqual(0, repository.SaveCalls);
@@ -197,14 +197,14 @@ public sealed class ExpenseServiceSubmitTests
 
     /// <summary>If the state changed between the read and the save (a concurrent submit), the answer is a conflict.</summary>
     [TestMethod]
-    public async Task SubmitAsync_StateChangedWhileSaving_ReturnsNotDraft()
+    public async Task SubmitAsync_StateChangedWhileSaving_ReturnsWrongState()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
         repository.ConflictOnNextSave = true;
 
         ExpenseOperationResult result = await NewService(repository).SubmitAsync(ExpenseTestData.Caller(Owner, "Employee"), expense.Id);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.WrongState, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 

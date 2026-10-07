@@ -177,13 +177,13 @@ public sealed class ExpenseServiceUpdateTests
     [DataRow(ExpenseStatus.Approved)]
     [DataRow(ExpenseStatus.Rejected)]
     [DataRow(ExpenseStatus.Paid)]
-    public async Task UpdateAsync_ExpenseOutsideDraft_ReturnsNotDraftAndChangesNothing(ExpenseStatus status)
+    public async Task UpdateAsync_ExpenseOutsideDraft_ReturnsWrongStateAndChangesNothing(ExpenseStatus status)
     {
         var (repository, expense) = Given(status);
 
         ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.WrongState, result.Status);
         Assert.AreEqual("Taxi para o aeroporto", expense.Description);
         Assert.AreEqual(60.00m, expense.Amount);
         Assert.AreEqual(status, expense.Status);
@@ -319,14 +319,14 @@ public sealed class ExpenseServiceUpdateTests
 
     /// <summary>If the state changed between the read and the save (for example, a concurrent submit), the edit is a conflict.</summary>
     [TestMethod]
-    public async Task UpdateAsync_StateChangedWhileSaving_ReturnsNotDraft()
+    public async Task UpdateAsync_StateChangedWhileSaving_ReturnsWrongState()
     {
         var (repository, expense) = Given(ExpenseStatus.Draft);
         repository.ConflictOnNextSave = true;
 
         ExpenseOperationResult result = await NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid);
 
-        Assert.AreEqual(ExpenseOperationStatus.NotDraft, result.Status);
+        Assert.AreEqual(ExpenseOperationStatus.WrongState, result.Status);
         Assert.AreEqual(0, repository.SaveCalls);
     }
 

@@ -21,6 +21,8 @@ namespace ExpenseHub.Api.Controllers;
 [Route("api/expenses")]
 public sealed class ExpensesController : ControllerBase
 {
+    private const string NotADraftTitle = "The expense is not a draft.";
+
     private readonly ExpenseService _expenses;
 
     /// <summary>
@@ -53,7 +55,7 @@ public sealed class ExpensesController : ControllerBase
             return Created($"/api/expenses/{created.Id}", created);
         }
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
     }
 
     /// <summary>
@@ -71,7 +73,7 @@ public sealed class ExpensesController : ControllerBase
     {
         ExpenseOperationResult result = await _expenses.UpdateAsync(GetCaller(), id, ToDetails(request));
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
     }
 
     /// <summary>
@@ -89,7 +91,7 @@ public sealed class ExpensesController : ControllerBase
     {
         ExpenseOperationResult result = await _expenses.SubmitAsync(GetCaller(), id);
 
-        return ToActionResult(result, StatusCodes.Status200OK);
+        return ToActionResult(result, StatusCodes.Status200OK, NotADraftTitle);
     }
 
     /// <summary>
@@ -148,7 +150,7 @@ public sealed class ExpensesController : ControllerBase
             title: "Expense not found.");
     }
 
-    private IActionResult ToActionResult(ExpenseOperationResult result, int successStatusCode)
+    private IActionResult ToActionResult(ExpenseOperationResult result, int successStatusCode, string conflictTitle)
     {
         switch (result.Status)
         {
@@ -174,7 +176,7 @@ public sealed class ExpensesController : ControllerBase
             default:
                 return Problem(
                     statusCode: StatusCodes.Status409Conflict,
-                    title: "The expense is not a draft.");
+                    title: conflictTitle);
         }
     }
 }

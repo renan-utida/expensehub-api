@@ -18,8 +18,8 @@ public enum ExpenseOperationStatus
     /// <summary>The expense does not exist or is not visible to the user.</summary>
     NotFound,
 
-    /// <summary>The expense is not a draft, so it cannot be edited or submitted (for example, it was already submitted).</summary>
-    NotDraft,
+    /// <summary>The state of the expense does not accept the action (for example, a repeated submission), or it changed while the action was being saved.</summary>
+    WrongState,
 
     /// <summary>The user lacks the role of the action, or the ownership rule forbids it (for example, editing the expense of someone else).</summary>
     Forbidden,
@@ -53,10 +53,10 @@ public sealed record ExpenseOperationResult(
     public static ExpenseOperationResult NotFound() =>
         new(ExpenseOperationStatus.NotFound, null, Array.Empty<ExpenseValidationError>());
 
-    /// <summary>Builds the result for an expense that is not a draft.</summary>
+    /// <summary>Builds the result for an expense whose state does not accept the action.</summary>
     /// <returns>The result.</returns>
-    public static ExpenseOperationResult NotDraft() =>
-        new(ExpenseOperationStatus.NotDraft, null, Array.Empty<ExpenseValidationError>());
+    public static ExpenseOperationResult WrongState() =>
+        new(ExpenseOperationStatus.WrongState, null, Array.Empty<ExpenseValidationError>());
 
     /// <summary>Builds the result for an action the user is not allowed to do (no role, or the ownership rule forbids it).</summary>
     /// <returns>The result.</returns>
