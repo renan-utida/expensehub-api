@@ -450,6 +450,7 @@ Script descartável no diretório temporário da sessão, 60 verificações, tod
 ### Pendências
 
 - **Feitos:** commits, PR #4 e merge com "Create a merge commit"; score oficial 100/100 (execução #22, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
+- **Superado na I07:** o 404 do `PUT` para despesa de outro usuário virou 403; o 404 do `PUT` vale só para despesa inexistente.
 
 ### Modelo de PR
 
@@ -567,6 +568,7 @@ Script descartável no diretório temporário da sessão, 56 verificações, tod
 ### Pendências
 
 - **Feitos:** commits, PR #5 e merge com "Create a merge commit"; score oficial 100/100 (execução #26, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
+- **Superado na I07:** o 404 do envio para despesa de outro Employee virou 403; o 404 do envio vale só para despesa inexistente. O `GET` por id e a listagem não mudaram (404 fora do escopo de leitura).
 
 ### Modelo de PR
 
@@ -753,6 +755,100 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 - [ ] Documentação atualizada
 ```
 
+## I07: Aprovar e reprovar com justificativa
+
+**Status:** concluída na branch `i07-approve-reject`, com PR e score oficial ainda a preencher (a coluna PR do README está "a preencher"). O workflow da branch passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras).
+
+**Branch:** `i07-approve-reject`.
+
+### O que foi feito
+
+- **Regra única de existência para as ações que escrevem:** `ExpenseAccess.Evaluate` não usa mais o escopo de leitura. Ordem: role (403), despesa inexistente (404), dono (403), estado (409), para editar, enviar, aprovar, reprovar e pagar. `ExpenseScope.Allows` (sem uso) foi removido. Novo `IExpenseRepository.FindByIdAsync` (busca só por `Id`, com tracking); `FindVisibleAsync` ficou só nas leituras.
+- **`PUT` e envio:** passam a carregar por identificador. Despesa de outro dono dá 403 (inclusive para Employee sem outra role), inexistente dá 404 e fora de `Draft` dá 409.
+- **Conflito genérico:** `NotDraft` virou `WrongState`; o título do 409 vem do controller por ação.
+- **Justificativa:** `ExpenseRules.ValidateRejectionReason` (aparada, 10 a 500), `RejectionReasonAttribute` e `RejectExpenseRequest` (só `Reason`).
+- **Decisão:** `ExpenseService.ApproveAsync` e `RejectAsync` com um caminho privado único (`DecideAsync`): role, justificativa (só no reject), busca por identificador, `Evaluate`, `Status`, linha de histórico (ator do token, horário do `TimeProvider`, estado anterior e novo, `Reason`) e um único `SaveChanges`. O conflito de concorrência vira `WrongState`.
+- **Endpoints:** `POST /api/expenses/{id}/approve` (sem corpo) e `/reject` (corpo `{"reason": "..."}`), ambos `[Authorize(Roles = Approver)]`.
+- **Testes:** 486 no total, 136 novos (28 na matriz de `ExpenseAccess`, 9 de edição e envio, 14 de `ExpenseRules`, 12 de `RejectExpenseRequest`, 30 de aprovação e 43 de reprovação). Três propriedades novas na matriz protegem a regra: nunca há 404 para despesa existente, a decisão depende só da role da ação, do dono e do estado, e o que se escreve está dentro do que se lê.
+- **Documentação:** `CLAUDE.md` (seção Decisions), README (endpoints, decisões, detalhe da I07 e as seções da I04 a I06 que falavam de 404 para despesa alheia) e este arquivo.
+
+### Decisões que afetam as próximas issues
+
+- **Respostas do professor (Teams):** em toda ação que escreve, despesa existente em outro estado dá 409 (inclusive `Draft`); o 404 é só para despesa inexistente; despesa de outro dono dá 403 (o erro é de auth/authz, não de not found); a leitura continua com 404 fora do escopo.
+- **Pagamento (I08):** `Pay` já está na regra de existência e nos testes da matriz: Finance sobre `Draft`, `Submitted`, `Rejected` ou `Paid` dá 409. Falta o serviço de pagamento, o `PaymentRecord`, o endpoint e o histórico.
+- **Justificativa:** campo `reason`, aparado, 10 a 500, só no histórico; `ExpenseResponse` não a devolve.
+- **Título do 409:** "The expense is not a draft." (`PUT`, envio) e "The expense is not submitted." (aprovar, reprovar). Para o pagamento, usar um título próprio, sem revelar o estado.
+- **Observação do 415:** `POST` com `[FromBody]` sem corpo e sem `Content-Type: application/json` devolve 415, não 400 (padrão do ASP.NET, igual a `/login` e `/register`). Com o cabeçalho e corpo vazio, a resposta é 400.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 486 aprovados. `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, só o FIAP0002 informativo.
+- **Mutação:** 10 de 10 mutações pegas (dono, estado, escopo em `Evaluate`, escopo em edição e envio, escopo na decisão, justificativa sem aparar, histórico pulado, `catch` de concorrência, limites 9 e 501). Cada arquivo foi restaurado com a árvore limpa, com `dotnet build --no-incremental` antes de testar.
+- **HTTP em banco temporário (senha aleatória só em memória):** 60 cenários OK, incluindo aprovar, repetir, reprovar com `reason` válido e inválido, `Draft` e `Paid` com 409, id inexistente com 404, autoaprovação com 403, token antigo com 401, `PUT` e envio de despesa alheia com 403 (também Employee mais Auditor) e `GET` fora do escopo com 404.
+- **Concorrência:** 10 de 10 rodadas com dois Approvers aprovando a mesma despesa deram um 200 e um 409, sem "database is locked" nem 500.
+- **Banco:** histórico `Created`, `Submitted` e `Approved` (ou `Rejected`) com ator, estado anterior e novo e horário certos; `Reason` aparada; 13 `Approved` e 3 `Rejected` no total, nenhuma despesa com duas decisões; contagem de histórico inalterada nas requisições que deram 400, 403, 404 ou 409.
+- **SQL:** a busca por identificador é `WHERE "Id" = @id LIMIT 1`; o `UPDATE` leva `AND "Status" = @p2`; o `INSERT` do histórico vem imediatamente antes dele, no mesmo `SaveChanges` (35 de 35).
+
+### Pendências
+
+- **PR:** abrir a PR `I07: Aprovar e reprovar com justificativa`, preencher o número no README e registrar o score oficial. Merge com "Create a merge commit", sem apagar a branch.
+- **Para a I08:** serviço de pagamento, `PaymentRecord`, `POST /api/expenses/{id}/pay` e `GET /api/expenses/{id}/history` (este reaproveita o escopo de leitura, com a mesma visibilidade da despesa).
+- **Pergunta ao professor:** a confirmação de que o pagamento segue a regra de existência (409 para `Draft`, `Submitted`, `Rejected` e `Paid`) já está refletida no código e nos testes; se ele disser o contrário, mudar `ExpenseAccess` e as linhas de `Pay` da matriz.
+
+### Como validar
+
+```shell
+unset ConnectionStrings__ExpenseHub        # PowerShell: Remove-Item Env:ConnectionStrings__ExpenseHub
+dotnet build ./sources/ExpenseHub.slnx --no-incremental   # 0 avisos, 0 erros
+dotnet test ./sources/ExpenseHub.slnx                     # 486 aprovados
+```
+
+Para as requisições, use um banco fora do repositório e uma senha do Admin gerada na hora (nunca em arquivo): `ConnectionStrings__ExpenseHub="Data Source=<arquivo temporário>"`, `Seed__Admin__Password=<senha gerada>`, `dotnet ef database update`, `dotnet run`. Depois siga a seção "Como validar" do detalhe da I07 no README e apague o banco e as variáveis.
+
+### Modelo de PR
+
+Título: `I07: Aprovar e reprovar com justificativa`
+
+```text
+Implementa a aprovação e a reprovação (com justificativa) de despesas enviadas e unifica a regra de resposta das ações que escrevem.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#7
+
+## Resumo técnico
+- POST /api/expenses/{id}/approve e /reject, só para Approver que não é dono; estado e histórico (ator, horário, justificativa) na mesma gravação, com o Status como token de concorrência.
+- Regra única de existência em ExpenseAccess: 404 só para despesa inexistente, 403 para despesa de outro dono e 409 para qualquer estado errado, em editar, enviar, aprovar, reprovar e pagar. O escopo de leitura vale só para as leituras.
+- Justificativa (reason) aparada, de 10 a 500 caracteres, só no histórico.
+
+## Decisões e concessões
+- Respostas do professor no Teams: 409 para despesa existente em outro estado (inclusive Draft), 404 só para inexistente, 403 para despesa de outro dono.
+- O Guid de uma despesa alheia passa a ser distinguível (403 ou 409) por quem tem a role da ação; o Guid não é adivinhável e a resposta não revela conteúdo nem estado.
+- Pay já segue a regra; o endpoint de pagamento é da I08.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx --no-incremental
+dotnet test ./sources/ExpenseHub.slnx
+(requisições em banco temporário: ver o detalhe da I07 no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 486 testes unitários aprovados (136 novos).
+- Verificação de mutação: 10 de 10 mutações pegas pelos testes.
+- 60 cenários HTTP em banco temporário; 10 rodadas simultâneas com um 200 e um 409.
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks); pipeline code-quality da branch: 100/100, com Gitleaks.
+
+## Impacto em segurança e autorização
+- PUT e envio de despesa alheia passam de 404 para 403; decisões e leituras seguem as roles e o dono.
+- Nenhum segredo versionado; a senha usada nos testes manuais era aleatória e só existiu em memória.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados ou atualizados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
@@ -785,12 +881,19 @@ git switch -c iNN-nome-curto
 - **Banco:** `ConnectionStrings__ExpenseHub` exige o prefixo `Data Source=`; o script de migrations do SQLite não é idempotente; um arquivo `.db` vazio (0 bytes), deixado por uma execução sem migrations, pode ficar onde está e o `dotnet ef database update` o aproveita.
 - **Commits direto na `main`, pelo site do GitHub:** `36307af`, `3192e5f`, `4937e7a` e `fdaf1fe`, só para preencher links de PR no README (autor "Pedro Almeida e Camacho"). Preferir sempre commits na branch da issue; os demais seguem o fluxo e o padrão combinado.
 
-## Passagem para a I07
+## Passagem para a I08
 
-Responsável: Renan, na branch `i07-approve-reject`. Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#7`).
+Responsável: Renan, em uma branch nova a partir da `main` com a I07 mesclada (nome sugerido na issue: `i08-payment-history`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#8`).
 
-- **Leitura:** README, este arquivo, `CLAUDE.md`, `docs/REQUISITOS.md` e `docs/MATRIZ-AUTORIZACAO.md`.
-- **Base pronta:** `ExpenseAccess.Evaluate` já tem `Approve`, `Reject` e `Pay`; o padrão de `ExpenseService.SubmitAsync` (role, busca, decisão, estado e histórico numa gravação, `ExpenseConflictException` vira 409); `Status` como token de concorrência; `FakeExpenseRepository`.
-- **Decisões do professor a aplicar** (ver "Prazo e decisões do professor"): 404 só para despesa inexistente nas ações de escrita; 409 para qualquer estado errado, inclusive `Draft`; 403 para despesa de outro dono, inclusive no `PUT` e no envio; a leitura mantém 404 fora do escopo de leitura. O pagamento entra na mesma regra, e o endpoint é da I08.
-- **Justificativa:** campo `reason`, aparado, de 10 a 500 caracteres; fica só no histórico.
+- **Leitura:** README (detalhe da I07 e Decisões de projeto), este arquivo, `CLAUDE.md` (seção Decisions), `docs/REQUISITOS.md` (histórico) e `docs/MATRIZ-AUTORIZACAO.md`.
+- **Base pronta:**
+  - `ExpenseAccess.Evaluate` com `Pay` e a matriz de testes do pagamento (Finance sobre `Draft`, `Submitted`, `Rejected` e `Paid` dá 409; o dono dá 403).
+  - O padrão de `ExpenseService.DecideAsync`: role, busca por `FindByIdAsync`, `Evaluate`, estado e histórico numa gravação, `ExpenseConflictException` vira `WrongState`.
+  - `Status` como token de concorrência, `PaymentRecord` com índice único em `ExpenseId` e `FakeExpenseRepository` com `FindByIdCalls` e `FindVisibleCalls`.
+- **O que falta:**
+  - `PayAsync` no serviço: grava o `PaymentRecord` (ator e horário do servidor), muda `Approved` para `Paid` e acrescenta o histórico, tudo no mesmo `SaveChanges`.
+  - `POST /api/expenses/{id}/pay`, só Finance e nunca o dono, com um título de 409 próprio.
+  - `GET /api/expenses/{id}/history`, com a mesma visibilidade da despesa (`ExpenseScope` na consulta; o Auditor vê todos). Fora do escopo é 404, como nas leituras.
+  - Testes de unidade do pagamento e do histórico; evidências em banco temporário.
+- **Atenção:** o pagamento usa a regra de existência (404 só para inexistente); o histórico usa o escopo de leitura. Não misture as duas.
 - **Prazo:** quarta-feira, 14/10, às 23:59, no Teams.
