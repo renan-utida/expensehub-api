@@ -8,7 +8,7 @@ using ExpenseHub.Api.Domain.Enums;
 namespace ExpenseHub.Api.Expenses;
 
 /// <summary>
-/// Rules of creating, editing and submitting expense drafts, and of reading expenses by profile.
+/// Rules of creating, editing and submitting expense drafts, of approving and rejecting submitted expenses, and of reading expenses by profile.
 /// The owner, the state, the actor and the instants always come from the caller (the token)
 /// and the server clock, never from the client data. Every decision that depends on the role, the owner and the state
 /// of an expense is made here through <see cref="ExpenseAccess"/>, and not in the controller.
@@ -211,6 +211,60 @@ public sealed class ExpenseService
     }
 
     /// <summary>
+    /// Approves a submitted expense: <c>Submitted</c> to <c>Approved</c>, recording the history entry in the same save.
+    /// The answers follow this order: no role (<c>403</c>), the expense does not exist (<c>404</c>), the expense belongs to
+    /// the caller (<c>403</c>) and not <c>Submitted</c> (<c>409</c>, which includes approving twice and any other state,
+    /// even a draft). The read scope of the caller is not used. A concurrent decision on the same expense is also answered
+    /// as a wrong state, and writes no extra history.
+    /// </summary>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
+    /// <param name="expenseId">The identifier of the expense.</param>
+    /// <returns>The approved expense, or the reason it was not approved.</returns>
+    public async Task<ExpenseOperationResult> ApproveAsync(ExpenseCaller caller, Guid expenseId)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
+
+        if (!ExpenseAccess.HasRoleFor(caller, ExpenseAction.Approve))
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
+
+        return await DecideAsync(caller, expenseId, ExpenseAction.Approve, null);
+    }
+
+    /// <summary>
+    /// Rejects a submitted expense: <c>Submitted</c> to <c>Rejected</c>, recording the history entry, with the reason,
+    /// in the same save. The reason is trimmed before it is checked and stored.
+    /// The answers follow this order: no role (<c>403</c>), invalid reason (<c>400</c>), the expense does not exist
+    /// (<c>404</c>), the expense belongs to the caller (<c>403</c>) and not <c>Submitted</c> (<c>409</c>, which includes
+    /// rejecting twice and any other state, even a draft). The read scope of the caller is not used.
+    /// </summary>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
+    /// <param name="expenseId">The identifier of the expense.</param>
+    /// <param name="reason">The reason of the rejection, chosen by the client.</param>
+    /// <returns>The rejected expense, or the reason it was not rejected.</returns>
+    public async Task<ExpenseOperationResult> RejectAsync(ExpenseCaller caller, Guid expenseId, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
+
+        if (!ExpenseAccess.HasRoleFor(caller, ExpenseAction.Reject))
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
+
+        string? error = ExpenseRules.ValidateRejectionReason(reason);
+
+        if (error is not null)
+        {
+            return ExpenseOperationResult.Invalid(new[] { new ExpenseValidationError(nameof(RejectExpenseRequest.Reason), error) });
+        }
+
+        return await DecideAsync(caller, expenseId, ExpenseAction.Reject, reason!.Trim());
+    }
+
+    /// <summary>
     /// Lists the expenses the caller can read: the filter of the profile is applied by the storage inside the query.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
@@ -236,6 +290,47 @@ public sealed class ExpenseService
         ArgumentNullException.ThrowIfNull(caller);
 
         return FindVisibleAsync(caller, expenseId);
+    }
+
+    private async Task<ExpenseOperationResult> DecideAsync(ExpenseCaller caller, Guid expenseId, ExpenseAction action, string? reason)
+    {
+        Expense? expense = await _repository.FindByIdAsync(expenseId);
+
+        switch (ExpenseAccess.Evaluate(caller, action, expense))
+        {
+            case AccessDecision.NotFound:
+                return ExpenseOperationResult.NotFound();
+            case AccessDecision.Forbidden:
+                return ExpenseOperationResult.Forbidden();
+            case AccessDecision.WrongState:
+                return ExpenseOperationResult.WrongState();
+        }
+
+        bool approving = action == ExpenseAction.Approve;
+        ExpenseStatus newStatus = approving ? ExpenseStatus.Approved : ExpenseStatus.Rejected;
+
+        expense!.Status = newStatus;
+        expense.History.Add(new ExpenseHistory
+        {
+            Action = approving ? ExpenseHistoryAction.Approved : ExpenseHistoryAction.Rejected,
+            ActorId = caller.UserId,
+            OccurredAtUtc = _timeProvider.GetUtcNow(),
+            PreviousStatus = ExpenseStatus.Submitted,
+            NewStatus = newStatus,
+            Reason = reason,
+        });
+
+        try
+        {
+            await _repository.SaveChangesAsync();
+        }
+        catch (ExpenseConflictException)
+        {
+            // Another decision on the same expense was saved first.
+            return ExpenseOperationResult.WrongState();
+        }
+
+        return ExpenseOperationResult.Success(expense);
     }
 
     private async Task<Expense?> FindVisibleAsync(ExpenseCaller caller, Guid expenseId)
