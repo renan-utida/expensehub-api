@@ -47,7 +47,10 @@ public interface IExpenseRepository
     /// Saves the changes made to expenses returned by this repository, together with the history entries added to them,
     /// in a single save.
     /// </summary>
-    /// <exception cref="ExpenseConflictException">The state of an expense changed since it was read, so nothing was saved.</exception>
+    /// <exception cref="ExpenseConflictException">
+    /// The state of an expense changed since it was read, or a unique index rejected the change because the same change
+    /// was saved first (for example, a second payment of the same expense), so nothing was saved.
+    /// </exception>
     /// <returns>A task that completes when the changes are saved.</returns>
     Task SaveChangesAsync();
 }

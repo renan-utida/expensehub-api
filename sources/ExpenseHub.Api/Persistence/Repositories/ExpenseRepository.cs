@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Expenses;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace ExpenseHub.Api.Persistence.Repositories;
@@ -75,5 +76,15 @@ public sealed class ExpenseRepository : IExpenseRepository
         {
             throw new ExpenseConflictException("The expense changed while it was being saved.", exception);
         }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            throw new ExpenseConflictException("A unique index rejected the change because the same change was saved first.", exception);
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        return exception.InnerException is SqliteException sqliteException
+            && SqliteConstraintErrors.IsUniqueConstraint(sqliteException.SqliteErrorCode, sqliteException.SqliteExtendedErrorCode);
     }
 }
