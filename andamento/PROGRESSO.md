@@ -8,6 +8,7 @@ Registro temporário do andamento por issue. Esta pasta será removida antes do 
 - **ExpenseCategory:** nenhuma issue cobra categoria. Fica só a entidade mínima (`Id` e `Name`), sem endpoint, seed nem vínculo com `Expense`.
 - **Testes unitários:** sem EF Core InMemory e sem SQLite em memória. O acesso a dados é simulado por interface de repositório injetada, com fakes ou mocks. O banco em si seria coberto por testes funcionais, que são opcionais e não pontuam.
 - **Códigos de status:** o professor pediu que a equipe decida pelo significado de cada código (401 é autenticação, 403 é autorização, 404 é recurso inexistente, 409 é conflito de estado). Respostas dele no Teams, já tomadas e que a I07 aplica: em toda ação que escreve (editar, enviar, aprovar, reprovar e pagar), uma despesa que existe em outro estado dá 409, inclusive `Draft`; o 404 é só para despesa inexistente (URL incorreta); despesa de outro dono dá 403, inclusive quando um Employee edita ou envia o `Draft` de outro Employee ("o erro é de auth/authz, não de not found"). A leitura (listagem, detalhe e, na I08, histórico) continua com 404 fora do escopo de leitura. Ordem das ações de escrita: role pelo atributo (403), corpo (400), despesa inexistente (404), regra de dono (403), estado (409). Os textos do `CLAUDE.md` e do README são atualizados na I07.
+- **Histórico (resposta do professor no Teams, aplicada na I08):** o histórico segue a visibilidade da despesa ("quem vai ler elas vai ser o auditor"). Fora do escopo de leitura é 404, então o Approver deixa de ler o histórico de uma despesa assim que ela sai de `Submitted`, inclusive a que ele acabou de decidir, e o Finance só lê o de `Approved` e `Paid`.
 
 ## Divisão e marcos
 
@@ -569,6 +570,7 @@ Script descartável no diretório temporário da sessão, 56 verificações, tod
 
 - **Feitos:** commits, PR #5 e merge com "Create a merge commit"; score oficial 100/100 (execução #26, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
 - **Superado na I07:** o 404 do envio para despesa de outro Employee virou 403; o 404 do envio vale só para despesa inexistente. O `GET` por id e a listagem não mudaram (404 fora do escopo de leitura).
+- **Superado na I08:** não é mais preciso mudar o `Status` direto no banco para ver `Approved`, `Paid` e `Rejected`, porque aprovar, reprovar e pagar têm endpoint (o item "Teste manual" acima vale só para a época da I05). O padrão "`FindVisibleAsync`, 404, 403 e 409" que a I05 indicou para as decisões foi trocado na I07 pela busca por identificador.
 
 ### Modelo de PR
 
@@ -690,6 +692,7 @@ Script descartável no diretório temporário da sessão, 40 verificações, tod
 
 - **Feitos:** commits, PR #6 e merge com "Create a merge commit"; score oficial 100/100 (execução #29, com Gitleaks 8.30.1); status "Concluída" no README.
 - **Superado na I07:** a ordem "role, escopo de leitura (404), dono (403), estado (409)" de `ExpenseAccess` passa a valer só para leituras. Nas ações de escrita a ordem é role, despesa inexistente (404), dono (403), estado (409), conforme as respostas do professor. Isso muda `ExpenseAccess`, o serviço (`UpdateAsync` e `SubmitAsync`), os testes da matriz e a documentação.
+- **Superado na I08:** as limitações "aprovar, reprovar e pagar ainda não têm endpoint" e "o histórico e a consulta dele são da I08" não valem mais. Aprovar e reprovar têm endpoint desde a I07, e o pagamento e o histórico desde a I08, então a proibição de autopagamento passou a ser provada também por requisição. A indicação de usar `FindVisibleAsync` nas decisões (Decisões desta issue) foi superada na I07.
 
 ### Modelo de PR
 
@@ -757,7 +760,7 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 
 ## I07: Aprovar e reprovar com justificativa
 
-**Status:** concluída na branch `i07-approve-reject`, com a PR #7 aberta e o pipeline oficial em 100/100 (execução #37, com Gitleaks 8.30.1, sem bloqueantes e sem achados). O workflow da branch também passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras). Passa a mergeada depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #7, no commit `b898f42` (pipeline oficial da PR 100/100, execução #37; na `main`, execução #40, 100/100, com Gitleaks 8.30.1 e sem bloqueantes). O workflow da branch também passou com 100/100 e Gitleaks a cada push (execuções #34 e #35, entre outras).
 
 **Branch:** `i07-approve-reject`.
 
@@ -792,9 +795,8 @@ dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project .
 ### Pendências
 
 - **Feitos:** PR #7 aberta (`I07: Aprovar e reprovar com justificativa`), número no README e score oficial registrado (execução #37, 100/100, com Gitleaks 8.30.1, sem bloqueantes e sem achados).
-- **Merge:** marcar "Pipeline analisado" na descrição da PR, fazer o merge com "Create a merge commit" e manter a branch.
-- **Para a I08:** serviço de pagamento, `PaymentRecord`, `POST /api/expenses/{id}/pay` e `GET /api/expenses/{id}/history` (este reaproveita o escopo de leitura, com a mesma visibilidade da despesa).
-- **Pergunta ao professor:** a confirmação de que o pagamento segue a regra de existência (409 para `Draft`, `Submitted`, `Rejected` e `Paid`) já está refletida no código e nos testes; se ele disser o contrário, mudar `ExpenseAccess` e as linhas de `Pay` da matriz.
+- **Merge:** feito com "Create a merge commit", e a branch foi mantida (`b898f42` na `main`).
+- **Superado na I08:** o serviço de pagamento, o `PaymentRecord`, `POST /api/expenses/{id}/pay` e `GET /api/expenses/{id}/history` foram entregues (a seção "Pagamento (I08)" das decisões acima descrevia o que faltava). O pagamento seguiu a regra de existência (409 para `Draft`, `Submitted`, `Rejected` e `Paid`), sem mudança em `ExpenseAccess`.
 
 ### Como validar
 
@@ -850,6 +852,120 @@ dotnet test ./sources/ExpenseHub.slnx
 - [ ] Documentação atualizada
 ```
 
+## I08: Pagamento e histórico
+
+**Status:** concluída na branch `i08-payment-history`; a PR e o score oficial estão a preencher. O workflow da branch passou com 100/100 e Gitleaks, sem achados, a cada push (execuções #41 a #44). Passa a mergeada depois do merge.
+
+**Branch:** `i08-payment-history`, a partir da `main` em `b898f42` (I07 mesclada pela PR #7; execução #40, 100/100, com Gitleaks 8.30.1 e sem bloqueantes).
+
+### O que foi feito
+
+- **Conflito do índice único:** `SqliteConstraintErrors.IsUniqueConstraint(int, int)` (função pura, verdadeira só para o código 19 com o estendido 2067) e `ExpenseRepository.SaveChangesAsync` com dois `catch`: `DbUpdateConcurrencyException` e `DbUpdateException` cuja causa é uma violação única do SQLite. Os dois viram `ExpenseConflictException`, e o serviço responde `409`.
+- **Pagamento:** `ExpenseService.PayAsync(caller, id)` pelo mesmo `DecideAsync` de aprovar e reprovar, agora generalizado (`StatusAfter` e `HistoryActionOf` por ação). Confere a role `Finance`, carrega por `FindByIdAsync`, decide por `ExpenseAccess.Evaluate` (403, 404, 403, 409), muda o `Status` para `Paid`, cria o `PaymentRecord` (`ActorId` do token e `PaidAtUtc` do `TimeProvider`, o mesmo instante da linha de histórico) e acrescenta a linha `Paid` com o estado anterior real. Um único `SaveChangesAsync`.
+- **Histórico:** `IExpenseRepository.FindVisibleWithHistoryAsync(id, scope)` (sem rastreamento, `Where(scope.Predicate)` antes do `Include` do histórico) e `ExpenseService.GetHistoryAsync(caller, id)`, que devolve as entradas ordenadas por `OccurredAtUtc` e depois `Id`, ou `null` para despesa inexistente, fora do escopo ou com escopo vazio (Admin sozinho e sem role, sem consultar o banco).
+- **Respostas:** `ExpenseHistoryResponse` (`id`, `expenseId`, `action`, `actorId`, `occurredAtUtc`, `previousStatus`, `newStatus`, `reason`, `changes`; sem e-mail) e `PaymentResponse` (`expenseId`, `status`, `actorId`, `paidAtUtc`).
+- **Endpoints:** `POST /api/expenses/{id}/pay` (`[Authorize(Roles = Finance)]`, sem corpo, `409` com o título "The expense is not approved.") e `GET /api/expenses/{id}/history` (mesmas roles de leitura).
+- **Testes:** 563 no total, 77 novos: 6 de `SqliteConstraintErrors`, 32 do pagamento, 32 do histórico, 4 de `ExpenseHistoryResponse` e 3 de `PaymentResponse`. O `FakeExpenseRepository` ganhou falha programável na gravação e o registro do estado em cada tentativa de gravação.
+- **Documentação:** `CLAUDE.md` (seção Decisions), README (endpoints, testes, qualidade, decisões, solução de problemas, o detalhe da I08 e as seções anteriores que falavam do pagamento e do histórico como futuros) e este arquivo. Nenhuma migration e nenhum pacote novo.
+
+### Decisões que afetam as próximas issues
+
+- **Histórico segue a visibilidade da despesa:** confirmado pelo professor no Teams ("quem vai ler elas vai ser o auditor"). O Approver não lê o histórico depois de decidir, e o Finance só lê o de `Approved` e `Paid`.
+- **Duas barreiras no pagamento simultâneo:** o `Status` como token de concorrência barra a corrida real (o `UPDATE` leva `WHERE Status = <valor lido>`); o índice único em `PaymentRecords.ExpenseId` é uma defesa adicional, provada por um registro inserido à força e pelo controle negativo (`409` com a conversão, `500` sem ela).
+- **Só o índice único vira conflito:** chave estrangeira, `CHECK`, gatilho e banco ocupado não são convertidos e viram `500`. A classificação é específica do SQLite.
+- **Pagamento sem corpo e `PaymentResponse`:** ator, estado e horário nunca vêm do cliente; `ExpenseResponse` continua sem pagamento.
+- **`PaymentRecord` sem valor:** os requisitos só citam a entidade, sem campos. Guardar o valor pago exigiria uma migration e ficou fora da issue.
+- **Falha de persistência que não é conflito:** sobe como `500` (comportamento padrão do ASP.NET), a transação é desfeita e a despesa continua `Approved`. Não foi alterado.
+- **Anotado e não feito (fora da I08):** o seed que impede a aplicação de subir sem a senha do Admin, a diferença de tempo no login e a paginação da listagem e do histórico.
+
+### O que foi medido (EF Core 10.0.12, SQLite, banco temporário fora do repositório)
+
+Script descartável no diretório temporário da sessão, 60 verificações, todas conforme o esperado; senha aleatória só em memória, nunca impressa nem gravada (0 ocorrências nos logs da aplicação):
+
+- **Pagamento:** `fin1` paga `Approved` de `emp1` (`200`, `Paid`); repetir `409`; `Draft`, `Submitted`, `Rejected` e `Paid` `409`; `id` inexistente e `id` que não é Guid `404`; `finemp` (Employee mais Finance) pagando a própria `Approved` e o próprio `Draft` `403`; Employee, Approver, Auditor, Admin e sem role `403`; sem token `401`.
+- **Pagamento simultâneo:** `fin1` e `fin2` na mesma despesa, 10 rodadas: sempre um `200` e um `409`, uma única linha em `PaymentRecords` e uma única linha `Paid`, sem `500` nem "database is locked".
+- **Falha forçada:** com um gatilho `BEFORE INSERT` em `PaymentRecords` que aborta, o pagamento dá `500`, e a despesa continua `Approved`, sem `PaymentRecord` e sem linha `Paid`; sem o gatilho, o mesmo pagamento dá `200`.
+- **Histórico:** o dono lê o completo de uma despesa criada, editada, enviada, aprovada e paga, em ordem e com ator e horários certos, e o de uma reprovada, com a justificativa; outro Employee `404`; Approver lê `Submitted` e recebe `404` em `Approved`; Finance lê `Approved` e `Paid` e recebe `404` em `Submitted`; Auditor lê todos; Admin sozinho e sem role `403`; sem token `401`; inexistente e `id` que não é Guid `404`; o corpo não tem e-mail.
+- **Banco:** despesas `Paid`, linhas em `PaymentRecords` e linhas `Paid` no histórico em igual número; nenhuma despesa com dois pagamentos; `ActorId` de quem pagou e `PaidAtUtc` perto do horário da requisição.
+- **SQL:** a busca do pagamento é `WHERE "e"."Id" = @id LIMIT 1`, sem escopo; a do histórico leva o predicado do escopo antes do `Id` e o `LEFT JOIN` com `ExpenseHistories` (sem predicado só no Auditor); o `UPDATE` leva `WHERE "Id" = @p1 AND "Status" = @p2 RETURNING 1`, na ordem `INSERT` do histórico, `UPDATE` da despesa e `INSERT` do `PaymentRecord`. Os únicos comandos que falharam foram dois `INSERT` em `PaymentRecords`, dos dois cenários forçados.
+- **Mutação:** 8 mutações de código, todas pegas pelos testes (sem `PaymentRecord`; sem mudar o `Status`; sem a linha de histórico; pagamento carregando pelo escopo de leitura; sem a captura do conflito nas decisões; código 2067 trocado por 2068; histórico lido por `FindByIdAsync`; histórico sem ordenação), mais 1 controle negativo por HTTP, que tira o `catch` da violação do índice único do repositório (`500` sem ele, `409` com ele). Cada arquivo foi restaurado com `git restore` e a árvore limpa, com `dotnet build --no-incremental` antes de testar.
+
+### Desvios e cuidados
+
+- **A hipótese do plano estava errada:** o plano dizia que o pagamento perdedor falharia no índice único. O log de SQL mostrou a ordem `INSERT` do histórico, `UPDATE` da despesa (com o token) e `INSERT` do `PaymentRecord`, então o perdedor falha no `UPDATE`. A conversão do índice único continua no código como defesa adicional e foi provada à parte.
+- **Estimativa de testes:** o plano previa cerca de 80 testes novos (35 de histórico); saíram 77 (32 de histórico), porque `ExpenseStatus` tem 5 estados, e não 6.
+- **Avisos corrigidos na causa:** CA1826 (`history[^1]` no lugar de `.Last()` em lista indexável) e CA1861 (array constante de argumento virou variável local).
+- **Lições anteriores seguidas:** nenhum literal atribuído a nome com `password`, `token` ou `secret`; credenciais de teste montadas em tempo de execução; um tipo por arquivo.
+- **Mutação em arquivo de produção:** o `git restore` foi sempre só do arquivo mutado, com a árvore limpa antes, e o `dotnet build --no-incremental` evitou reaproveitar DLL quebrada (lição da I06).
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 563 aprovados.
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, só o FIAP0002 informativo. Execuções #41 a #44 do workflow da branch: 100/100, com Gitleaks e sem achados.
+
+### Pendências
+
+- **A fazer:** abrir a PR `I08: Pagamento e histórico`, preencher o número da PR e o score oficial (execução) no README, na tabela de issues e na linha da I08 de Qualidade, e aqui, num commit seguinte na mesma branch; marcar "Pipeline analisado" na descrição; fazer o merge com "Create a merge commit" e manter a branch.
+- A coluna PR da I08 e o score oficial ficam "a preencher" no README até a PR existir.
+
+### Como validar
+
+```shell
+unset ConnectionStrings__ExpenseHub        # PowerShell: Remove-Item Env:ConnectionStrings__ExpenseHub
+dotnet build ./sources/ExpenseHub.slnx --no-incremental   # 0 avisos, 0 erros
+dotnet test ./sources/ExpenseHub.slnx                     # 563 aprovados
+```
+
+Para as requisições, use um banco fora do repositório e uma senha do Admin gerada na hora (nunca em arquivo): `ConnectionStrings__ExpenseHub="Data Source=<arquivo temporário>"`, `Seed__Admin__Password=<senha gerada>`, `dotnet ef database update`, `dotnet run`. Depois siga a seção "Como validar" do detalhe da I08 no README e apague o banco e as variáveis.
+
+### Modelo de PR
+
+Título: `I08: Pagamento e histórico`
+
+```text
+Implementa o pagamento de despesas aprovadas e a consulta do histórico de cada despesa.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#8
+
+## Resumo técnico
+- POST /api/expenses/{id}/pay, só para Finance que não é dono, sem corpo: Approved para Paid, com o PaymentRecord (ator do token e horário do servidor), a mudança de estado e a linha Paid do histórico na mesma gravação. Pagamento repetido ou simultâneo dá 409.
+- GET /api/expenses/{id}/history com a visibilidade da despesa: fora do escopo é 404, o Auditor lê todos e o Admin sozinho recebe 403. Entradas da mais antiga para a mais nova, só com identificadores internos, sem e-mail.
+- Pagamento simultâneo com duas barreiras: o Status como token de concorrência barra a corrida real, e o índice único em PaymentRecords.ExpenseId é uma defesa adicional. O repositório converte as duas falhas em conflito (409).
+- O pagamento usa o mesmo caminho de aprovar e reprovar no serviço; o histórico usa o escopo de leitura.
+- 77 testes unitários novos (total de 563), com fakes escritos à mão; sem banco. Nenhuma migration nem pacote novo.
+
+## Decisões e concessões
+- O professor confirmou no Teams que o histórico segue a visibilidade da despesa; por isso o Approver não lê o histórico depois de decidir.
+- Só a violação do índice único vira conflito entre os erros do SQLite; as demais falhas de persistência são 500 e desfazem a gravação.
+- O PaymentRecord não guarda o valor pago, porque os requisitos não o pedem.
+- A hipótese inicial era que o pagamento perdedor cairia no índice único; a evidência mostrou que é o token de Status.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx --no-incremental
+dotnet test ./sources/ExpenseHub.slnx
+(requisições em banco temporário: ver o detalhe da I08 no README)
+
+## Evidências
+- Build com 0 avisos e 0 erros; 563 testes unitários aprovados (77 novos).
+- Verificação de mutação: 8 mutações de código pegas pelos testes, mais 1 controle negativo por HTTP (500 sem a conversão do índice único, 409 com ela).
+- 60 cenários HTTP em banco temporário; 10 rodadas de pagamento simultâneo com um 200 e um 409; falha forçada por gatilho sem estado nem histórico divergentes.
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks); pipeline code-quality da branch: 100/100, com Gitleaks.
+
+## Impacto em segurança e autorização
+- Só Finance paga, nunca o dono; ator, estado e horário vêm do token e do servidor.
+- O histórico respeita o escopo de leitura aplicado na consulta; nada fora dele é carregado, e a resposta não traz e-mail.
+- Nenhum segredo versionado; a senha usada nos testes manuais era aleatória e só existiu em memória.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
@@ -882,19 +998,20 @@ git switch -c iNN-nome-curto
 - **Banco:** `ConnectionStrings__ExpenseHub` exige o prefixo `Data Source=`; o script de migrations do SQLite não é idempotente; um arquivo `.db` vazio (0 bytes), deixado por uma execução sem migrations, pode ficar onde está e o `dotnet ef database update` o aproveita.
 - **Commits direto na `main`, pelo site do GitHub:** `36307af`, `3192e5f`, `4937e7a` e `fdaf1fe`, só para preencher links de PR no README (autor "Pedro Almeida e Camacho"). Preferir sempre commits na branch da issue; os demais seguem o fluxo e o padrão combinado.
 
-## Passagem para a I08
+## Passagem para a I09
 
-Responsável: Renan, em uma branch nova a partir da `main` com a I07 mesclada (nome sugerido na issue: `i08-payment-history`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#8`).
+Responsável: Renan, em uma branch nova a partir da `main` com a I08 mesclada (nome sugerido no roteiro: `i09-unit-tests`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#9`); leia-os antes de planejar, porque este arquivo não os copia.
 
-- **Leitura:** README (detalhe da I07 e Decisões de projeto), este arquivo, `CLAUDE.md` (seção Decisions), `docs/REQUISITOS.md` (histórico) e `docs/MATRIZ-AUTORIZACAO.md`.
+- **Leitura:** README (estado atual, Testes e Qualidade), este arquivo, `CLAUDE.md` (seção Build & code-quality constraints e regras de testes), `docs/RUBRICA.md` e `docs/code-quality-rules.md`.
 - **Base pronta:**
-  - `ExpenseAccess.Evaluate` com `Pay` e a matriz de testes do pagamento (Finance sobre `Draft`, `Submitted`, `Rejected` e `Paid` dá 409; o dono dá 403).
-  - O padrão de `ExpenseService.DecideAsync`: role, busca por `FindByIdAsync`, `Evaluate`, estado e histórico numa gravação, `ExpenseConflictException` vira `WrongState`.
-  - `Status` como token de concorrência, `PaymentRecord` com índice único em `ExpenseId` e `FakeExpenseRepository` com `FindByIdCalls` e `FindVisibleCalls`.
-- **O que falta:**
-  - `PayAsync` no serviço: grava o `PaymentRecord` (ator e horário do servidor), muda `Approved` para `Paid` e acrescenta o histórico, tudo no mesmo `SaveChanges`.
-  - `POST /api/expenses/{id}/pay`, só Finance e nunca o dono, com um título de 409 próprio.
-  - `GET /api/expenses/{id}/history`, com a mesma visibilidade da despesa (`ExpenseScope` na consulta; o Auditor vê todos). Fora do escopo é 404, como nas leituras.
-  - Testes de unidade do pagamento e do histórico; evidências em banco temporário.
-- **Atenção:** o pagamento usa a regra de existência (404 só para inexistente); o histórico usa o escopo de leitura. Não misture as duas.
+  - 563 testes unitários (MSTest 4) que passam, com build em 0 avisos e 0 erros e score 100/100.
+  - Fakes escritos à mão: `FakeExpenseRepository` (com `FindByIdCalls`, `FindVisibleCalls`, `FindVisibleWithHistoryCalls`, falha programável na gravação e o estado visto em cada tentativa de gravação), `FixedTimeProvider`, `FakeUserAccountStore` e `FakeIdentitySeedStore`.
+  - Regras puras testáveis sem EF: `ExpenseAccess`, `ExpenseRules`, `ExpenseVisibility`, `BrazilTime`, `MoneyConversion`, `UtcTicks`, `SecurityStampCheck` e `SqliteConstraintErrors`.
+- **O que depende de host e banco e não tem teste unitário:** os controllers, o `ExpenseRepository` e o `UserAccountStore` com EF, o middleware de `SecurityStamp`, o seed no host e a conversão real do índice único. Foram validados à mão, com banco temporário, em cada issue. Ao planejar a I09, decida com o professor o que fazer com isso, sem usar EF Core InMemory nem SQLite em memória.
+- **Atenção:**
+  - Teste com nome que diga a regra checada, com casos válidos e inválidos.
+  - Nenhum literal atribuído a campo, variável ou chave com `password`, `senha`, `secret`, `token` ou `api key`, nem em testes (FIAP1002 limita o score a 9); monte credenciais em tempo de execução.
+  - Zero avisos sem supressão; depois de qualquer `git restore` ou mutação, `dotnet build --no-incremental` antes de testar.
+  - Só testes unitários contam para a nota.
+- **Depois da I09:** a I10 (Qualidade de Código, 25%) fecha o score, o README e o SHA final; remover a pasta `andamento/` e a regra que a cita no `CLAUDE.md` antes do SHA final.
 - **Prazo:** quarta-feira, 14/10, às 23:59, no Teams.
