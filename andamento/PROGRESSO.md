@@ -854,7 +854,7 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ## I08: Pagamento e histórico
 
-**Status:** concluída na branch `i08-payment-history`, com a PR #8 aberta e o pipeline oficial em 100/100 (execução #46, com Gitleaks 8.30.1, sem bloqueantes e sem achados). O workflow da branch também passou com 100/100 e Gitleaks, sem achados, a cada push (execuções #41 a #45). Passa a mergeada depois do merge.
+**Status:** concluída e mergeada na `main` pela PR #8, no commit de merge `4f466a7` (pipeline oficial da PR 100/100, execução #46; na `main`, execução #49, 100/100, com Gitleaks 8.30.1 e sem bloqueantes). O workflow da branch também passou com 100/100 e Gitleaks, sem achados, a cada push (execuções #41 a #45).
 
 **Branch:** `i08-payment-history`, a partir da `main` em `b898f42` (I07 mesclada pela PR #7; execução #40, 100/100, com Gitleaks 8.30.1 e sem bloqueantes).
 
@@ -906,7 +906,7 @@ Script descartável no diretório temporário da sessão, 60 verificações, tod
 ### Pendências
 
 - **Feitos:** PR #8 aberta (`I08: Pagamento e histórico`), número na tabela de issues do README e score oficial registrado na linha da I08 de Qualidade (execução #46, 100/100, com Gitleaks 8.30.1, sem bloqueantes e sem achados).
-- **Merge:** marcar "Pipeline analisado" na descrição da PR, fazer o merge com "Create a merge commit" e manter a branch.
+- **Merge:** feito com "Create a merge commit" (commit `4f466a7` na `main`; execução #49 da `main`, 100/100, com Gitleaks 8.30.1, sem bloqueantes), e a branch foi mantida.
 
 ### Como validar
 
