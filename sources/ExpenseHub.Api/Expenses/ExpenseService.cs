@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Domain.Enums;
@@ -8,7 +9,7 @@ using ExpenseHub.Api.Domain.Enums;
 namespace ExpenseHub.Api.Expenses;
 
 /// <summary>
-/// Rules of creating, editing and submitting expense drafts, of approving and rejecting submitted expenses, and of reading expenses by profile.
+/// Rules of creating, editing and submitting expense drafts, of approving and rejecting submitted expenses, of paying approved ones, and of reading expenses by profile.
 /// The owner, the state, the actor and the instants always come from the caller (the token)
 /// and the server clock, never from the client data. Every decision that depends on the role, the owner and the state
 /// of an expense is made here through <see cref="ExpenseAccess"/>, and not in the controller.
@@ -265,6 +266,31 @@ public sealed class ExpenseService
     }
 
     /// <summary>
+    /// Pays an approved expense: <c>Approved</c> to <c>Paid</c>. The state, the payment record (who paid and when, both
+    /// from the token and the server) and the history entry are prepared together and saved in a single save, so a
+    /// failure leaves none of them behind.
+    /// The answers follow this order: no role (<c>403</c>), the expense does not exist (<c>404</c>), the expense belongs to
+    /// the caller (<c>403</c>) and not <c>Approved</c> (<c>409</c>, which includes paying twice and any other state).
+    /// The read scope of the caller is not used. A concurrent payment of the same expense is also answered as a wrong state,
+    /// and leaves a single payment record and a single history entry.
+    /// </summary>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
+    /// <param name="expenseId">The identifier of the expense.</param>
+    /// <returns>The paid expense, with its payment record, or the reason it was not paid.</returns>
+    public async Task<ExpenseOperationResult> PayAsync(ExpenseCaller caller, Guid expenseId)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
+
+        if (!ExpenseAccess.HasRoleFor(caller, ExpenseAction.Pay))
+        {
+            return ExpenseOperationResult.Forbidden();
+        }
+
+        return await DecideAsync(caller, expenseId, ExpenseAction.Pay, null);
+    }
+
+    /// <summary>
     /// Lists the expenses the caller can read: the filter of the profile is applied by the storage inside the query.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
@@ -292,6 +318,30 @@ public sealed class ExpenseService
         return FindVisibleAsync(caller, expenseId);
     }
 
+    /// <summary>
+    /// Gets the history of an expense the caller can read, oldest entry first. The history has the same visibility as the
+    /// expense: the read scope of the caller is applied by the storage inside the query, and an expense that does not
+    /// exist and one outside the scope are indistinguishable, so both give <c>null</c>.
+    /// </summary>
+    /// <param name="caller">The authenticated user, taken from the token.</param>
+    /// <param name="expenseId">The identifier of the expense.</param>
+    /// <returns>The entries in chronological order, or <c>null</c> when the expense does not exist or is not visible to the caller.</returns>
+    public async Task<IReadOnlyList<ExpenseHistory>?> GetHistoryAsync(ExpenseCaller caller, Guid expenseId)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        ExpenseScope scope = ExpenseVisibility.ScopeFor(caller);
+
+        if (scope.IsEmpty)
+        {
+            return null;
+        }
+
+        Expense? expense = await _repository.FindVisibleWithHistoryAsync(expenseId, scope);
+
+        return expense?.History.OrderBy(entry => entry.OccurredAtUtc).ThenBy(entry => entry.Id).ToList();
+    }
+
     private async Task<ExpenseOperationResult> DecideAsync(ExpenseCaller caller, Guid expenseId, ExpenseAction action, string? reason)
     {
         Expense? expense = await _repository.FindByIdAsync(expenseId);
@@ -306,19 +356,25 @@ public sealed class ExpenseService
                 return ExpenseOperationResult.WrongState();
         }
 
-        bool approving = action == ExpenseAction.Approve;
-        ExpenseStatus newStatus = approving ? ExpenseStatus.Approved : ExpenseStatus.Rejected;
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        ExpenseStatus previousStatus = expense!.Status;
+        ExpenseStatus newStatus = StatusAfter(action);
 
-        expense!.Status = newStatus;
+        expense.Status = newStatus;
         expense.History.Add(new ExpenseHistory
         {
-            Action = approving ? ExpenseHistoryAction.Approved : ExpenseHistoryAction.Rejected,
+            Action = HistoryActionOf(action),
             ActorId = caller.UserId,
-            OccurredAtUtc = _timeProvider.GetUtcNow(),
-            PreviousStatus = ExpenseStatus.Submitted,
+            OccurredAtUtc = now,
+            PreviousStatus = previousStatus,
             NewStatus = newStatus,
             Reason = reason,
         });
+
+        if (action == ExpenseAction.Pay)
+        {
+            expense.Payment = new PaymentRecord { ActorId = caller.UserId, PaidAtUtc = now };
+        }
 
         try
         {
@@ -326,11 +382,33 @@ public sealed class ExpenseService
         }
         catch (ExpenseConflictException)
         {
-            // Another decision on the same expense was saved first.
+            // Another decision or payment on the same expense was saved first.
             return ExpenseOperationResult.WrongState();
         }
 
         return ExpenseOperationResult.Success(expense);
+    }
+
+    private static ExpenseStatus StatusAfter(ExpenseAction action)
+    {
+        return action switch
+        {
+            ExpenseAction.Approve => ExpenseStatus.Approved,
+            ExpenseAction.Reject => ExpenseStatus.Rejected,
+            ExpenseAction.Pay => ExpenseStatus.Paid,
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, "The action is not a decision."),
+        };
+    }
+
+    private static ExpenseHistoryAction HistoryActionOf(ExpenseAction action)
+    {
+        return action switch
+        {
+            ExpenseAction.Approve => ExpenseHistoryAction.Approved,
+            ExpenseAction.Reject => ExpenseHistoryAction.Rejected,
+            ExpenseAction.Pay => ExpenseHistoryAction.Paid,
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, "The action is not a decision."),
+        };
     }
 
     private async Task<Expense?> FindVisibleAsync(ExpenseCaller caller, Guid expenseId)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain.Entities;
+using ExpenseHub.Api.Domain.Enums;
 using ExpenseHub.Api.Expenses;
 
 namespace ExpenseHub.UnitTests.Expenses;
@@ -36,6 +37,9 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
     /// <summary>Gets how many times an expense was searched by identifier alone.</summary>
     public int FindByIdCalls { get; private set; }
 
+    /// <summary>Gets how many times an expense was searched inside a read scope together with its history.</summary>
+    public int FindVisibleWithHistoryCalls { get; private set; }
+
     /// <summary>Gets how many history entries the added expense carried when it was added.</summary>
     public int HistoryCountWhenAdded { get; private set; }
 
@@ -44,6 +48,21 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
 
     /// <summary>Gets or sets a value indicating whether the next save fails as if the state had changed in the meantime.</summary>
     public bool ConflictOnNextSave { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the next save fails with an unexpected persistence error.</summary>
+    public bool FailOnNextSave { get; set; }
+
+    /// <summary>Gets how many times a save was tried, whether it worked or not.</summary>
+    public int SaveAttempts { get; private set; }
+
+    /// <summary>Gets how many expenses had a payment prepared when the last save was tried.</summary>
+    public int PaymentsAtLastSaveAttempt { get; private set; }
+
+    /// <summary>Gets how many expenses were in the Paid state when the last save was tried.</summary>
+    public int PaidAtLastSaveAttempt { get; private set; }
+
+    /// <summary>Gets how many history entries the expense with most entries had when the last save was tried.</summary>
+    public int HistoryCountAtLastSaveAttempt { get; private set; }
 
     /// <summary>Adds an expense directly, without counting it as an addition made by the service.</summary>
     /// <param name="expense">The expense.</param>
@@ -95,8 +114,28 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
+    public Task<Expense?> FindVisibleWithHistoryAsync(Guid id, ExpenseScope scope)
+    {
+        FindVisibleWithHistoryCalls++;
+        Func<Expense, bool> isVisible = scope.Predicate.Compile();
+
+        return Task.FromResult(_expenses.Where(isVisible).FirstOrDefault(expense => expense.Id == id));
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync()
     {
+        SaveAttempts++;
+        PaymentsAtLastSaveAttempt = _expenses.Count(expense => expense.Payment is not null);
+        PaidAtLastSaveAttempt = _expenses.Count(expense => expense.Status == ExpenseStatus.Paid);
+        HistoryCountAtLastSaveAttempt = _expenses.Count == 0 ? 0 : _expenses.Max(expense => expense.History.Count);
+
+        if (FailOnNextSave)
+        {
+            FailOnNextSave = false;
+            throw new InvalidOperationException("Simulated persistence failure.");
+        }
+
         if (ConflictOnNextSave)
         {
             ConflictOnNextSave = false;
