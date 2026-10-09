@@ -13,9 +13,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace ExpenseHub.Api.Controllers;
 
 /// <summary>
-/// Creation, edition and submission of expense drafts, approval and rejection of submitted expenses, and reading of
-/// expenses by profile. Creating, editing and submitting need the <c>Employee</c> role, approving and rejecting need the
-/// <c>Approver</c> role, and reading needs one of the roles that can read expenses. <c>Admin</c> alone gives no access.
+/// Creation, edition and submission of expense drafts, approval and rejection of submitted expenses, payment of approved
+/// ones, and reading of expenses and of their history by profile. Creating, editing and submitting need the
+/// <c>Employee</c> role, approving and rejecting need the <c>Approver</c> role, paying needs the <c>Finance</c> role, and
+/// reading needs one of the roles that can read expenses. <c>Admin</c> alone gives no access.
 /// </summary>
 [ApiController]
 [Route("api/expenses")]
@@ -23,6 +24,7 @@ public sealed class ExpensesController : ControllerBase
 {
     private const string NotADraftTitle = "The expense is not a draft.";
     private const string NotSubmittedTitle = "The expense is not submitted.";
+    private const string NotApprovedTitle = "The expense is not approved.";
 
     private readonly ExpenseService _expenses;
 
@@ -136,6 +138,31 @@ public sealed class ExpensesController : ControllerBase
     }
 
     /// <summary>
+    /// Pays an approved expense: <c>Approved</c> to <c>Paid</c>, recording the payment. It takes no body: who pays and when
+    /// come from the token and the server, and the state is never sent by the client.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <returns>
+    /// <c>200</c> with the payment (expense, state, who paid and when); <c>404</c> when the expense does not exist;
+    /// <c>403</c> when the expense belongs to the user; <c>409</c> when the expense is not approved (a repeated or
+    /// simultaneous payment, or any other state, a draft included); <c>401</c> without a token; <c>403</c> without the
+    /// Finance role.
+    /// </returns>
+    [HttpPost("{id:guid}/pay")]
+    [Authorize(Roles = AppRoles.Finance)]
+    public async Task<IActionResult> PayAsync(Guid id)
+    {
+        ExpenseOperationResult result = await _expenses.PayAsync(GetCaller(), id);
+
+        if (result.Status == ExpenseOperationStatus.Succeeded)
+        {
+            return Ok(PaymentResponse.From(result.Expense!));
+        }
+
+        return ToActionResult(result, StatusCodes.Status200OK, NotApprovedTitle);
+    }
+
+    /// <summary>
     /// Lists the expenses the authenticated user can read, newest first. The filter of the profile is applied inside the query:
     /// Employee reads its own, Approver the submitted ones, Finance the approved and paid ones, and Auditor all of them.
     /// </summary>
@@ -168,6 +195,25 @@ public sealed class ExpensesController : ControllerBase
         Expense? expense = await _expenses.GetAsync(GetCaller(), id);
 
         return expense is null ? ExpenseNotFound() : ExpenseResponse.From(expense);
+    }
+
+    /// <summary>
+    /// Gets the history of one expense the authenticated user can read, oldest entry first. The history has the same
+    /// visibility as the expense: an expense that does not exist and one outside the read scope of the user get the same
+    /// <c>404</c>. The entries have only internal identifiers, never an e-mail address.
+    /// </summary>
+    /// <param name="id">The identifier of the expense.</param>
+    /// <returns>
+    /// <c>200</c> with the entries; <c>404</c> when the expense does not exist or is not visible; <c>401</c> without a
+    /// token; <c>403</c> for a user whose roles do not read expenses.
+    /// </returns>
+    [HttpGet("{id:guid}/history")]
+    [Authorize(Roles = AppRoles.ExpenseReaders)]
+    public async Task<ActionResult<IReadOnlyList<ExpenseHistoryResponse>>> HistoryAsync(Guid id)
+    {
+        IReadOnlyList<ExpenseHistory>? history = await _expenses.GetHistoryAsync(GetCaller(), id);
+
+        return history is null ? ExpenseNotFound() : history.Select(ExpenseHistoryResponse.From).ToList();
     }
 
     private static ExpenseDetails ToDetails(ExpenseRequest request)
