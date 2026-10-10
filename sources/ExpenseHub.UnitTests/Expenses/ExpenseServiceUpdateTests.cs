@@ -330,6 +330,21 @@ public sealed class ExpenseServiceUpdateTests
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
+    /// <summary>A persistence failure that is not a conflict is not hidden as a wrong state: it reaches the caller after one single attempt to save, with the edited fields and the history entry prepared together.</summary>
+    [TestMethod]
+    public async Task UpdateAsync_PersistenceFailure_Propagates_AfterASingleAttemptToSave()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+        repository.FailOnNextSave = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NewService(repository).UpdateAsync(ExpenseTestData.Employee(Owner), expense.Id, ExpenseTestData.Valid));
+
+        Assert.AreEqual(1, repository.SaveAttempts);
+        Assert.AreEqual(0, repository.SaveCalls);
+        Assert.AreEqual(2, repository.HistoryCountAtLastSaveAttempt);
+    }
+
     /// <summary>A caller without an identifier cannot edit a draft.</summary>
     /// <param name="actorId">An actor that is missing or blank.</param>
     [TestMethod]
