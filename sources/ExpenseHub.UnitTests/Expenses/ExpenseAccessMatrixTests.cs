@@ -262,6 +262,25 @@ public sealed class ExpenseAccessMatrixTests
         }
     }
 
+    /// <summary>Rejected and Paid are final states: no action is allowed on an expense in either of them, whatever the roles of the user and the owner.</summary>
+    [TestMethod]
+    public void Evaluate_RejectedAndPaidAreFinal_NoActionIsAllowedOnThem()
+    {
+        var finalStates = Combinations(ExistenceOnlyActions)
+            .Where(combination => combination.Status is ExpenseStatus.Rejected or ExpenseStatus.Paid);
+
+        foreach ((string roles, ExpenseAction action, ExpenseStatus status) in finalStates)
+        {
+            foreach (string owner in new[] { "own", "other" })
+            {
+                Assert.AreNotEqual(
+                    AccessDecision.Allowed,
+                    Evaluate(roles, action, owner, status),
+                    $"{roles} {action} {owner} {status}");
+            }
+        }
+    }
+
     /// <summary>An action is only allowed on an expense the user can read, so the write rules never open more than the read rules.</summary>
     [TestMethod]
     public void Evaluate_Allowed_ImpliesTheExpenseIsInsideTheReadScope()
