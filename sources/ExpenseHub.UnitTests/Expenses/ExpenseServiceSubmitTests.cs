@@ -208,6 +208,21 @@ public sealed class ExpenseServiceSubmitTests
         Assert.AreEqual(0, repository.SaveCalls);
     }
 
+    /// <summary>A persistence failure that is not a conflict is not hidden as a wrong state: it reaches the caller after one single attempt to save, with the state and the history entry prepared together.</summary>
+    [TestMethod]
+    public async Task SubmitAsync_PersistenceFailure_Propagates_AfterASingleAttemptToSave()
+    {
+        var (repository, expense) = Given(ExpenseStatus.Draft);
+        repository.FailOnNextSave = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NewService(repository).SubmitAsync(ExpenseTestData.Caller(Owner, "Employee"), expense.Id));
+
+        Assert.AreEqual(1, repository.SaveAttempts);
+        Assert.AreEqual(0, repository.SaveCalls);
+        Assert.AreEqual(2, repository.HistoryCountAtLastSaveAttempt);
+    }
+
     /// <summary>A caller without an identifier cannot submit.</summary>
     /// <param name="userId">A user that is missing or blank.</param>
     [TestMethod]
