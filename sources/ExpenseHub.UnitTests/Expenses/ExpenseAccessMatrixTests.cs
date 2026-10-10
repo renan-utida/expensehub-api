@@ -198,6 +198,30 @@ public sealed class ExpenseAccessMatrixTests
         }
     }
 
+    /// <summary>Ownership compares the identifiers exactly: an identifier that differs only in letter case is another user, so that user does not edit the expense and does decide on it.</summary>
+    /// <param name="roles">The roles of the user who acts, separated by comma.</param>
+    /// <param name="action">The action.</param>
+    /// <param name="status">The state of the expense.</param>
+    /// <param name="userId">The identifier of the user who acts.</param>
+    /// <param name="ownerId">The identifier of the owner of the expense.</param>
+    /// <param name="expected">The expected decision.</param>
+    [TestMethod]
+    [DataRow("Employee", ExpenseAction.Edit, ExpenseStatus.Draft, "Owner-1", "owner-1", AccessDecision.Forbidden)]
+    [DataRow("Approver", ExpenseAction.Approve, ExpenseStatus.Submitted, "Approver-1", "approver-1", AccessDecision.Allowed)]
+    public void Evaluate_OwnershipComparesIdentifiersExactly_DifferenceInLetterCaseIsAnotherUser(
+        string roles,
+        ExpenseAction action,
+        ExpenseStatus status,
+        string userId,
+        string ownerId,
+        AccessDecision expected)
+    {
+        ExpenseCaller caller = ExpenseTestData.Caller(userId, roles.Split(','));
+        Expense expense = ExpenseTestData.ExpenseOf(ownerId, status);
+
+        Assert.AreEqual(expected, ExpenseAccess.Evaluate(caller, action, expense));
+    }
+
     /// <summary>Editing and submitting is only ever allowed to the owner, with the Employee role, on a draft.</summary>
     [TestMethod]
     public void Evaluate_EditAndSubmit_AreOnlyAllowedToTheOwnerWithTheEmployeeRoleOnADraft()
