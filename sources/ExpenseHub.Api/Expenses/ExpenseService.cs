@@ -14,7 +14,7 @@ namespace ExpenseHub.Api.Expenses;
 /// and the server clock, never from the client data. Every decision that depends on the role, the owner and the state
 /// of an expense is made here through <see cref="ExpenseAccess"/>, and not in the controller.
 /// </summary>
-public sealed class ExpenseService
+public class ExpenseService
 {
     private const int ShortTextLength = 80;
 
@@ -39,7 +39,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="details">The fields chosen by the client.</param>
     /// <returns>The created draft, or the reason it was not created.</returns>
-    public async Task<ExpenseOperationResult> CreateAsync(ExpenseCaller caller, ExpenseDetails details)
+    public virtual async Task<ExpenseOperationResult> CreateAsync(ExpenseCaller caller, ExpenseDetails details)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -93,7 +93,7 @@ public sealed class ExpenseService
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <param name="details">The fields chosen by the client.</param>
     /// <returns>The edited draft, or the reason it was not edited.</returns>
-    public async Task<ExpenseOperationResult> UpdateAsync(ExpenseCaller caller, Guid expenseId, ExpenseDetails details)
+    public virtual async Task<ExpenseOperationResult> UpdateAsync(ExpenseCaller caller, Guid expenseId, ExpenseDetails details)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -167,7 +167,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <returns>The submitted expense, or the reason it was not submitted.</returns>
-    public async Task<ExpenseOperationResult> SubmitAsync(ExpenseCaller caller, Guid expenseId)
+    public virtual async Task<ExpenseOperationResult> SubmitAsync(ExpenseCaller caller, Guid expenseId)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -221,7 +221,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <returns>The approved expense, or the reason it was not approved.</returns>
-    public async Task<ExpenseOperationResult> ApproveAsync(ExpenseCaller caller, Guid expenseId)
+    public virtual async Task<ExpenseOperationResult> ApproveAsync(ExpenseCaller caller, Guid expenseId)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -245,7 +245,7 @@ public sealed class ExpenseService
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <param name="reason">The reason of the rejection, chosen by the client.</param>
     /// <returns>The rejected expense, or the reason it was not rejected.</returns>
-    public async Task<ExpenseOperationResult> RejectAsync(ExpenseCaller caller, Guid expenseId, string? reason)
+    public virtual async Task<ExpenseOperationResult> RejectAsync(ExpenseCaller caller, Guid expenseId, string? reason)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -277,7 +277,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <returns>The paid expense, with its payment record, or the reason it was not paid.</returns>
-    public async Task<ExpenseOperationResult> PayAsync(ExpenseCaller caller, Guid expenseId)
+    public virtual async Task<ExpenseOperationResult> PayAsync(ExpenseCaller caller, Guid expenseId)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
@@ -295,7 +295,7 @@ public sealed class ExpenseService
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <returns>The visible expenses, newest first; empty when none of the roles of the caller reads expenses.</returns>
-    public async Task<IReadOnlyList<Expense>> ListAsync(ExpenseCaller caller)
+    public virtual async Task<IReadOnlyList<Expense>> ListAsync(ExpenseCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
@@ -311,7 +311,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <returns>The expense, or <c>null</c> when it does not exist or is not visible to the caller.</returns>
-    public Task<Expense?> GetAsync(ExpenseCaller caller, Guid expenseId)
+    public virtual Task<Expense?> GetAsync(ExpenseCaller caller, Guid expenseId)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
@@ -326,7 +326,7 @@ public sealed class ExpenseService
     /// <param name="caller">The authenticated user, taken from the token.</param>
     /// <param name="expenseId">The identifier of the expense.</param>
     /// <returns>The entries in chronological order, or <c>null</c> when the expense does not exist or is not visible to the caller.</returns>
-    public async Task<IReadOnlyList<ExpenseHistory>?> GetHistoryAsync(ExpenseCaller caller, Guid expenseId)
+    public virtual async Task<IReadOnlyList<ExpenseHistory>?> GetHistoryAsync(ExpenseCaller caller, Guid expenseId)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
