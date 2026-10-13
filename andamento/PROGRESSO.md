@@ -970,7 +970,7 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ## I09: Testes unitários
 
-**Status:** concluída na branch `i09-unit-tests`; a PR e o score oficial estão a preencher. O workflow da branch passou com 100/100 e Gitleaks, sem achados, a cada push até aqui (execuções #51, #52 e #53, entre outras). Passa a mergeada depois do merge.
+**Status:** concluída na branch `i09-unit-tests`, com a PR #9 aberta e o pipeline oficial em 100/100 (execução #55, 20 em cada categoria, com Gitleaks 8.30.1, sem bloqueantes e sem achados). O workflow da branch também passou com 100/100 e Gitleaks, sem achados, a cada push (execuções #50 a #54). Passa a mergeada depois do merge.
 
 **Branch:** `i09-unit-tests`, a partir da `main` em `4f466a7` (I08 mesclada pela PR #8; execução #49 da `main`, 100/100, com Gitleaks 8.30.1 e sem bloqueantes).
 
@@ -1016,8 +1016,8 @@ dotnet test ./sources/ExpenseHub.slnx
 
 ### Pendências
 
-- **A fazer:** abrir a PR `I09: Testes unitários`, preencher o número da PR e o score oficial no README (tabela de issues e linha da I09 de Qualidade) e aqui, num commit seguinte na mesma branch; marcar "Pipeline analisado" na descrição; fazer o merge com "Create a merge commit" e manter a branch.
-- A coluna PR da I09 e o score oficial ficam "a preencher" no README até a PR existir.
+- **Feitos:** PR #9 aberta (`I09: Testes unitários`), número na tabela de issues do README e score oficial registrado na linha da I09 de Qualidade (execução #55, 100/100, com Gitleaks 8.30.1, sem bloqueantes e sem achados).
+- **Merge:** marcar "Pipeline analisado" na descrição da PR, fazer o merge com "Create a merge commit" e manter a branch.
 
 ### Como validar
 
