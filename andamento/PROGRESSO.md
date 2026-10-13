@@ -334,6 +334,7 @@ Script descartável no diretório temporário da sessão, 44 verificações: 43 
 ### Pendências
 
 - **Feitos:** commits, PR #3 e merge com "Create a merge commit"; score oficial 100/100 (execução #18, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
+- **Superado na I09:** o middleware do `SecurityStamp` passou a ter testes unitários (`SecurityStampValidationMiddlewareTests`, com `FakeUserManager` escrito à mão). O que continua validado à mão é o pipeline real (token antigo dando `401` pelo host e pelo banco).
 
 ### Modelo de PR
 
@@ -571,6 +572,7 @@ Script descartável no diretório temporário da sessão, 56 verificações, tod
 - **Feitos:** commits, PR #5 e merge com "Create a merge commit"; score oficial 100/100 (execução #26, com Gitleaks 8.30.1); status "Concluída" no README. Nada pendente nesta issue.
 - **Superado na I07:** o 404 do envio para despesa de outro Employee virou 403; o 404 do envio vale só para despesa inexistente. O `GET` por id e a listagem não mudaram (404 fora do escopo de leitura).
 - **Superado na I08:** não é mais preciso mudar o `Status` direto no banco para ver `Approved`, `Paid` e `Rejected`, porque aprovar, reprovar e pagar têm endpoint (o item "Teste manual" acima vale só para a época da I05). O padrão "`FindVisibleAsync`, 404, 403 e 409" que a I05 indicou para as decisões foi trocado na I07 pela busca por identificador.
+- **Superado na I09:** o controller de despesas passou a ter testes unitários (`ExpensesControllerTests` e `EndpointRolesTests`, com `FakeExpenseService` escrito à mão). O que continua validado à mão é o pipeline real (host, banco, `401` e `403` de ponta a ponta).
 
 ### Modelo de PR
 
@@ -966,6 +968,112 @@ dotnet test ./sources/ExpenseHub.slnx
 - [ ] Documentação atualizada
 ```
 
+## I09: Testes unitários
+
+**Status:** concluída na branch `i09-unit-tests`; a PR e o score oficial estão a preencher. O workflow da branch passou com 100/100 e Gitleaks, sem achados, a cada push até aqui (execuções #51, #52 e #53, entre outras). Passa a mergeada depois do merge.
+
+**Branch:** `i09-unit-tests`, a partir da `main` em `4f466a7` (I08 mesclada pela PR #8; execução #49 da `main`, 100/100, com Gitleaks 8.30.1 e sem bloqueantes).
+
+### O que foi feito
+
+- **Mapa antes dos testes:** cada critério da issue e cada linha da pontuação interna foi cruzado com os testes existentes, e só se escreveu teste onde havia lacuna real. A lacuna foi medida por mutação, não por intuição.
+- **Primeira rodada de mutação (40 mutações nas regras e no serviço):** 37 mortas e 3 sobreviventes (A8, E08, E09).
+- **Lacunas das regras, do serviço e da `ExpenseResponse` (6 testes):** dono comparado de forma exata (1 teste, 2 casos); falha de persistência que não é conflito propaga em `SubmitAsync` e em `UpdateAsync`; forma do `ExpenseResponse` (sem histórico, pagamento nem e-mail); `Rejected` e `Paid` são finais (nenhuma ação é permitida).
+- **Isolamento do controller (22 + 13 testes):** `ExpenseService` deixou de ser `sealed` e seus 9 métodos públicos viraram `virtual` (10 linhas em `ExpenseService.cs`, única mudança de produção). `FakeExpenseService` e `FakeProblemDetailsFactory` escritos à mão. `ExpensesControllerTests` (22) cobre o status e o título de cada resultado do serviço, o título do `409` por ação, `201` com `Location`, o pagamento devolvendo `PaymentResponse`, e o que o controller repassa ao serviço (usuário das claims, identificador, corpo, `reason` sem alterar). `EndpointRolesTests` (13) lê por reflexão os papéis dos endpoints de despesas e de administração de usuários (11 casos) e confere que nenhum dos dois controllers aceita anônimo (2 casos).
+- **Middleware do `SecurityStamp` (7 testes):** `FakeUserManager` por herança de `UserManager<IdentityUser>` (89 linhas), com um armazenamento que recusa tudo; `SecurityStampValidationMiddlewareTests`.
+- **Rodada final de mutação:** as 40 mais 18 novas (8 do controller, 4 dos papéis, 6 do middleware): 58 de 58 mortas.
+- **Total:** 611 testes, 48 novos (6 + 22 + 13 + 7). Nenhum pacote novo, nenhuma migration, nenhum endpoint, nenhuma mudança de `.csproj`.
+- **Documentação:** `CLAUDE.md` (uma linha em "Working rules" sobre `ExpenseService` não selado), README (Estado atual, tabela, arquitetura, testes, qualidade e o detalhe da I09 com a tabela das 58 mutações e "O que a suíte não cobre") e este arquivo.
+
+### Decisões que afetam as próximas issues
+
+- **Respostas do professor (Teams):** teste de controller em memória com fakes é a ideia, e o ideal é substituir o serviço por um fake/mock e testar o serviço à parte ("Tentem isolar estritamente o controller, o ideal seria substituir o serviço por um fake/mock e testar o serviço separadamente"). Reflexão em `[Authorize]` conta como verificação da regra de autorização, mas o ideal seria não usar reflexão em teste unitário, e teste de autorização é normalmente funcional, o que não é cobrado.
+- **`ExpenseService` não é mais selado.** Não selar de novo e não adicionar pacote de mock sem perguntar (está no `CLAUDE.md`). O registro no DI continua sendo a classe concreta.
+- **O que continua fora da suíte, e vai assim para a entrega:** repositório, stores do EF, mapeamentos e migrations, `AuthController.LoginAsync`, `Program` e o DI, o seed no host, o `400` automático do `[ApiController]` e o pipeline real de `401` e `403`. Tudo documentado em "O que a suíte não cobre" no README.
+- **A verificação de mutação é manual:** um script de PowerShell em uma pasta temporária, fora do repositório, não versionado e fora do CI. Ele não será recriado nas próximas issues; se for preciso repetir, o método está descrito no README.
+
+### O que foi medido
+
+- **Primeira rodada (antes dos testes novos):** 40 mutações, 37 mortas e 3 sobreviventes: A8 (dono comparado sem diferenciar maiúsculas), E08 e E09 (`SubmitAsync` e `UpdateAsync` engolindo qualquer exceção).
+- **Confirmação dos três em uma cópia descartável do repositório (fora dele):** com os testes novos, A8 morreu com 2 falhas e E08 e E09 com 1 cada.
+- **Antes de escrever os testes do controller, do papel e do middleware**, as mutações foram ensaiadas em cópias descartáveis, e todas morreram (8 do controller, 3 dos papéis e 6 do middleware), o que depois foi refeito com a árvore limpa.
+- **Rodada final:** 58 de 58 mortas, nenhuma que não compilou, nenhum erro de execução, todas na primeira tentativa. Ao fim de cada um dos seis grupos o `git status` ficou limpo e os 611 testes passaram sem mutação. Morreram por um único teste: A7, E03, E06, E08, E09, E10, E13, E15, E16, C1 a C6, C8, P1 a P3 e W4 a W6.
+- **Aplicadas e restauradas com `git restore` só do arquivo mutado**, com `dotnet build --no-incremental` antes de cada teste.
+
+### Desvios e cuidados
+
+- **Expectativa errada sobre E15 e E16:** esperávamos que tirar o `HasRoleFor` de `ApproveAsync` e de `PayAsync` fosse equivalente, porque o `Evaluate` repete a checagem. Não é: o teste afirma que o repositório não é consultado para quem não tem a role, e ele morreu.
+- **Defeito do script:** na primeira execução, `.Trim()` foi aplicado a um caractere quando só um arquivo aparecia no `git status`. O `finally` restaurou o arquivo, a árvore ficou limpa, o script foi corrigido e o grupo foi refeito do começo.
+- **Afirmação do plano que não era testável:** "o controller não chama o serviço quando a validação do corpo falha". O `400` automático é de um filtro do `[ApiController]`, que roda antes da ação; chamando a ação direto, ele não roda. Foi trocada por afirmações do próprio controller (mapear o resultado de validação do serviço para `400`, e falhar antes de chamar o serviço quando o token não tem identificador).
+- **Avisos corrigidos na causa:** CA1861 (arrays constantes viraram variáveis locais), CA2000 (o armazenamento sem estado do `FakeUserManager` virou campo `static readonly`), CS8625 (objetos reais em vez de `null` no construtor base), IDE0005 e uma colisão de nome (`Options.Create` dentro de `UserManager`).
+- **Lições anteriores seguidas:** nenhum literal atribuído a nome com `password`, `token`, `secret`, `senha` ou `api key` (o stamp aparece como `claimedStamp` e `currentStamp`); um tipo por arquivo; documentação XML em todo membro público.
+
+### Evidências
+
+- `dotnet build --no-incremental`: 0 avisos e 0 erros. `dotnet test`: 611 aprovados (563 mais 48).
+- `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks`: 100/100, 20 em cada categoria, sem bloqueantes, só o FIAP0002 informativo.
+- Busca nos arquivos de teste por `Microsoft.EntityFrameworkCore`, `Microsoft.Data.Sqlite`, `InMemory`, `HttpClient`, `Thread.Sleep`, `Task.Delay`, `DateTime.UtcNow` e `DateTimeOffset.UtcNow`: nenhuma ocorrência. Uma busca mais ampla, só por `Sqlite` e `UtcNow`, acha duas ocorrências inofensivas: `SqliteConstraintErrorsTests` (só passa números, sem SQLite) e `FixedTimeProvider.GetUtcNow()` (o relógio fixo).
+
+### Pendências
+
+- **A fazer:** abrir a PR `I09: Testes unitários`, preencher o número da PR e o score oficial no README (tabela de issues e linha da I09 de Qualidade) e aqui, num commit seguinte na mesma branch; marcar "Pipeline analisado" na descrição; fazer o merge com "Create a merge commit" e manter a branch.
+- A coluna PR da I09 e o score oficial ficam "a preencher" no README até a PR existir.
+
+### Como validar
+
+```shell
+dotnet build ./sources/ExpenseHub.slnx --no-incremental   # 0 avisos, 0 erros
+dotnet test ./sources/ExpenseHub.slnx                     # 611 aprovados
+dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~ExpensesControllerTests"
+```
+
+Não há requisição HTTP nem banco nesta issue: nenhum comportamento de produção mudou (a única mudança é tirar o `sealed` e marcar `virtual`).
+
+### Modelo de PR
+
+Título: `I09: Testes unitários`
+
+```text
+Fecha a suíte de testes unitários das regras centrais e dá testes ao contrato HTTP do controller de despesas e ao middleware do SecurityStamp.
+
+Issue: Racass/checkpoint-csharpracass-expensehub#9
+
+## Resumo técnico
+- 48 testes novos (611 no total), todos em memória, com fakes escritos à mão: sem banco, rede, EF Core InMemory, SQLite em memória nem Moq.
+- Lacunas das regras, do serviço e da ExpenseResponse fechadas onde a mutação mostrou falha: dono comparado de forma exata, falha de persistência que não é conflito em envio e edição, forma do ExpenseResponse, Rejected e Paid são finais.
+- Controller de despesas isolado com um FakeExpenseService: status e título de cada resultado do serviço, título do 409 por ação, 201 com Location, PaymentResponse no pagamento e o que o controller repassa ao serviço. O serviço continua testado à parte.
+- Papéis dos endpoints de despesas e de administração de usuários conferidos por reflexão no atributo [Authorize] (com a ressalva do professor).
+- Middleware do SecurityStamp testado com um FakeUserManager escrito à mão.
+- Verificação de mutação manual: 40 mutações na primeira rodada (37 mortas, 3 sobreviventes), testes novos e 58 de 58 mortas na rodada final.
+
+## Decisões e concessões
+- ExpenseService deixou de ser sealed e seus 9 métodos públicos viraram virtual, para o controller ser testado com um fake do serviço, como o professor orientou. É a única mudança de produção; o DI não mudou.
+- O que a suíte não cobre está no README: repositório e stores do EF, mapeamentos e migrations, login com SignInManager, Program e DI, o 400 automático do [ApiController] e o pipeline real de 401 e 403. Testes funcionais seriam o ideal, e não são cobrados.
+- O script de mutação é local, fora do repositório e fora do CI.
+
+## Como validar
+dotnet build ./sources/ExpenseHub.slnx --no-incremental
+dotnet test ./sources/ExpenseHub.slnx
+
+## Evidências
+- Build com 0 avisos e 0 erros; 611 testes unitários aprovados (48 novos).
+- Verificação de mutação: 58 de 58 mortas (tabela no README).
+- Score local do pipeline de qualidade: 100/100 (com -SkipGitleaks); pipeline code-quality da branch: 100/100, com Gitleaks.
+
+## Impacto em segurança e autorização
+- Nenhum endpoint, regra ou migration mudou; a autorização continua decidida no serviço, e a primeira barreira (papéis) agora tem teste.
+- Nenhum segredo versionado.
+
+## Checklist
+- [ ] Critérios de aceite atendidos
+- [ ] Casos negativos validados
+- [ ] Autorização revisada
+- [ ] Testes unitários adicionados ou atualizados
+- [ ] Build sem erros
+- [ ] Pipeline analisado
+- [ ] Documentação atualizada
+```
+
 ## Roteiro por issue
 
 Serve para quem começa a próxima issue sem ter acompanhado as anteriores.
@@ -998,20 +1106,23 @@ git switch -c iNN-nome-curto
 - **Banco:** `ConnectionStrings__ExpenseHub` exige o prefixo `Data Source=`; o script de migrations do SQLite não é idempotente; um arquivo `.db` vazio (0 bytes), deixado por uma execução sem migrations, pode ficar onde está e o `dotnet ef database update` o aproveita.
 - **Commits direto na `main`, pelo site do GitHub:** `36307af`, `3192e5f`, `4937e7a` e `fdaf1fe`, só para preencher links de PR no README (autor "Pedro Almeida e Camacho"). Preferir sempre commits na branch da issue; os demais seguem o fluxo e o padrão combinado.
 
-## Passagem para a I09
+## Passagem para a I10
 
-Responsável: Renan, em uma branch nova a partir da `main` com a I08 mesclada (nome sugerido no roteiro: `i09-unit-tests`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#9`); leia-os antes de planejar, porque este arquivo não os copia.
+Responsável: Renan, em uma branch nova a partir da `main` com a I09 mesclada (nome sugerido no roteiro: `i10-code-quality`). Critérios no backlog central (`Racass/checkpoint-csharpracass-expensehub#10`); leia-os antes de planejar, porque este arquivo não os copia. A I10 vale 25% e usa direto o score do relatório `code-quality` (pontos = score / 100 x 2,5).
 
-- **Leitura:** README (estado atual, Testes e Qualidade), este arquivo, `CLAUDE.md` (seção Build & code-quality constraints e regras de testes), `docs/RUBRICA.md` e `docs/code-quality-rules.md`.
-- **Base pronta:**
-  - 563 testes unitários (MSTest 4) que passam, com build em 0 avisos e 0 erros e score 100/100.
-  - Fakes escritos à mão: `FakeExpenseRepository` (com `FindByIdCalls`, `FindVisibleCalls`, `FindVisibleWithHistoryCalls`, falha programável na gravação e o estado visto em cada tentativa de gravação), `FixedTimeProvider`, `FakeUserAccountStore` e `FakeIdentitySeedStore`.
-  - Regras puras testáveis sem EF: `ExpenseAccess`, `ExpenseRules`, `ExpenseVisibility`, `BrazilTime`, `MoneyConversion`, `UtcTicks`, `SecurityStampCheck` e `SqliteConstraintErrors`.
-- **O que depende de host e banco e não tem teste unitário:** os controllers, o `ExpenseRepository` e o `UserAccountStore` com EF, o middleware de `SecurityStamp`, o seed no host e a conversão real do índice único. Foram validados à mão, com banco temporário, em cada issue. Ao planejar a I09, decida com o professor o que fazer com isso, sem usar EF Core InMemory nem SQLite em memória.
-- **Atenção:**
-  - Teste com nome que diga a regra checada, com casos válidos e inválidos.
-  - Nenhum literal atribuído a campo, variável ou chave com `password`, `senha`, `secret`, `token` ou `api key`, nem em testes (FIAP1002 limita o score a 9); monte credenciais em tempo de execução.
-  - Zero avisos sem supressão; depois de qualquer `git restore` ou mutação, `dotnet build --no-incremental` antes de testar.
-  - Só testes unitários contam para a nota.
-- **Depois da I09:** a I10 (Qualidade de Código, 25%) fecha o score, o README e o SHA final; remover a pasta `andamento/` e a regra que a cita no `CLAUDE.md` antes do SHA final.
+- **Leitura:** README (estado atual, Qualidade e "O que a suíte não cobre"), este arquivo, `CLAUDE.md`, `docs/RUBRICA.md`, `docs/code-quality-rules.md` e `docs/PROCESSO-GITHUB.md` (entrega final).
+- **Base pronta:** build com 0 avisos e 0 erros, 611 testes unitários aprovados e score 100/100 (20 em cada categoria), com Gitleaks, na execução oficial da PR de cada issue.
+- **Proteção da configuração:** não remova analisadores, Gitleaks nem etapas do workflow, não reduza severidades, não exclua arquivos do escopo nem altere `scripts/`, `.github/`, `.editorconfig` ou `Directory.Build.props`. Isso pode zerar a I10.
+- **Limpeza antes do SHA final:**
+  - Remover a pasta `andamento/` inteira (`PROGRESSO.md` e `README-ORIGINAL-PROFESSOR.md`).
+  - Remover do `CLAUDE.md` as duas regras que citam `andamento/` (em "Working rules": a que manda ler e atualizar o `PROGRESSO.md` e a que manda marcar a issue como "Concluída" no `PROGRESSO.md`).
+  - Conferir que o README não cita `andamento/`, e que não tem travessão nem as palavras bloco e parada (a busca precisa de fronteira de palavra: "aparada" contém "parada").
+  - Deixar a tabela de issues do README com as 10 issues "Concluída" e a PR de cada uma preenchida; conferir "Estado atual" e "Próximas issues".
+  - `git ls-files` sem `bin/`, `obj/`, `.vs/`, `*.db` nem `artifacts/`.
+- **Entrega (conferir sem depender do professor):**
+  - Repositório público criado por "Use this template" (não fork), com o professor com acesso e o Pedro como colaborador.
+  - Mais de um commit de cada integrante, e os e-mails dos commits vinculados às contas do GitHub (Insights > Contributors).
+  - Workflow `code-quality` verde no SHA final da `main`; ler o resumo do job e o artefato `code-quality-report`, porque workflow verde não garante 100. O artefato tem retenção de 30 dias: baixar o relatório e deixar o resumo e o link no texto da PR de entrega.
+  - Entregar a URL do repositório, o SHA exato do commit final da `main` (o commit de merge da I10), a execução do CI e a documentação atualizada. Depois disso, nenhum commit sem autorização do professor.
+  - Guardar o print da confirmação do prazo de 14/10, porque o `ENUNCIADO` e o README original ainda dizem 13/10.
 - **Prazo:** quarta-feira, 14/10, às 23:59, no Teams.
