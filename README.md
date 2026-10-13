@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
 
-Estado atual: da I01 à I08 estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, a matriz de acesso que combina role, dono e estado na camada de serviço, a aprovação e a reprovação (com justificativa) pelo Approver, o pagamento pelo Finance (com o registro do pagamento) e a consulta do histórico de cada despesa, com a mesma visibilidade dela. Os endpoints atuais estão na seção Endpoints.
+Estado atual: da I01 à I09 estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, a matriz de acesso que combina role, dono e estado na camada de serviço, a aprovação e a reprovação (com justificativa) pelo Approver, o pagamento pelo Finance (com o registro do pagamento) e a consulta do histórico de cada despesa, com a mesma visibilidade dela, além da suíte de 611 testes unitários, que cobre as regras, o serviço, o contrato HTTP do controller de despesas, os papéis dos endpoints e o middleware do `SecurityStamp`. Os endpoints atuais estão na seção Endpoints.
 
 ## Sumário
 
@@ -29,6 +29,7 @@ Estado atual: da I01 à I08 estão prontos a persistência com SQLite, o Identit
 - [Detalhe da I06: Ownership e matriz de acesso](#detalhe-da-i06-ownership-e-matriz-de-acesso)
 - [Detalhe da I07: Aprovar e reprovar com justificativa](#detalhe-da-i07-aprovar-e-reprovar-com-justificativa)
 - [Detalhe da I08: Pagamento e histórico](#detalhe-da-i08-pagamento-e-histórico)
+- [Detalhe da I09: Testes unitários](#detalhe-da-i09-testes-unitários)
 - [Próximas issues](#próximas-issues)
 
 ## Equipe
@@ -50,7 +51,7 @@ Estado atual: da I01 à I08 estão prontos a persistência com SQLite, o Identit
 | I06 | Ownership e matriz de acesso | 10% | Concluída | Pedro | [#6](https://github.com/renan-utida/expensehub-api/pull/6) |
 | I07 | Aprovar e reprovar com justificativa | 12% | Concluída | Renan | [#7](https://github.com/renan-utida/expensehub-api/pull/7) |
 | I08 | Pagamento e histórico | 8% | Concluída | Renan | [#8](https://github.com/renan-utida/expensehub-api/pull/8) |
-| I09 | Testes unitários | 10% | A implementar | Renan | - |
+| I09 | Testes unitários | 10% | Concluída | Renan | a preencher |
 | I10 | Qualidade de Código | 25% | A implementar | Renan | - |
 
 ## Endpoints
@@ -222,8 +223,10 @@ sources/
       Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken e snapshot (gerados)
       Repositories/               ExpenseRepository (EF Core) e SqliteConstraintErrors (classifica os erros do SQLite)
   ExpenseHub.UnitTests/
-    Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório
-    Identity/                     testes do seed, do cadastro, das roles e das validações, com fakes das stores
+    Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório,
+                                  e do controller de despesas (contrato HTTP) e dos papéis dos endpoints de despesas e de administração de usuários, com fake do serviço
+    Identity/                     testes do seed, do cadastro, das roles, das validações e do middleware do SecurityStamp,
+                                  com fakes das stores e do gerenciador de usuários
     Persistence/                  testes das conversões e da classificação dos erros do SQLite
 ```
 
@@ -235,9 +238,9 @@ As entidades são classes simples, sem regras de negócio por enquanto. A regra 
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
-- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Na I08, 563 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`), 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição), 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`), 136 da I07 (37 da regra de acesso e dos serviços de edição e envio, sendo 28 casos novos na matriz de `ExpenseAccess` e 9 nos serviços; 26 da regra e do DTO da justificativa, sendo 14 de `ExpenseRules` e 12 de `RejectExpenseRequest`; e 73 dos serviços de decisão, sendo 30 de aprovação e 43 de reprovação) e 77 da I08 (6 da classificação dos erros do SQLite em `SqliteConstraintErrors`, 32 do pagamento, 32 do histórico e 7 das respostas, sendo 4 de `ExpenseHistoryResponse` e 3 de `PaymentResponse`), contando cada caso de `DataRow`.
-- Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService` e de `ExpenseService` usam fakes escritos à mão das stores e do repositório, e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core.
-- O login, o cadastro, o `401`, o `403`, a invalidação do token e a gravação das despesas dependem do host e do banco, então foram validados à mão (seções da I02 à I08), e não por teste unitário.
+- Somente testes unitários (MSTest 4), sem banco, rede ou serviço externo. Na I09, 611 testes: 13 da I01 (9 de `MoneyConversion` e 4 de `UtcTicks`), 25 da I02 (14 de `IdentitySeeder` e 11 de `LoginRequest`), 48 da I03 (25 de `UserAccountService`, 11 de `RegisterRequest`, 4 de `UpdateUserRolesRequest` e 8 de `SecurityStampCheck`), 110 da I04 (42 de `ExpenseRules`, 4 de `BrazilTime`, 26 de `ExpenseService` na criação, 20 na edição e 18 de `ExpenseRequest`), 54 da I05 (19 de `ExpenseVisibility`, 18 de envio e 16 de consulta, mais 1 de conflito na edição, que ficou junto dos testes de edição), 100 da I06 (83 de `ExpenseAccess`, a matriz completa, 8 novos de criação e 9 novos de edição, sobre a exigência da role no serviço e a regra de dono do `PUT`), 136 da I07 (37 da regra de acesso e dos serviços de edição e envio, sendo 28 casos novos na matriz de `ExpenseAccess` e 9 nos serviços; 26 da regra e do DTO da justificativa, sendo 14 de `ExpenseRules` e 12 de `RejectExpenseRequest`; e 73 dos serviços de decisão, sendo 30 de aprovação e 43 de reprovação), 77 da I08 (6 da classificação dos erros do SQLite em `SqliteConstraintErrors`, 32 do pagamento, 32 do histórico e 7 das respostas, sendo 4 de `ExpenseHistoryResponse` e 3 de `PaymentResponse`) e 48 da I09 (6 de lacunas das regras, do serviço e da `ExpenseResponse`, 22 do contrato HTTP do controller de despesas, 13 dos papéis dos endpoints de despesas e de administração de usuários (11 casos) e do acesso anônimo (2 casos), e 7 do middleware do `SecurityStamp`), contando cada caso de `DataRow`. A conta fecha: os 563 acumulados até a I08 mais 48 da I09 dão 611.
+- Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService`, de `ExpenseService`, do controller de despesas e do middleware do `SecurityStamp` usam fakes escritos à mão (das stores, do repositório, do serviço, do gerenciador de usuários e da fábrica de `ProblemDetails`) e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core, e nenhum usa Moq.
+- O pipeline real de `401` e `403`, o login com o `SignInManager`, a leitura do token pelo host e a gravação no banco dependem do host e do banco, então foram validados à mão (seções da I02 à I08). O controller de despesas e o middleware do `SecurityStamp` têm testes unitários com fakes; o que a suíte deixa de fora está em [O que a suíte não cobre](#o-que-a-suíte-não-cobre).
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 
 Para rodar um teste ou uma classe:
@@ -264,6 +267,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I06: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 350 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. Score oficial na PR #6 (execução #29): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I07: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 486 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #7 (execução #37): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I08: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 563 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #8 (execução #46): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- I09: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR: a preencher.
 - Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
 
 ## Decisões de projeto
@@ -859,9 +863,147 @@ dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 
 Depois: cadastre usuários, conceda as roles pelo Admin (`Employee`, `Approver`, `Finance`, `Auditor` e combinações) e faça login de novo com cada um; crie, edite, envie e aprove uma despesa, pague com um Finance que não seja o dono, repita o pagamento e tente pagar em `Draft`, `Submitted` e `Rejected`, pagar a própria despesa e pagar sem a role. Leia o histórico com cada perfil, inclusive o de uma despesa fora do escopo e o de uma inexistente. Ao terminar, limpe as variáveis com `Remove-Item Env:ConnectionStrings__ExpenseHub, Env:Seed__Admin__Password`.
 
+## Detalhe da I09: Testes unitários
+
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| Os testes executam sem banco, rede ou serviço externo | Atendido | a busca nos arquivos de teste por `Microsoft.EntityFrameworkCore`, `Microsoft.Data.Sqlite`, `InMemory`, `HttpClient`, `Thread.Sleep`, `Task.Delay`, `DateTime.UtcNow` e `DateTimeOffset.UtcNow` não acha nada. Uma busca mais ampla, só por `Sqlite` e `UtcNow`, acha duas ocorrências inofensivas: `SqliteConstraintErrorsTests`, que só passa números e não usa SQLite, e `FixedTimeProvider.GetUtcNow()`, o relógio fixo escrito à mão. Fakes escritos à mão; a execução é paralela por método |
+| Estados e transições válidas e inválidas são cobertos | Atendido | matriz de `ExpenseAccess` (ação x estado x dono x roles) com propriedades sobre todas as combinações, mais o teste de que `Rejected` e `Paid` são finais; cada serviço tem os casos de estado errado, repetição e conflito de gravação |
+| Ownership e proibições de autoaprovação e autopagamento | Atendido | dono, outro Employee, roles acumuladas e dono comparado de forma exata (ids que diferem só na caixa são outro usuário); leitura por escopo; papéis dos endpoints de despesas e de administração de usuários |
+| Reprovação, justificativa, pagamento e histórico | Atendido | limites de 10 e 500 caracteres e o `Trim` da justificativa; `PaymentRecord` com ator e horário do servidor; estado, pagamento e histórico preparados para uma única gravação; falha de persistência que não é conflito propaga; histórico em ordem e com o escopo da leitura |
+| Nomes e assertivas expressam a regra | Atendido | nomes no padrão `Metodo_Situacao_Resultado`, ou `Unidade_RegraEmUmaFrase` quando não há situação (21 dos 288 métodos de teste), e um resumo em cada teste |
+| Alterações defeituosas simples fazem testes relevantes falharem | Atendido | verificação de mutação: 58 de 58 mortas (veja abaixo) |
+
+Casos negativos: não contam testes do script de qualidade, nem testes que só exercitam getters, mocks ou código sem regra; quantidade de testes e cobertura percentual não dão pontos; testes de integração, ponta a ponta e de interface são opcionais e não pontuam. Os testes de resposta já existentes (`ExpenseHistoryResponse`, `PaymentResponse`) ficam porque protegem regras (sem e-mail, ator e horário do servidor), e o `ExpenseResponse` ganhou um teste de forma pelo mesmo motivo.
+
+O que a I09 acrescentou (48 testes novos, 611 no total):
+
+| Grupo | Arquivo | Novos | O que cobre |
+|---|---|---:|---|
+| Lacunas das regras, do serviço e da `ExpenseResponse` | `ExpenseAccessMatrixTests`, `ExpenseServiceSubmitTests`, `ExpenseServiceUpdateTests`, `ExpenseResponseTests` | 6 | dono comparado de forma exata (2 casos); falha de persistência no envio e na edição; forma do `ExpenseResponse`; `Rejected` e `Paid` são finais |
+| Contrato HTTP do controller de despesas | `ExpensesControllerTests` | 22 | status e título de cada resultado do serviço, título do `409` por ação, `201` com `Location`, pagamento devolve `PaymentResponse`, o que o controller repassa ao serviço (usuário das claims, identificador, corpo, `reason` sem alterar) |
+| Papéis dos endpoints | `EndpointRolesTests` | 13 | 11 casos conferem os papéis exatos de cada ação de `ExpensesController` (9) e de `AdminUsersController` (2); 2 casos conferem que nenhum dos dois controllers aceita anônimo |
+| Middleware do `SecurityStamp` | `SecurityStampValidationMiddlewareTests` | 7 | stamp igual mantém o usuário; stamp antigo, usuário inexistente, sem identificador e sem stamp viram anônimo; sem autenticação não consulta o gerenciador de usuários; lê a claim das opções do Identity |
+
+### Como o controller foi isolado
+
+Por orientação do professor ("Tentem isolar estritamente o controller, o ideal seria substituir o serviço por um fake/mock e testar o serviço separadamente"), os testes do `ExpensesController` usam um `FakeExpenseService` escrito à mão no lugar do serviço, e o serviço continua testado à parte nos testes `ExpenseService*`. Cada teste do controller afirma só o que é dele: o mapeamento do resultado do serviço para o status e o título, o que ele repassa ao serviço e o corpo da resposta. Para isso, `ExpenseService` deixou de ser `sealed` e seus 9 métodos públicos passaram a ser `virtual` (10 linhas em um único arquivo de produção; o registro no DI não mudou). Foi uma mudança de produção feita por causa dos testes, e é registrada aqui com franqueza. Moq não foi usado: nenhum pacote novo, o fake é escrito à mão.
+
+### Verificação de mutação
+
+O método é manual. Um script local de PowerShell, fora do repositório, não versionado e fora do CI, aplica uma mutação por vez a um arquivo de produção, confere que só ele mudou no `git`, roda `dotnet build --no-incremental` e `dotnet test`, classifica o resultado (morta, sobrevivente, não compilou ou erro de execução) e restaura só aquele arquivo com `git restore`. Cada mutação é um defeito simples (trocar uma role, inverter uma condição, mexer num limite, tirar um passo).
+
+A história, com honestidade:
+
+- **Primeira rodada, antes dos testes novos:** 40 mutações nas regras e no serviço, 37 mortas e 3 sobreviventes: A8 (dono comparado sem diferenciar maiúsculas) e E08 e E09 (`SubmitAsync` e `UpdateAsync` engolindo qualquer exceção de gravação).
+- **Testes novos para os três:** dono exato, falha de persistência no envio e na edição.
+- **Rodada final:** as 40 mais 18 novas (8 do controller, 4 dos papéis e 6 do middleware): 58 de 58 mortas, nenhuma que não compilou, nenhum erro de execução, todas na primeira tentativa. Ao fim de cada grupo, o `git status` ficou limpo e os 611 testes passaram sem mutação.
+- **Uma expectativa errada:** esperávamos que tirar o `HasRoleFor` de `ApproveAsync` e de `PayAsync` fosse equivalente, porque o `Evaluate` repete a checagem. Não é: o teste afirma que o repositório não é consultado para quem não tem a role (E15 e E16 morreram).
+
+| Grupo | Mutações | Mortas |
+|---|---:|---:|
+| `ExpenseAccess` (matriz de acesso) | 8 | 8 |
+| `ExpenseRules` (limites e validações) | 10 | 10 |
+| `ExpenseVisibility` e `ExpenseScope` (escopo de leitura) | 5 | 5 |
+| `ExpenseService` (decisões, pagamento, histórico, gravação) | 17 | 17 |
+| `ExpensesController`, papéis dos endpoints e `AdminUsersController` | 12 | 12 |
+| `SecurityStampValidationMiddleware` | 6 | 6 |
+| **Total** | **58** | **58** |
+
+Morreram por um único teste: A7, E03, E06, E08, E09, E10, E13, E15, E16, C1, C2, C3, C4, C5, C6, C8, P1, P2, P3, W4, W5 e W6. Isso quer dizer que cada uma depende de um teste dedicado, e que apagar ou enfraquecer esse teste deixaria o defeito passar.
+
+<details>
+<summary>As 58 mutações: defeito simples, testes que falharam e o primeiro teste que pegou</summary>
+
+| Id | Defeito simples | Falhas | Primeiro teste que pegou |
+|---|---|---:|---|
+| A1 | Reject exige Finance em vez de Approver | 38 | `ApproveAsync_AfterRejection_ReturnsWrongState` |
+| A2 | dono invertido (`OwnerMustDoIt`) | 175 | `ApproveAsync_AfterRejection_ReturnsWrongState` |
+| A3 | sem a checagem de dono (autoaprovação e autopagamento liberados) | 68 | `ApproveAsync_ApproverWhoOwnsTheExpense_ReturnsForbiddenAndChangesNothing` |
+| A4 | Pay exige Submitted em vez de Approved | 21 | `Evaluate_Allowed_ImpliesTheExpenseIsInsideTheReadScope` |
+| A5 | estado antes do dono (409 antes de 403) | 37 | `ApproveAsync_ApproverWhoOwnsTheExpense_ReturnsForbiddenAndChangesNothing` |
+| A6 | despesa inexistente devolve Forbidden em vez de NotFound | 10 | `ApproveAsync_MissingExpense_ReturnsNotFound` |
+| A7 | existência (404) antes da role (403) | 1 | `Evaluate_WithoutTheRole_IsForbiddenEvenForAMissingExpense` |
+| A8 | dono comparado sem diferenciar maiúsculas | 2 | `Evaluate_OwnershipComparesIdentifiersExactly_DifferenceInLetterCaseIsAnotherUser` |
+| R1 | descrição mínima 10 para 9 | 3 | `Validate_DescriptionOutsideLimits_ReportsDescriptionError` |
+| R2 | descrição máxima 500 para 501 | 3 | `CreateAsync_DescriptionAbove500Characters_IsRejected` |
+| R3 | descrição sem Trim | 2 | `CreateAsync_InvalidData_IsRejectedAndSavesNothing` |
+| R4 | valor mínimo 0.01 para 0.02 | 4 | `CreateAsync_DataOnTheLimits_IsAccepted` |
+| R5 | valor máximo com >= (rejeita Int32.MaxValue) | 5 | `CreateAsync_DataOnTheLimits_IsAccepted` |
+| R6 | casas decimais 2 para 3 | 7 | `CreateAsync_InvalidData_IsRejectedAndSavesNothing` |
+| R7 | data futura com >= (rejeita hoje) | 8 | `CreateAsync_DataOnTheLimits_IsAccepted` |
+| R8 | justificativa mínima 10 para 9 | 6 | `RejectAsync_NineCharactersPaddedWithSpaces_ReturnsValidationError` |
+| R9 | justificativa máxima 500 para 501 | 3 | `RejectAsync_ReasonOutsideLimits_ReturnsValidationErrorAndChangesNothing` |
+| R10 | justificativa sem Trim | 5 | `RejectAsync_NineCharactersPaddedWithSpaces_ReturnsValidationError` |
+| V1 | Approver sem leitura de Submitted (flag trocada pela do Finance) | 15 | `Evaluate_Allowed_ImpliesTheExpenseIsInsideTheReadScope` |
+| V2 | próprias despesas sem exigir a role Employee | 9 | `GetAsync_AdminAlone_ReturnsNull` |
+| V3 | Auditor sem seesAll | 12 | `GetAsync_Auditor_ReadsAnyState` |
+| S1 | predicado do Finance sem Paid | 7 | `GetAsync_Finance_ReadsApprovedAndPaidButNotSubmitted` |
+| S2 | IsEmpty ignora SeesApprovedAndPaid | 5 | `GetAsync_Finance_ReadsApprovedAndPaidButNotSubmitted` |
+| E01 | reprovação não grava o Reason | 5 | `GetHistoryAsync_AfterARejection_ShowsTheReasonToTheOwner` |
+| E02 | reprovação grava a justificativa sem aparar | 2 | `GetHistoryAsync_AfterARejection_ShowsTheReasonToTheOwner` |
+| E03 | aprovação grava um Reason | 1 | `ApproveAsync_ApproverApproves_RecordsTheApprovalInTheSameSave` |
+| E04 | ator do histórico da decisão é o dono, não o usuário do token | 4 | `ApproveAsync_ApproverApproves_RecordsTheApprovalInTheSameSave` |
+| E05 | decisão sem gravar a linha de histórico | 15 | `ApproveAsync_AfterRejection_ReturnsWrongState` |
+| E06 | PaymentRecord com o dono como ator | 1 | `PayAsync_FinancePays_RecordsThePaymentWithTheActorAndTheServerInstant` |
+| E07 | pagamento sem PaymentRecord | 7 | `PayAsync_FinancePays_PreparesTheStateThePaymentAndTheHistoryForASingleSave` |
+| E08 | SubmitAsync engole qualquer exceção de gravação | 1 | `SubmitAsync_PersistenceFailure_Propagates_AfterASingleAttemptToSave` |
+| E09 | UpdateAsync engole qualquer exceção de gravação | 1 | `UpdateAsync_PersistenceFailure_Propagates_AfterASingleAttemptToSave` |
+| E10 | DecideAsync engole qualquer exceção de gravação (controle: o teste de pagamento cobre) | 1 | `PayAsync_PersistenceFailure_Propagates_AfterASingleAttemptToSave` |
+| E11 | edição muda o Status para Submitted | 2 | `GetHistoryAsync_AfterTheWholeLifeOfAnExpense_HasOneEntryForEachStep` |
+| E12 | criação cria em Submitted | 2 | `CreateAsync_ValidData_CreatesADraftOwnedByTheCaller` |
+| E13 | histórico sem ordenação | 1 | `GetHistoryAsync_OwnerReadsTheOwnHistory_InChronologicalOrder` |
+| E14 | histórico lido por FindByIdAsync (sem escopo) | 14 | `GetHistoryAsync_AnotherEmployee_ReceivesNothing` |
+| E15 | ApproveAsync sem HasRoleFor (o serviço passaria a consultar o repositório antes de negar) | 1 | `ApproveAsync_WithoutTheRole_IsForbiddenEvenForAMissingExpense` |
+| E16 | PayAsync sem HasRoleFor (o serviço passaria a consultar o repositório antes de negar) | 1 | `PayAsync_WithoutTheRole_IsForbiddenEvenForAMissingExpense` |
+| E17 | RejectAsync sem HasRoleFor (a justificativa seria checada antes da role) | 2 | `RejectAsync_WithoutTheRole_IsForbiddenBeforeTheReasonIsChecked` |
+| C1 | título do 409 do pagamento trocado pelo de aprovar | 1 | `Action_WrongState_Returns409WithTheTitleOfTheAction` |
+| C2 | pagamento devolve ExpenseResponse em vez de PaymentResponse | 1 | `PayAsync_Succeeded_Returns200WithThePaymentAndNotTheExpense` |
+| C3 | aprovar chama PayAsync | 1 | `Action_Succeeded_Returns200WithTheExpenseAndCallsOnlyItsOwnServiceMethod` |
+| C4 | reason aparado no controller antes de repassar | 1 | `RejectAsync_ForwardsTheReasonExactlyAsItCame` |
+| C5 | criação sem Location | 1 | `CreateAsync_Created_Returns201WithLocationAndForwardsTheCallerAndTheBody` |
+| C6 | 403 mapeado como 404 | 1 | `SubmitAsync_ServiceOutcome_BecomesTheStatusCodeAndTitle` |
+| C7 | roles do token ignoradas ao montar o usuário | 6 | `Action_Succeeded_Returns200WithTheExpenseAndCallsOnlyItsOwnServiceMethod` |
+| C8 | histórico fora do escopo vira 200 com lista vazia | 1 | `NotFound_InTheDetailTheHistoryAndTheActions_IsTheSameProblem` |
+| P1 | pagar exige Approver em vez de Finance | 1 | `Endpoint_AsksForExactlyTheRolesOfTheMatrix` |
+| P2 | histórico sem [Authorize] | 1 | `Endpoint_AsksForExactlyTheRolesOfTheMatrix` |
+| P3 | listagem aberta a anônimos | 1 | `Controller_AllowsNoAnonymousAccess` |
+| P4 | administração de usuários exige Employee em vez de Admin | 2 | `Endpoint_AsksForExactlyTheRolesOfTheMatrix` |
+| W1 | stamp antigo continua autenticado | 4 | `InvokeAsync_PrincipalWithoutStamp_BecomesAnonymousAndRunsTheNextStep` |
+| W2 | stamp antigo não chama o próximo passo | 4 | `InvokeAsync_PrincipalWithoutStamp_BecomesAnonymousAndRunsTheNextStep` |
+| W3 | condição do stamp invertida | 6 | `InvokeAsync_PrincipalWithoutStamp_BecomesAnonymousAndRunsTheNextStep` |
+| W4 | consulta o usuário mesmo sem autenticação | 1 | `InvokeAsync_AnonymousRequest_IsLeftAloneWithoutAskingTheUserManager` |
+| W5 | claim do stamp fixa em vez da das opções do Identity | 1 | `InvokeAsync_StampClaimNamedByTheIdentityOptions_IsTheOneCompared` |
+| W6 | consulta o usuário mesmo sem identificador | 1 | `InvokeAsync_PrincipalWithoutUserIdentifier_BecomesAnonymousWithoutLookingAnyoneUp` |
+
+</details>
+
+### O que a suíte não cobre
+
+- **Banco:** `ExpenseRepository` (consultas, `Include`, conversão do índice único), `UserAccountStore`, `IdentitySeedStore`, mapeamentos, migrations, o `CHECK` e os índices dependem de banco. EF Core InMemory e SQLite em memória não são usados (orientação do professor), então ficam só com a evidência manual em banco temporário das seções de detalhe de cada issue.
+- **Host:** `AuthController.LoginAsync` (precisa do `SignInManager`), `Program`, o registro no DI e `IdentitySeedHostedService` (uma cola curta; a regra está em `IdentitySeeder`, que tem testes).
+- **Controllers de autenticação e de administração de usuários:** o corpo de `AuthController` (cadastro e login) e de `AdminUsersController` (listagem e troca de roles) não tem teste de controller; só os papéis de `AdminUsersController` são lidos por reflexão. A regra está em `UserAccountService`, que tem testes, e o comportamento foi validado à mão nas seções de detalhe da I02 e da I03.
+- **400 automático do `[ApiController]`:** corpo ausente ou inválido é recusado por um filtro do framework antes de a ação rodar, então não roda quando o teste chama a ação direto. As anotações dos DTOs têm testes próprios (`ExpenseRequestTests` e `RejectExpenseRequestTests`).
+- **Papéis por reflexão:** os testes de papéis só leem os atributos `[Authorize]`, não o pipeline real de `401` e `403`. O professor aceitou a reflexão e observou que o ideal seria não usá-la em teste unitário e que teste de autorização é normalmente funcional.
+- **Testes funcionais:** não foram escritos e não são cobrados; o professor ressalvou que seriam o ideal para a autorização e para o banco.
+- **Moq:** não foi usado; os fakes (`FakeExpenseService`, `FakeExpenseRepository`, `FakeUserManager`, `FakeProblemDetailsFactory`) são escritos à mão.
+- **Classe desselada:** `ExpenseService` deixou de ser `sealed` por causa dos testes do controller, como descrito acima.
+- **A verificação de mutação** é manual e não faz parte do CI.
+
+Como validar:
+
+```shell
+dotnet test ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~ExpensesControllerTests"
+dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~SecurityStampValidationMiddlewareTests"
+```
+
+Nenhum banco, rede ou variável de ambiente é necessário.
+
 ## Próximas issues
 
 Os critérios de cada issue estão no backlog central, e não são copiados aqui.
 
-- I09: [Racass/checkpoint-csharpracass-expensehub#9](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/9)
 - I10: [Racass/checkpoint-csharpracass-expensehub#10](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/10)
