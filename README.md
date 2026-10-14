@@ -2,9 +2,9 @@
 
 [![code-quality](https://github.com/renan-utida/expensehub-api/actions/workflows/build.yml/badge.svg)](https://github.com/renan-utida/expensehub-api/actions/workflows/build.yml)
 
-API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho é entregue por issue, uma por vez, e este README cresce junto com o código: cada seção descreve apenas o que já existe.
+API REST corporativa de reembolso de despesas, desenvolvida para o Checkpoint 2 de C# da FIAP (turma 3ESPW). A aplicação usa ASP.NET Core (.NET 10) e Entity Framework Core em banco relacional. O trabalho foi entregue por issue, uma por vez, da I01 à I10, e este README descreve o estado final do repositório.
 
-Estado atual: da I01 à I09 estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, a matriz de acesso que combina role, dono e estado na camada de serviço, a aprovação e a reprovação (com justificativa) pelo Approver, o pagamento pelo Finance (com o registro do pagamento) e a consulta do histórico de cada despesa, com a mesma visibilidade dela, além da suíte de 611 testes unitários, que cobre as regras, o serviço, o contrato HTTP do controller de despesas, os papéis dos endpoints e o middleware do `SecurityStamp`. Os endpoints atuais estão na seção Endpoints.
+Estado atual: as 10 issues estão concluídas. Estão prontos a persistência com SQLite, o Identity com login por token bearer, o cadastro sem roles, a administração de roles pelo Admin, a criação, a edição, o envio, a listagem e a consulta de despesas por perfil, a matriz de acesso que combina role, dono e estado na camada de serviço, a aprovação e a reprovação (com justificativa) pelo Approver, o pagamento pelo Finance (com o registro do pagamento) e a consulta do histórico de cada despesa, com a mesma visibilidade dela, além da suíte de 611 testes unitários, que cobre as regras, o serviço, o contrato HTTP do controller de despesas, os papéis dos endpoints e o middleware do `SecurityStamp`. O workflow `code-quality` marca 100/100 na `main`; a nota oficial da entrega está no [Detalhe da I10](#detalhe-da-i10-qualidade-de-código). Os endpoints estão na seção Endpoints.
 
 ## Sumário
 
@@ -30,7 +30,7 @@ Estado atual: da I01 à I09 estão prontos a persistência com SQLite, o Identit
 - [Detalhe da I07: Aprovar e reprovar com justificativa](#detalhe-da-i07-aprovar-e-reprovar-com-justificativa)
 - [Detalhe da I08: Pagamento e histórico](#detalhe-da-i08-pagamento-e-histórico)
 - [Detalhe da I09: Testes unitários](#detalhe-da-i09-testes-unitários)
-- [Próximas issues](#próximas-issues)
+- [Detalhe da I10: Qualidade de Código](#detalhe-da-i10-qualidade-de-código)
 
 ## Equipe
 
@@ -52,7 +52,7 @@ Estado atual: da I01 à I09 estão prontos a persistência com SQLite, o Identit
 | I07 | Aprovar e reprovar com justificativa | 12% | Concluída | Renan | [#7](https://github.com/renan-utida/expensehub-api/pull/7) |
 | I08 | Pagamento e histórico | 8% | Concluída | Renan | [#8](https://github.com/renan-utida/expensehub-api/pull/8) |
 | I09 | Testes unitários | 10% | Concluída | Renan | [#9](https://github.com/renan-utida/expensehub-api/pull/9) |
-| I10 | Qualidade de Código | 25% | A implementar | Renan | - |
+| I10 | Qualidade de Código | 25% | Concluída | Renan | [#10](https://github.com/renan-utida/expensehub-api/pull/10) |
 
 ## Endpoints
 
@@ -191,12 +191,14 @@ O arquivo `.db` (e os auxiliares `-shm` e `-wal`) é ignorado pelo Git, e nenhum
 
 ## Arquitetura
 
-Apenas a estrutura de pastas atual:
+Estrutura de pastas:
 
 ```text
 dotnet-tools.json                 ferramentas locais (dotnet-ef)
+.github/workflows/                workflow code-quality
 docs/                             especificação da disciplina
 scripts/                          pipeline de qualidade local
+tests/                            testes do próprio script de qualidade (vêm do template)
 sources/
   ExpenseHub.slnx
   ExpenseHub.Api/
@@ -230,7 +232,7 @@ sources/
     Persistence/                  testes das conversões e da classificação dos erros do SQLite
 ```
 
-As entidades são classes simples, sem regras de negócio por enquanto. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`. As regras de despesa ficam em `ExpenseService` e `ExpenseRules`, que dependem de `IExpenseRepository` e de um `TimeProvider`; a implementação com EF Core é `ExpenseRepository`. O serviço nunca recebe `DbContext`. O código de erro do SQLite só aparece em `SqliteConstraintErrors`, uma função pura sobre números, testada sem banco, que o repositório usa para converter a violação do índice único em conflito.
+As entidades são classes simples, sem métodos nem regras de negócio. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`. As regras de despesa ficam em `ExpenseService` e `ExpenseRules`, que dependem de `IExpenseRepository` e de um `TimeProvider`; a implementação com EF Core é `ExpenseRepository`. O serviço nunca recebe `DbContext`. O código de erro do SQLite só aparece em `SqliteConstraintErrors`, uma função pura sobre números, testada sem banco, que o repositório usa para converter a violação do índice único em conflito.
 
 ## Testes
 
@@ -268,7 +270,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I07: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 486 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #7 (execução #37): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I08: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 563 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #8 (execução #46): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I09: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #9 (execução #55): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
-- Nenhum aviso é suprimido (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`).
+- I10: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A I10 não altera código, pacotes, workflow, script nem analisadores. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #10 (execução #60): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- Nenhum aviso é suprimido no código da equipe (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`). Os 4 arquivos de migration gerados pelo `dotnet ef` (os três `.Designer.cs` e o `ExpenseHubDbContextModelSnapshot.cs`) trazem o `#pragma warning disable 612, 618` do gerador e são tratados como código gerado pelo `.editorconfig`.
 
 ## Decisões de projeto
 
@@ -276,7 +279,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - **Valor em centavos:** `Expense.Amount` é `decimal` no domínio, mas a coluna `AmountCents` guarda um inteiro (`MoneyConversion`). A razão é ter um `CHECK` numérico na faixa do valor (de 1 a 214748364700 centavos, ou seja, de R$ 0,01 a R$ 2.147.483.647,00) e ordenação nativa, independente da collation do EF. `ToCents` arredonda meio centavo para longe do zero; o conversor não valida entrada de usuário.
 - **Ticks UTC:** instantes (`CreatedAtUtc`, `OccurredAtUtc`, `PaidAtUtc`) são `DateTimeOffset` no domínio e `INTEGER` de ticks UTC no banco (`UtcTicks`). A leitura sempre volta com offset zero.
 - **`Guid` em `Expense.Id`:** identificador não sequencial gerado pelo servidor. `ExpenseHistory` e `PaymentRecord` usam inteiro autoincrementado.
-- **Usuário sem chave estrangeira:** `OwnerId` e `ActorId` são texto (até 450 caracteres) e ainda não têm FK, porque o Identity só entra na I02.
+- **Usuário sem chave estrangeira (limitação conhecida):** `OwnerId` e `ActorId` são texto (até 450 caracteres) com o identificador do usuário que vem do token, e não têm chave estrangeira para a tabela de usuários (`AspNetUsers`). As chaves estrangeiras de `ExpenseHistories` e de `PaymentRecords` apontam só para `Expenses`.
 - **Um pagamento por despesa:** índice único em `PaymentRecords.ExpenseId`, uma defesa adicional além da regra de negócio e do token de concorrência do `Status` (veja "Pagamento simultâneo: duas barreiras").
 - **Categoria mínima:** `ExpenseCategory` tem só `Id` e `Name`, sem endpoint, seed nem vínculo com `Expense`.
 - **Repositórios na I04:** as interfaces de repositório nascem na I04, junto com o primeiro serviço.
@@ -454,7 +457,7 @@ Tabelas criadas pela migration `AddIdentity`: `AspNetUsers`, `AspNetRoles`, `Asp
 Decisões:
 
 - `IdentityUser` padrão, com o e-mail também como nome de usuário e e-mail único.
-- `OwnerId` e `ActorId` continuam sem chave estrangeira; ela será avaliada quando a I04 precisar dela.
+- `OwnerId` e `ActorId` não têm chave estrangeira para a tabela de usuários (limitação conhecida, descrita em [Decisões de projeto](#decisões-de-projeto)).
 - `LockoutEnd` (`DateTimeOffset?`) ficou sem conversor, porque nenhuma consulta ordena ou filtra por ele.
 - `GET /api/admin/users` existe só para provar `401` e `403` e devolve apenas `id` e `email`, sem hash de senha. A listagem completa e a alteração de roles são da I03.
 - O cadastro (`/register`) e o gerenciamento de roles ficam para a I03.
@@ -1002,8 +1005,40 @@ dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~SecurityStamp
 
 Nenhum banco, rede ou variável de ambiente é necessário.
 
-## Próximas issues
+## Detalhe da I10: Qualidade de Código
 
-Os critérios de cada issue estão no backlog central, e não são copiados aqui.
+A I10 vale 25% da nota e usa direto o score de 0 a 100 do relatório do workflow `code-quality` (pontos = score / 100 x 2,5). Esta issue não muda código, pacotes, workflow, script nem analisadores: ela limpa o repositório, deixa a documentação no estado de entrega e registra o score.
 
-- I10: [Racass/checkpoint-csharpracass-expensehub#10](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/10)
+Critérios de aceite:
+
+| Critério | Situação | Evidência |
+|---|---|---|
+| Restore e build concluem | Atendido | `dotnet restore ./sources/ExpenseHub.slnx` e `dotnet build ./sources/ExpenseHub.slnx --no-incremental` terminam com 0 avisos e 0 erros; o workflow faz o restore e o build de cada projeto |
+| Relatório publicado pelo workflow | Atendido | o passo "Upload quality reports" de `.github/workflows/build.yml` publica o artefato `code-quality-report` (`report.json`, `report.md` e os logs), com retenção de 30 dias, e o resumo do job repete o relatório |
+| Sem segredos nem arquivos gerados | Atendido | `git ls-files` não lista nada em `bin/`, `obj/`, `.vs/` ou `artifacts/`, nem `*.db`, `*.dll`, `*.exe`, `*.pdb` ou `.env`; a connection string é só `Data Source=expensehub.db`; a senha do Admin vem de user-secrets ou de variável de ambiente; o workflow roda o Gitleaks 8.30.1 |
+| Avisos tratados (compilador, analisadores, estilo e regras FIAP) | Atendido | build com 0 avisos; nenhum `NoWarn`, `[SuppressMessage]` ou `#pragma` no código da equipe; os 4 arquivos de migration gerados trazem o `#pragma warning disable 612, 618` do gerador |
+| Testes existentes executam | Atendido | `dotnet test ./sources/ExpenseHub.slnx` com 611 testes aprovados |
+| Score final lido e registrado na pull request de entrega | Registrado na PR | a nota, o número da execução do workflow e o resultado do Gitleaks ficam na linha da I10 da seção [Qualidade](#qualidade) deste README, na descrição da PR de entrega e na mensagem de entrega; o SHA do commit de merge fica só na PR e na mensagem, porque ele só existe depois do merge |
+
+O que a I10 fez:
+
+- Removeu do repositório as anotações temporárias de progresso do trabalho (os dois arquivos continuam no histórico do Git).
+- Trocou no `CLAUDE.md` as duas regras que dependiam dessas anotações por uma só e corrigiu a frase sobre os testes funcionais, que o repositório não tem.
+- Deixou este README no estado final: as 10 issues concluídas, a estrutura de pastas atualizada e a limitação de `OwnerId` e `ActorId` descrita só com o que o código confirma.
+
+O que não foi tocado:
+
+- `.github/`, `scripts/`, `tests/`, `docs/`, `.editorconfig` e `Directory.Build.props` são idênticos ao commit inicial do template (`git diff 6970b3a HEAD` vazio nesses caminhos).
+- O `.gitignore` só recebeu o comentário "Banco de dados local (SQLite)" e quatro padrões de arquivos do SQLite local (`*.db`, `*.db-shm`, `*.db-wal` e `*.sqlite*`), acrescentados na I01.
+- `sources/` e `dotnet-tools.json` ficaram iguais aos da `main` depois da I09.
+
+Como validar:
+
+```shell
+dotnet restore ./sources/ExpenseHub.slnx
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
+```
+
+Tire o `-SkipGitleaks` se o Gitleaks estiver instalado. O score oficial está na aba Actions do repositório, na execução do workflow `code-quality`, no resumo do job e no artefato `code-quality-report`.
