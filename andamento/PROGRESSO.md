@@ -4,7 +4,7 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 ## Estado atual
 
-> CP3-00 (preparação) ainda não iniciada. Nenhuma issue do CP3 começou. Próximo passo: concluir a CP3-00 e abrir a CP3-I01.
+> CP3-00 (preparação) concluída na branch `cp3-00-preparacao`, aguardando a PR e o merge, que o Renan faz. Feito: pasta `andamento/`, `CLAUDE.md` do CP3 e issues salvas (commit `4c9b2a8`); leitura inicial do agente e baseline conferido (build 0 avisos e 0 erros, 611 testes aprovados, SDK 10.0.403, Docker 29.9.2 com daemon ativo, Compose v5.6.1); decisões da seção "Decisões tomadas" registradas; documentação reorganizada: `CHECKPOINT-2.md` (768 linhas movidas do README, com o Pedro), `CHECKPOINT-3.md` (esqueleto, só o Renan) e `README.md` como página de entrada (259 linhas antigas mantidas e 57 novas). O texto da PR está em `andamento/PR-CP3-00.md`. Nenhuma issue do CP3 começou. Próximo passo: depois do merge da CP3-00, planejar a CP3-I01 na branch `cp3-i01`.
 
 ## Links
 
@@ -16,7 +16,7 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 ## Prazo e regras do jogo
 
-- **Prazo:** quarta-feira, 04/11/2026, às 23:59, no Teams. A apostila (em três lugares) e as issues centrais dizem "04/10"; é erro de digitação, vale a data do Teams.
+- **Prazo:** quarta-feira, 04/11/2026, às 23:59, no Teams. A apostila (2 vezes), os slides (1 vez) e as issues centrais (8 vezes) dizem "04/10"; é erro de digitação, vale a data do Teams (04/11).
 - **Autoria:** o CP3 é feito pelo Renan sozinho. A nota-base é coletiva (mesmo grupo do CP2). O ponto extra do LinkedIn é individual.
 - **Ponto de partida:** o CP2 está entregue e mergeado na `main` (merge commit `2e74619`, PR #10). A nota do CP2 não é recalculada. Defeitos antigos sem relação com o novo trabalho não geram desconto; correções necessárias para integrar a funcionalidade são permitidas.
 - **Base de comparação:** 611 testes unitários no fim do CP2, build com 0 avisos, score do pipeline 100/100. A issue de qualidade compara o commit do CP2 com a entrega final.
@@ -39,11 +39,44 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 Cada issue de implementação tem uma branch e uma PR. A publicação no LinkedIn não tem branch nem PR.
 
+## Decisões tomadas (após a leitura inicial do agente, 02/11)
+
+Respostas do Renan às perguntas do agente. Valem até surgir um fato novo; qualquer mudança entra aqui com a data.
+
+| Tema | Decisão |
+| :- | :- |
+| Escopo da CP3-00 | Fazer completa agora, mas por movimentação mecânica com shell (`sed -n 'A,Bp'`), provando que nada se perdeu com contagem de linhas e `diff`. Nada de reescrever o README à mão. |
+| Estrutura de projetos | Opção A. O worker referencia `ExpenseHub.Api`. A lógica de relatório (calculadora, processador, tratador da mensagem) fica na Api e é coberta pelos testes existentes. Worker fino: host e adaptador do RabbitMQ. Ele não registra seed do Admin, controllers nem autenticação. O que o worker usar precisa ser `public` ou visível por `InternalsVisibleTo` (escolher no plano da I03). Registrar o trade-off no README. |
+| Biblioteca de Excel | `DocumentFormat.OpenXml` (MIT). Conferir versão, licença e dependências transitivas no NuGet dentro do plano da I01 e pedir o OK do Renan antes de adicionar o pacote. |
+| POST na I01 | Responde 503 até existir publicador real (I03). Os testes usam um fake do publicador. Nunca 202 sem confirmação. |
+| Identificador | `Guid`, como `Expense.Id`, igual nas rotas, na mensagem e nas respostas. |
+| Migrações no Compose | Decidir no plano da I05. Restrição: só duas imagens publicadas (web e worker), nenhuma terceira. Opções: flag de configuração desligada por padrão (ligada só no Compose) ou bundle do EF dentro da imagem web, como serviço de uma execução. Escolher a de menos peças móveis, que preserve o comportamento padrão do CP2 e não apague dados. |
+| Versão e SHA | O workflow publica a cada push na `main`, sem filtro de caminho, com tag igual ao SHA completo. O commit final gera as suas próprias imagens: esperar o workflow desse commit, fazer `docker compose pull` com essa tag e conferir. O dossiê informa o SHA usado nos experimentos e mostra, com `git diff --stat`, que a diferença até o SHA final é só documentação. |
+| Arquivo `.http` | Nasce na I01 e é completado na I06. Credenciais lidas de um arquivo de ambiente ignorado pelo git. Nenhum literal de senha ou token (FIAP1002 e apostila). |
+| Professor | Nenhuma pergunta ao professor neste checkpoint. A apostila só manda consultá-lo se o banco for incompatível, e SQLite com arquivo persistente compartilhado é citado como compatível. |
+
+Decisões que ficam para o plano da issue (o agente propõe, o Renan aprova):
+
+- I03: política de falha transitória (sem laço quente e sem ack falso) e mecanismo concreto para retomar um `Processing`.
+- I03 e I05: evidência da versão em execução para o E05 (por exemplo variável de ambiente com o SHA, label OCI e uma linha de log na partida).
+- I06: contas do E04 (duas Employee e uma Auditor): criar por registro e atribuir o papel pelo Admin; senhas vindas de arquivo de ambiente ignorado ou digitadas no terminal, nunca versionadas.
+
+## Calendário alvo
+
+| Quando | Meta |
+| :- | :- |
+| Seg 02/11, noite | CP3-00 mergeada; CP3-I01 em plano ou execução. |
+| Ter 03/11 | I01, I02 e I03 mergeadas; I05 em andamento. |
+| Qua 04/11, manhã | I05 mergeada, imagens publicadas e públicas; I04. |
+| Qua 04/11, tarde | I06 (experimentos) e I07; remoção de `andamento/`. |
+| Qua 04/11, até 18h | `main` congelada, workflow do SHA final concluído, `docker compose pull` conferido, texto do Teams pronto. |
+| Qua 04/11, 23:59 | Prazo. Margem de cerca de seis horas. |
+
 ## Status
 
 | Item | Estado | Branch | PR | Pontos da rubrica |
 | :- | :- | :- | :- | :- |
-| CP3-00 Preparação | Pendente | `cp3-00-preparacao` | n/d | n/d |
+| CP3-00 Preparação | Concluída na branch (aguardando PR) | `cp3-00-preparacao` | n/d | n/d |
 | CP3-I01 Contrato e resultado | Pendente | `cp3-i01` | n/d | 20 |
 | CP3-I02 Autorização e isolamento | Pendente | `cp3-i02` | n/d | 15 |
 | CP3-I03 RabbitMQ, worker e idempotência | Pendente | `cp3-i03` | n/d | 20 |
@@ -79,7 +112,8 @@ O usuário pede um resumo de reembolsos por período sem esperar o cálculo dent
 - O filtro usa `ExpenseDate`, com os dois limites inclusivos. Nunca usar a data de criação no lugar.
 - O servidor gera o identificador e obtém o solicitante da identidade autenticada. O tipo do identificador pode seguir a base do grupo, mas deve ser o mesmo nas rotas, mensagens e respostas.
 - Um novo POST válido cria outra solicitação. Deduplicar requisições do cliente não é obrigatório.
-- Aceitação normal: **202**, cabeçalho `Location` apontando para o detalhe e o envelope abaixo, depois de persistir a solicitação **e** obter a confirmação de publicação do broker.
+- Aceitação normal: **202**, cabeçalho `Location` apontando para o detalhe e o envelope abaixo, depois de persistir a solicitação **e** obter a confirmação de publicação do broker. O envelope do 202 pode ser o `Pending` recém-criado: o worker pode avançar o estado antes da próxima consulta.
+- Datas ou escopo inválidos: 400, **nenhum registro persistido e nenhuma publicação**. Campo `ownerId` ou `requesterId` no corpo é ignorado; o solicitante vem sempre da identidade autenticada.
 
 ### Envelope (POST 202, detalhe 200, itens da listagem)
 
@@ -129,6 +163,7 @@ Em `Failed`, `error` tem `code` estável e `message` sanitizada (a redação hum
 - Os cinco estados são sempre obrigatórios. Sem ocorrências: `totalCount` e `totalAmount` zero e os cinco estados com zero.
 - Valores decimais, sem erro de ponto flutuante. O estado e o valor são os lidos **durante o processamento**, não os de quando a solicitação foi criada.
 - Salvar `result` e `generatedAt`. Consultar não recalcula. Alterar um reembolso depois da conclusão não altera o relatório salvo.
+- Não é exigido congelamento dos dados na solicitação nem snapshot transacional entre múltiplas consultas: o worker pode fazer consultas sem transação única. A ordem dos itens e as casas decimais da serialização não alteram o valor.
 - Exemplo de verificação: reembolsos do solicitante no período (Approved 100,00; Approved 50,00; Paid 25,00), de outro funcionário no período (Approved 200,00) e do solicitante fora do período (Paid 500,00). `Mine` dá 3 itens e 175,00. `Global` daria 4 itens e 375,00. O registro fora do período fica de fora nos dois.
 
 ### Download Excel
@@ -163,7 +198,7 @@ Listagem, detalhe e Excel: **somente solicitações próprias**, mesmo para o Au
 | Datas ou escopo inválidos | 400 |
 | Solicitação persistida e publicação confirmada | 202 com `Location` |
 | Banco indisponível antes de registrar | Erro explícito, sem 202 e sem identificador fictício |
-| Publicação sem confirmação depois de registrar | 503 com o id persistido e erro sanitizado |
+| Publicação sem confirmação depois de registrar | 503 com o id persistido e erro sanitizado. O registro continua `Pending` e nunca vira `Failed` (falha de publicação não prova falha do cálculo). |
 
 ### Mensageria e confiabilidade
 
@@ -195,13 +230,17 @@ Listagem, detalhe e Excel: **somente solicitações próprias**, mesmo para o Au
 | :- | :- |
 | Dados conhecidos e limites inclusivos do período | Quantidade e soma corretas por estado e no total |
 | Nenhum reembolso elegível | Cinco estados e totais com zero |
-| Data inicial posterior à final | Solicitação rejeitada sem publicação |
+| Data inicial posterior à final, ou datas ausentes ou inválidas | 400, nenhum registro persistido e nenhuma publicação |
 | Employee solicita Global | Negação sem criar processamento autorizado |
 | Solicitação de outro usuário | Não expõe detalhe nem resultado |
 | Mesma mensagem novamente | Nenhum novo resultado ou efeito de conclusão |
 | Consulta depois de alterar um reembolso | Retorna o resultado persistido, sem recálculo |
 | Download do relatório concluído | Planilha válida, cabeçalhos corretos e números iguais ao resultado salvo |
 | Download pendente, `Failed` ou alheio | 409 para próprio não concluído; 404 para alheio, sem expor dados |
+| Publicação sem confirmação depois de registrar | 503 com o id persistido, registro ainda `Pending`, nenhum `Failed` (fake do publicador que não confirma) |
+| Cálculo do relatório | Somente leitura: nenhum estado de reembolso é alterado |
+| Corpo com `ownerId` ou `requesterId` | Ignorado; o solicitante gravado é o da identidade autenticada |
+| Resultado do tratamento da mensagem | A decisão ack/nack é devolvida por uma classe testável (concluído, duplicata, falha definitiva, transitória); o consumidor só mapeia o resultado |
 
 Documentar o comando `dotnet test` da suíte unitária. Sem pontos por cobertura percentual nem por quantidade de métodos. Testes antigos ou dos scripts de qualidade não contam.
 
@@ -231,7 +270,9 @@ Dossiê curto com identificadores, comandos, resultados e logs sanitizados. Toke
 
 Cada unidade vale tudo ou nada. Captura isolada ou ticket fechado não conta sem o comportamento.
 
-**Tetos:** não compila = 2,0; autorização sistematicamente ausente (acesso indevido reproduzível em pelo menos duas operações entre solicitar, listar, consultar e baixar Excel) = 4,0; sem testes próprios significativos de cálculo, negação e duplicata = 8,0.
+**Tetos:** não compila (web ou worker obrigatório não compila no ambiente declarado, depois de validar a configuração usada para corrigir) = 2,0; autorização sistematicamente ausente (acesso indevido reproduzível em pelo menos duas operações entre solicitar, listar, consultar e baixar Excel) = 4,0; sem testes próprios significativos de cálculo, negação e duplicata (executáveis, aprovados e com asserções de comportamento) = 8,0.
+
+Uma falha localizada de autorização reduz a I02, mas não ativa o teto. Falha do ambiente do professor não gera teto para o grupo. Ter testes significativos afasta o teto de 8,0, mas não garante os 15 pontos da I04, que exige também os demais cenários publicados. O bônus do LinkedIn (+1) nunca ultrapassa os tetos nem 10.
 
 ### Checklist de entrega (Teams)
 
@@ -248,7 +289,7 @@ Cada unidade vale tudo ou nada. Captura isolada ou ticket fechado não conta sem
 
 Estes pontos vêm da leitura do código atual e da apostila. Confirme cada um no código antes de decidir.
 
-1. **Estrutura atual.** Tudo vive em `ExpenseHub.Api` (SDK Web; `Program` é `internal static`; domínio, persistência, serviços e identidade juntos) e há `ExpenseHub.UnitTests`. O worker precisa do `DbContext`, das entidades e dos conversores. O plano da I03 deve comparar as opções (worker referenciando o projeto Api; extrair uma biblioteca compartilhada; biblioteca só com o necessário) e escolher a de menor risco para os 611 testes, para o zero aviso e para a imagem do worker. Não mover namespaces sem necessidade.
+1. **Estrutura atual.** Tudo vive em `ExpenseHub.Api` (SDK Web; `Program` é `internal static`; domínio, persistência, serviços e identidade juntos) e há `ExpenseHub.UnitTests`. O worker precisa do `DbContext`, das entidades e dos conversores. O plano da I03 deve comparar as opções (worker referenciando o projeto Api; extrair uma biblioteca compartilhada; biblioteca só com o necessário) e escolher a de menor risco para os 611 testes, para o zero aviso e para a imagem do worker. Não mover namespaces sem necessidade. **Decidido: opção A** (ver "Decisões tomadas").
 2. **Novos projetos herdam** o `Directory.Build.props` (ImplicitUsings desligado, analisadores, StyleCop, zero avisos). Todo `using` explícito, `<summary>` em inglês nos tipos públicos.
 3. **Dinheiro.** `Expense.Amount` é `decimal` e o banco guarda centavos inteiros (`MoneyConversion`). Somar em centavos inteiros e converter para `decimal` só na saída. Nada de `double`.
 4. **Datas.** `Expense.ExpenseDate` é `DateOnly`. Filtro inclusivo nos dois lados. Todo novo `DateTimeOffset` persistido (criado, iniciado, concluído, gerado) precisa do `UtcDateTimeOffsetConverter`, senão `OrderBy`, `Max` e `Where` falham no SQLite.
@@ -256,11 +297,11 @@ Estes pontos vêm da leitura do código atual e da apostila. Confirme cada um no
 6. **Papéis.** `AppRoles` já tem `Employee`, `Auditor` etc. A regra de escopo por papel precisa ficar numa classe simples e testável, fora do controller. Admin, Approver e Finance sem Employee ou Auditor não solicitam nada (403).
 7. **SQLite compartilhado.** Web e worker escrevem no mesmo arquivo: usar um volume nomeado montado no mesmo caminho nos dois contêineres, ativar WAL e definir tempo de espera de bloqueio (busy timeout) para evitar `database is locked`. Documentar. Concorrência de escrita entre dois processos é um risco real; tratar `SQLITE_BUSY` como transitório.
 8. **Chaves do bearer token.** O esquema usa `AddBearerToken` (tokens protegidos pelo Data Protection). Ao recriar o contêiner da web (E05), as chaves somem a menos que sejam persistidas num volume. Persistir o conjunto de chaves (sem versionar as chaves) para os tokens sobreviverem à recriação. A apostila aceita nova autenticação no E05, mas pede preservar a configuração necessária entre execuções.
-9. **Migrations.** A aplicação não aplica migrations na inicialização. O Compose precisa de um passo reprodutível de inicialização do banco (por exemplo um serviço de uma execução só, ou um bundle do EF). Decidir no plano da I05 sem apagar dados. A senha do Admin do seed vem de configuração, nunca de arquivo versionado.
+9. **Migrations.** A aplicação não aplica migrations na inicialização. O Compose precisa de um passo reprodutível de inicialização do banco (por exemplo um serviço de uma execução só, ou um bundle do EF). Decidir no plano da I05 (ver "Decisões tomadas": só duas imagens), sem apagar dados. A senha do Admin do seed vem de configuração, nunca de arquivo versionado.
 10. **Idempotência.** O estado vive no registro do relatório (`Pending`, `Processing`, `Completed`, `Failed`). Transições condicionais (por exemplo atualização com `WHERE Status = ...`) evitam corrida entre tentativas. `Completed` com `result` no mesmo `SaveChangesAsync`. Mensagem de relatório já `Completed` ou `Failed`: ack sem novo efeito. `Processing` antigo deve poder ser retomado.
 11. **Falhas.** Definitiva (dado inconsistente, escopo inválido no registro): `Failed` + `error {code, message}` sanitizado + ack. Transitória (banco ocupado, indisponível): não confirmar como sucesso; não girar em laço infinito; documentar o comportamento. Nunca registrar nem devolver stack trace, connection string ou token.
 12. **Publicação.** Usar o cliente oficial do RabbitMQ para .NET (conferir a versão estável atual e a API assíncrona) com confirmação de publicação habilitada. Encapsular atrás de uma interface (por exemplo `IReportPublisher`) para os testes usarem um fake. Na I01, a interface nasce junto do POST; a implementação real chega na I03. Enquanto não houver implementação real registrada, o POST não pode fingir sucesso (503, não 202).
-13. **Biblioteca de Excel.** Escolher uma com licença permissiva e registrar a licença no README. Candidatas a verificar no NuGet: ClosedXML e DocumentFormat.OpenXml. Evitar EPPlus (licença não comercial nas versões recentes). Testar abrindo os bytes gerados com a própria biblioteca e conferindo células numéricas.
+13. **Biblioteca de Excel.** **Decidido: `DocumentFormat.OpenXml` (MIT).** Conferir no NuGet a versão, a licença e as dependências transitivas no plano da I01 e registrar a licença no README. ClosedXML ficou de fora porque as versões recentes podem puxar dependências com licença própria; EPPlus também (licença não comercial nas versões recentes). Testar abrindo os bytes gerados com a própria biblioteca e conferindo células numéricas.
 14. **Imagens (I05).** Criar um **workflow novo** em `.github/workflows/` (não editar `build.yml`, que é do professor). Fluxo: testes primeiro, depois build e push das duas imagens para um registry público (sugestão: GitHub Container Registry), com tag igual ao **SHA completo do commit** e sem `latest`. O pacote publicado precisa ficar **público** para a correção puxar sem credenciais (ajuste manual do Renan na página do pacote no GitHub).
 15. **Circularidade do SHA.** O Compose não pode conter o SHA do commit que o contém. Parametrizar a tag (`${IMAGE_TAG}`) com valor pelo ambiente ou arquivo `.env` local, e entregar o SHA e as referências no Teams. O último commit da `main` deve ser o commit a partir do qual o workflow publicou as imagens. Congelar a `main` depois disso.
 16. **Compose.** RabbitMQ com volume nomeado para dados, imagem com painel de gerenciamento (necessário para o E03), verificação de saúde, credenciais por variável de ambiente com `.env.example` sem segredos (o `.gitignore` já ignora `*.env`). Nunca `docker compose down -v`, nem `docker volume rm` ou `prune`.
@@ -268,6 +309,12 @@ Estes pontos vêm da leitura do código atual e da apostila. Confirme cada um no
 18. **Registros (logs).** Correlacionar tudo por `reportId`. Sem tokens, senhas, cabeçalhos de autenticação nem connection strings.
 19. **Ambiente do Renan.** Windows com Git Bash (o agente roda comandos no Git Bash) e Visual Studio 2026. Para `docker run -v`, o Git Bash converte caminhos Unix em caminhos do Windows; prefira `docker compose` ou use `MSYS_NO_PATHCONV=1`. Docker Desktop é pré-requisito dos experimentos e deve ser instalado cedo.
 20. **Pasta de trabalho.** O agente roda na raiz do repositório (`expensehub-api`), não em `sources/`. Todos os comandos deste projeto usam caminhos relativos à raiz.
+21. **Binding do DTO.** `DateOnly` e enum não anuláveis aceitam omissão sem erro (`0001-01-01` e `Mine = 0`). Usar `DateOnly?` e `scope` anulável com `[Required]`, e rejeitar valor numérico no enum (por exemplo `"scope": 0`), senão "datas obrigatórias" e "escopo inválido" não devolvem 400. Testar corpo sem campos, data inválida e escopo inexistente.
+22. **Tradução EF/SQLite.** `GroupBy` com `Sum` sobre `Amount` (conversor decimal para centavos) pode não traduzir para SQL, e o filtro por `DateOnly` também precisa ser conferido. Testes com InMemory não provam a tradução: confirmar contra SQLite real. Plano B: projetar `(Status, Amount)` já filtrados no SQL e somar centavos em memória.
+23. **Formato dos instantes.** `DateTimeOffset` com offset zero pode serializar como `+00:00`; o exemplo da apostila usa `Z`. São equivalentes, mas convém emitir `Z`.
+24. **Testabilidade do worker.** "Ack só depois de salvar" só é testável se a decisão estiver numa classe que devolve um resultado (concluído, duplicata, falha definitiva, transitória) e o consumidor do RabbitMQ apenas mapeia esse resultado para ack ou nack.
+25. **Publicação sem confirmação.** A apostila exige que esse tratamento seja verificável por teste. Usar um fake de `IReportPublisher` que não confirma e afirmar: 503, id persistido, registro ainda `Pending`.
+26. **GHCR e CODEOWNERS.** O pacote precisa ser tornado público manualmente pelo Renan. O `CODEOWNERS` tem `* @Racass` e não se sabe se existe proteção de branch exigindo revisão dele. Se uma PR ficar travada, avisar o Renan; não contornar.
 
 ## Seções por issue
 
@@ -275,13 +322,16 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 
 ### CP3-00: Preparação
 
-**Estado:** pendente. **Branch:** `cp3-00-preparacao`.
+**Estado:** concluída na branch, aguardando PR e merge. **Branch:** `cp3-00-preparacao`.
 
-- [ ] Pasta `andamento/` com este arquivo e os dois HTML (copiados pelo Renan).
-- [ ] `CLAUDE.md` do CP3 no lugar (copiado pelo Renan).
-- [ ] Issues #11 a #18 salvas em `andamento/requisitos/issues-cp3.md` (copiadas pelo Renan).
-- [ ] README reorganizado e `CHECKPOINT-2.md` e `CHECKPOINT-3.md` criados, sem perda de conteúdo do CP2.
-- [ ] Baseline registrado (build, testes, score).
+- [x] Pasta `andamento/` com este arquivo e os dois HTML (copiados pelo Renan, commit `4c9b2a8`).
+- [x] `CLAUDE.md` do CP3 no lugar (commit `4c9b2a8`).
+- [x] Issues #11 a #18 salvas em `andamento/requisitos/issues-cp3.md` (commit `4c9b2a8`).
+- [x] Baseline registrado: build 0 avisos e 0 erros, 611 testes aprovados, SDK 10.0.403, Docker 29.9.2 com daemon ativo. Score 100/100 é o do CP2 (o script exige `git add -A` e não foi rodado nesta etapa).
+- [x] Decisões da leitura inicial registradas na seção "Decisões tomadas".
+- [x] README reorganizado e `CHECKPOINT-2.md` e `CHECKPOINT-3.md` criados, sem perda de conteúdo do CP2. Prova: as 1044 linhas do README original viraram 259 mantidas no README, 768 movidas para o `CHECKPOINT-2.md` e 17 descartadas (Sumário antigo e uma linha em branco); 7 linhas do texto movido tiveram só o link ou a referência corrigidos; script de verificação com 83 conferências aprovadas; build 0 avisos e 0 erros; 611 testes aprovados; script de qualidade 100/100 (único achado, informativo: `FIAP0002`, Gitleaks ignorado por `-SkipGitleaks`).
+
+Apoio: Decisões de projeto, Fora de escopo e Fluxo de trabalho do CP2 foram para o `CHECKPOINT-2.md`; Testes e Qualidade ficam inteiros no README. Pendência para o Renan decidir: o título da seção "Decisions" do `CLAUDE.md` (linha 133) ainda manda documentar o raciocínio no README, e a frase "Until CP3-00 finishes this reorganization, keep updating the README as before" pode sair. Depois do push, abrir 4 links no GitHub para conferir as âncoras com acento (lista no `andamento/PR-CP3-00.md`).
 
 ### CP3-I01: Contrato e resultado do relatório (20)
 
@@ -293,6 +343,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Resultado e instante de geração salvos; consulta sem recálculo (2)
 - [ ] Excel válido, fiel ao resultado salvo e com o contrato de download (2)
 
+Apoio (sem unidade própria, mas verificado por teste ou evidência): DTO com `DateOnly?` e escopo anulável (ponto 21); datas inválidas não persistem nem publicam; cálculo é somente leitura; tradução EF/SQLite conferida (ponto 22); esqueleto do `.http` com solicitar, listar, consultar e baixar, sem credenciais; `Guid` como identificador; POST responde 503 enquanto não houver publicador real.
+
 ### CP3-I02: Autorização e isolamento (15)
 
 **Estado:** pendente. **Branch:** `cp3-i02`. **Issue:** #12.
@@ -300,6 +352,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Autenticação e permissão por perfil e escopo (5)
 - [ ] Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor (5)
 - [ ] Solicitante e escopo controlados pelo servidor até o processamento (5)
+
+Apoio: corpo com `ownerId` ou `requesterId` é ignorado (teste); ordem das respostas documentada (401, 403 por papel, 400, 403 por escopo).
 
 ### CP3-I03: RabbitMQ, worker e idempotência (20)
 
@@ -310,6 +364,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Conclusão e resultado consistentes; falha definitiva registrada (5)
 - [ ] Duplicata reconhecida sem novo efeito, com proteção persistente (5)
 
+Apoio: publicação sem confirmação testada (503, id persistido, `Pending`); decisão ack/nack numa classe testável (ponto 24); política de falha transitória e retomada de `Processing` documentadas; SQLite com WAL e espera de bloqueio; aprovação do pacote do cliente RabbitMQ (versão e licença) no plano.
+
 ### CP3-I04: Testes próprios significativos (15)
 
 **Estado:** pendente. **Branch:** `cp3-i04`. **Issue:** #14.
@@ -318,6 +374,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Negação por perfil e escopo; isolamento por solicitante (5)
 - [ ] Duplicata, resultado persistido e Excel, com asserções de comportamento (5)
 
+Apoio: tabela cenário por teste no `CHECKPOINT-3.md`; verificação de mutação nas regras novas; comando `dotnet test` documentado.
+
 ### CP3-I05: Publicação e execução reproduzível (15)
 
 **Estado:** pendente. **Branch:** `cp3-i05`. **Issue:** #15.
@@ -325,6 +383,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Duas imagens publicadas e identificadas pelo commit, com testes antes da publicação (5)
 - [ ] Compose executa as imagens publicadas e o RabbitMQ com configuração documentada (5)
 - [ ] Banco e armazenamento compatíveis, inicialização reproduzível e segredos externos (5)
+
+Apoio: Dockerfiles do web e do worker e `.dockerignore`; workflow NOVO (não editar `build.yml`); `${IMAGE_TAG}` no Compose; chaves do Data Protection em volume; inicialização do banco conforme a decisão; evidência da versão em execução; pacote público no GHCR (manual).
 
 ### CP3-I06: Experimentos e diagnóstico (10)
 
@@ -335,6 +395,8 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] E04 cenários de autorização reproduzíveis (2)
 - [ ] E05 persistência depois de recriar web e worker (2)
 - [ ] Diagnóstico correto de aceitação, publicação e janela sem outbox (1)
+
+Apoio: contas do E04 (duas Employee e uma Auditor) criadas sem senha versionada; `.http` completo; SHA usado nos experimentos informado no dossiê.
 
 ### CP3-I07: Qualidade objetiva das alterações (5)
 
@@ -351,5 +413,6 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [ ] Conferir `git status` e arquivos rastreados: sem `bin/`, `obj/`, `.vs/`, bancos, `.env`, chaves, planilhas baixadas.
 - [ ] `main` com o commit final; workflow de publicação terminou; imagens com a tag do SHA completo; pacotes públicos.
 - [ ] `docker compose pull` com a tag do SHA e execução conferida.
+- [ ] `git diff --stat` do SHA dos experimentos até o SHA final mostra só documentação, e isso está dito no dossiê.
 - [ ] Texto de entrega para o Teams: URL do repositório, SHA do CP2 (completo), SHA final do CP3, referências das duas imagens, comando de acesso, comando dos testes.
 - [ ] LinkedIn (opcional, manual, texto próprio): publicar e enviar o link individualmente no Teams.
