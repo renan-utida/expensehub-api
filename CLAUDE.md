@@ -95,7 +95,6 @@ The goal is few messages and no rework. Follow these steps for every issue.
 - `README.md` is the landing page: what the project is, a team table with one column per checkpoint (Renan: CP2 and CP3; Pedro: CP2 only), how to run the current version, endpoints, tests, a short section per checkpoint with a link to its record, and the requirement table of each issue with its status and PR.
 - `CHECKPOINT-2.md` is the frozen record of everything done in CP2 (Pedro's name stays there). Only fix links in it.
 - `CHECKPOINT-3.md` is the CP3 record, filled issue by issue like CP2 was: per-issue detail, decisions, evidence, and the E01 to E05 dossier. It names only Renan.
-- Until CP3-00 finishes this reorganization, keep updating the README as before.
 - At the end of each issue update: the status table in the README, the section of the issue in `CHECKPOINT-3.md`, and `andamento/PROGRESSO.md`.
 
 ## Git workflow
@@ -130,7 +129,7 @@ The goal is few messages and no rework. Follow these steps for every issue.
 - Docker: images are tagged with the full commit SHA, never `latest`. Never run `docker compose down -v`, `docker volume rm`, `docker volume prune` or `docker system prune`, and never delete the database or a volume to make something pass. The developer works on Windows with Git Bash: put `MSYS_NO_PATHCONV=1` before `docker` commands that receive Linux paths, so Git Bash does not rewrite them.
 - Keep `andamento/PROGRESSO.md` current. That folder is temporary and is removed in CP3-I07, together with this paragraph and the references to `andamento/` in this file.
 
-## Decisions (keep status-code logic in one place and document the reasoning in the README)
+## Decisions (keep status-code logic in one place; document new CP3 decisions in CHECKPOINT-3.md; the CP2 reasoning lives in CHECKPOINT-2.md)
 
 - `ExpenseCategory` (professor confirmed no issue requires it): map only the minimal entity (Id, Name). No endpoints, no seed and no link to `Expense`.
 - The professor asked the team to choose status codes by their meaning: 401 is about authentication (who am I), 403 about authorization (what may I do), 404 not found, 409 conflict.

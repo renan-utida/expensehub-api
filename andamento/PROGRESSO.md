@@ -331,7 +331,7 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 - [x] Decisões da leitura inicial registradas na seção "Decisões tomadas".
 - [x] README reorganizado e `CHECKPOINT-2.md` e `CHECKPOINT-3.md` criados, sem perda de conteúdo do CP2. Prova: as 1044 linhas do README original viraram 259 mantidas no README, 768 movidas para o `CHECKPOINT-2.md` e 17 descartadas (Sumário antigo e uma linha em branco); 7 linhas do texto movido tiveram só o link ou a referência corrigidos; script de verificação com 83 conferências aprovadas; build 0 avisos e 0 erros; 611 testes aprovados; script de qualidade 100/100 (único achado, informativo: `FIAP0002`, Gitleaks ignorado por `-SkipGitleaks`).
 
-Apoio: Decisões de projeto, Fora de escopo e Fluxo de trabalho do CP2 foram para o `CHECKPOINT-2.md`; Testes e Qualidade ficam inteiros no README. Pendência para o Renan decidir: o título da seção "Decisions" do `CLAUDE.md` (linha 133) ainda manda documentar o raciocínio no README, e a frase "Until CP3-00 finishes this reorganization, keep updating the README as before" pode sair. Depois do push, abrir 4 links no GitHub para conferir as âncoras com acento (lista no `andamento/PR-CP3-00.md`).
+Apoio: Decisões de projeto, Fora de escopo e Fluxo de trabalho do CP2 foram para o `CHECKPOINT-2.md`; Testes e Qualidade ficam inteiros no README. CLAUDE.md corrigido (título da seção Decisions e frase transitória removida). Depois do push, abrir 4 links no GitHub para conferir as âncoras com acento (lista no `andamento/PR-CP3-00.md`).
 
 ### CP3-I01: Contrato e resultado do relatório (20)
 

@@ -2,11 +2,11 @@
 
 ## Issue implementada
 
-Preparação do Checkpoint 3 (CP3-00). Não há issue central correspondente: é a etapa que organiza a documentação antes das issues CP3-I01 a CP3-I07. A mudança é somente de documentação: nenhum código de produção, pacote, workflow, `docs/`, `scripts/` ou `.github/` foi alterado.
+Preparação do Checkpoint 3 (CP3-00). Não há issue central correspondente: é a etapa que organiza a documentação antes das issues CP3-I01 a CP3-I07. A PR traz também o primeiro commit da branch (`4c9b2a8`): o `CLAUDE.md` atualizado para o CP3 e a pasta `andamento/`, com o `PROGRESSO.md` e os arquivos de requisitos (apostila, slides e issues). A mudança é somente de documentação: além do `README.md` e dos dois `CHECKPOINT`, o `CLAUDE.md` foi alterado e a pasta `andamento/` foi criada; nenhum código de produção, pacote, workflow, `docs/`, `scripts/` ou `.github/` foi alterado.
 
 ## Resumo técnico
 
-O README tinha 1044 linhas e misturava o estado vivo do sistema com o registro histórico do CP2. Agora:
+O README tinha 1044 linhas e misturava o estado vivo do sistema com o registro histórico do CP2. Além do primeiro commit da branch (`4c9b2a8`: o `CLAUDE.md` atualizado para o CP3 e a pasta `andamento/`, com o `PROGRESSO.md` e os arquivos de requisitos `apostila-cp3.html`, `slides-cp3.html` e `issues-cp3.md`; a pasta é temporária e sai na CP3-I07), a PR faz o seguinte:
 
 - **`CHECKPOINT-2.md` (novo, 780 linhas):** registro congelado do CP2, com o nome do Pedro. Recebe, movidos do README sem reescrever, a apresentação e o "Estado atual" do CP2, as tabelas Equipe e Issues, Decisões de projeto, Fora de escopo, Fluxo de trabalho da equipe e as dez seções "Detalhe da I01 a I10". Ganha só um título, uma nota e um Sumário (12 linhas novas).
 - **`CHECKPOINT-3.md` (novo, 199 linhas):** esqueleto do CP3, com só o nome do Renan: ponto de partida, decisões de 02/11, fora de escopo, fluxo de trabalho, uma seção por issue com os critérios da rubrica (todos pendentes), dossiê E01 a E05 e entrega.
@@ -38,7 +38,7 @@ Conta: 259 linhas antigas no README + 768 no CHECKPOINT-2.md + 17 descartadas = 
 - **Decisões de projeto** foi para o CHECKPOINT-2.md por ser o racional histórico do CP2. **Fora de escopo** também, porque lista "Docker" e "deploy", o oposto do CP3. O **Fluxo de trabalho** do CP2 foi junto; o do CP3 nasce no CHECKPOINT-3.md.
 - **Testes** e **Qualidade** ficam inteiros no README, com a contagem e os scores por issue do CP2, porque o CP3 vai editar essas seções. Se for melhor, mover esses trechos para o CHECKPOINT-2.md é um passo posterior.
 - Foram corrigidas 7 linhas do texto movido (links e referências que apontavam para seções que mudaram de arquivo): 2 no início do CHECKPOINT-2.md (linhas 5 e 7 do original), 4 nos Detalhes (linhas 401, 487, 1021 e 1027 do original) e 1 no README (linha 245 do original). O plano previa 6; a sétima (linha 5, "este README descreve") apareceu na verificação.
-- Pendência fora desta PR: o título da seção "Decisions" do `CLAUDE.md` (linha 133) ainda manda documentar o raciocínio no README. Não foi alterado por não fazer parte do pedido.
+- Correção no `CLAUDE.md` nesta PR: o título da seção "Decisions" agora manda documentar as decisões novas do CP3 no `CHECKPOINT-3.md` e diz que o raciocínio do CP2 está no `CHECKPOINT-2.md`, e a frase transitória "Until CP3-00 finishes this reorganization, keep updating the README as before." foi removida, porque a reorganização terminou. As regras abaixo do título não mudaram.
 
 ## Como validar
 
