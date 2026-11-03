@@ -3,8 +3,9 @@ using System;
 namespace ExpenseHub.Api.Reports;
 
 /// <summary>
-/// The storage could not save a report request (for example, the database is unavailable). It lets the service answer with an
-/// explicit error, and without an identifier, without knowing the storage technology.
+/// The storage is temporarily unavailable (for example, the database is busy, locked or cannot be opened). When a request could
+/// not be saved, it lets the service answer with an explicit error, and without an identifier; when the worker meets it, the
+/// message is not acknowledged and comes back later. Neither knows the storage technology.
 /// </summary>
 public sealed class ReportStorageException : Exception
 {

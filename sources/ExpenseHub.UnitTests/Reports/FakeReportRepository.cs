@@ -38,6 +38,9 @@ internal sealed class FakeReportRepository : IReportRepository
     /// <summary>Gets or sets a value indicating whether adding a request fails as if the database were unavailable.</summary>
     public bool FailOnAdd { get; set; }
 
+    /// <summary>Gets or sets the exception that reading the expenses of a report throws, or <c>null</c> for none.</summary>
+    public Exception? ExpenseReadFailure { get; set; }
+
     /// <summary>Adds a request directly, without counting it as an addition made by the service.</summary>
     /// <param name="report">The request.</param>
     public void Given(ReportRequest report)
@@ -86,6 +89,11 @@ internal sealed class FakeReportRepository : IReportRepository
     public Task<IReadOnlyList<ReportExpenseLine>> ListExpenseLinesAsync(ReportQuery query)
     {
         ExpenseReads++;
+
+        if (ExpenseReadFailure is not null)
+        {
+            throw ExpenseReadFailure;
+        }
 
         IReadOnlyList<ReportExpenseLine> lines = ReportCalculator.Select(Expenses.AsQueryable(), query).ToList();
 

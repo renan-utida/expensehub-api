@@ -77,10 +77,17 @@ public sealed class ReportRepository : IReportRepository
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        List<ReportExpenseLine> lines = await ReportCalculator
-            .Select(_dbContext.Expenses.AsNoTracking(), query)
-            .ToListAsync();
+        try
+        {
+            List<ReportExpenseLine> lines = await ReportCalculator
+                .Select(_dbContext.Expenses.AsNoTracking(), query)
+                .ToListAsync();
 
-        return lines;
+            return lines;
+        }
+        catch (Exception exception) when (SqliteTransientErrors.IsTransient(exception))
+        {
+            throw new ReportStorageException("The expenses of the report could not be read now.", exception);
+        }
     }
 }
