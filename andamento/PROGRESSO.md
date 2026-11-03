@@ -4,7 +4,7 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 ## Estado atual
 
-> CP3-00 (preparação) concluída na branch `cp3-00-preparacao`, aguardando a PR e o merge, que o Renan faz. Feito: pasta `andamento/`, `CLAUDE.md` do CP3 e issues salvas (commit `4c9b2a8`); leitura inicial do agente e baseline conferido (build 0 avisos e 0 erros, 611 testes aprovados, SDK 10.0.403, Docker 29.9.2 com daemon ativo, Compose v5.6.1); decisões da seção "Decisões tomadas" registradas; documentação reorganizada: `CHECKPOINT-2.md` (768 linhas movidas do README, com o Pedro), `CHECKPOINT-3.md` (esqueleto, só o Renan) e `README.md` como página de entrada (259 linhas antigas mantidas e 57 novas). O texto da PR está em `andamento/PR-CP3-00.md`. Nenhuma issue do CP3 começou. Próximo passo: depois do merge da CP3-00, planejar a CP3-I01 na branch `cp3-i01`.
+> CP3-00 (preparação) concluída e mergeada na `main` como PR #11 da equipe (merge commit `6d7f811`): pasta `andamento/`, `CLAUDE.md` do CP3, baseline (build 0 avisos e 0 erros, 611 testes, SDK 10.0.403, Docker 29.9.2) e documentação reorganizada (`CHECKPOINT-2.md`, `CHECKPOINT-3.md` e `README.md` como página de entrada). CP3-I01 concluída na branch `cp3-i01`, aguardando a PR e o merge: rotas e DTOs de relatório, entidade e migration `AddReportRequests`, calculadora pura, resultado salvo, Excel com `DocumentFormat.OpenXml` 3.5.1 (MIT), publicador atrás de `IReportPublisher` (o POST responde 503 até a CP3-I03) e esqueleto do `.http`. Build 0 avisos e 0 erros, 788 testes (177 novos), script de qualidade 100/100, SQLite e HTTP reais conferidos. O texto da PR está em `andamento/PR-CP3-I01.md`. Nenhuma outra issue começou. Próximo passo: depois do merge da CP3-I01, planejar a CP3-I02 (a regra de escopo por papel).
 
 ## Links
 
@@ -76,8 +76,8 @@ Decisões que ficam para o plano da issue (o agente propõe, o Renan aprova):
 
 | Item | Estado | Branch | PR | Pontos da rubrica |
 | :- | :- | :- | :- | :- |
-| CP3-00 Preparação | Concluída na branch (aguardando PR) | `cp3-00-preparacao` | n/d | n/d |
-| CP3-I01 Contrato e resultado | Pendente | `cp3-i01` | n/d | 20 |
+| CP3-00 Preparação | Concluída | `cp3-00-preparacao` | PR #11 (merge `6d7f811`) | n/d |
+| CP3-I01 Contrato e resultado | Concluída na branch (aguardando PR) | `cp3-i01` | n/d | 20 |
 | CP3-I02 Autorização e isolamento | Pendente | `cp3-i02` | n/d | 15 |
 | CP3-I03 RabbitMQ, worker e idempotência | Pendente | `cp3-i03` | n/d | 20 |
 | CP3-I04 Testes próprios | Pendente | `cp3-i04` | n/d | 15 |
@@ -322,7 +322,7 @@ Cada seção abaixo é preenchida pelo agente ao terminar a issue. A lista de un
 
 ### CP3-00: Preparação
 
-**Estado:** concluída na branch, aguardando PR e merge. **Branch:** `cp3-00-preparacao`.
+**Estado:** concluída; PR #11 da equipe, merge commit `6d7f811`. **Branch:** `cp3-00-preparacao`.
 
 - [x] Pasta `andamento/` com este arquivo e os dois HTML (copiados pelo Renan, commit `4c9b2a8`).
 - [x] `CLAUDE.md` do CP3 no lugar (commit `4c9b2a8`).
@@ -335,15 +335,17 @@ Apoio: Decisões de projeto, Fora de escopo e Fluxo de trabalho do CP2 foram par
 
 ### CP3-I01: Contrato e resultado do relatório (20)
 
-**Estado:** pendente. **Branch:** `cp3-i01`. **Issue:** #11.
+**Estado:** concluída na branch, aguardando PR e merge (texto da PR em `andamento/PR-CP3-I01.md`). **Branch:** `cp3-i01`. **Issue:** #11.
 
-- [ ] Entrada, período e solicitação persistida conforme o contrato (4)
-- [ ] Listagem, detalhe e estados observáveis (4)
-- [ ] Resumo por estado e totais corretos, inclusive conjunto vazio (8)
-- [ ] Resultado e instante de geração salvos; consulta sem recálculo (2)
-- [ ] Excel válido, fiel ao resultado salvo e com o contrato de download (2)
+- [x] Entrada, período e solicitação persistida conforme o contrato (4): `CreateReportRequestTests`, `ReportRulesTests`, `ReportServiceRequestTests`, `ReportsControllerTests`; HTTP real com 11 corpos inválidos e 0 linhas gravadas
+- [x] Listagem, detalhe e estados observáveis (4): `ReportResponseTests`, `ReportServiceQueryTests`; HTTP real com `Pending`, `Completed` e `Failed`
+- [x] Resumo por estado e totais corretos, inclusive conjunto vazio (8): `ReportCalculatorTests` (24); SQLite real igual a um oráculo independente
+- [x] Resultado e instante de geração salvos; consulta sem recálculo (2): `ReportResultSerializerTests` e `ReportServiceQueryTests` (leituras de reembolso em zero)
+- [x] Excel válido, fiel ao resultado salvo e com o contrato de download (2): `ReportExcelWriterTests` com `OpenXmlValidator`; download real com `Content-Type` e `attachment`
 
-Apoio (sem unidade própria, mas verificado por teste ou evidência): DTO com `DateOnly?` e escopo anulável (ponto 21); datas inválidas não persistem nem publicam; cálculo é somente leitura; tradução EF/SQLite conferida (ponto 22); esqueleto do `.http` com solicitar, listar, consultar e baixar, sem credenciais; `Guid` como identificador; POST responde 503 enquanto não houver publicador real.
+Apoio, tudo verificado: DTO com `DateOnly?` e escopo como texto obrigatório (número, `"0"`, outra caixa e vazio dão 400; teste de desserialização e HTTP real); datas inválidas não persistem nem publicam; `ownerId` e `requesterId` do corpo ignorados; cálculo somente leitura (teste e SQLite real: tabela idêntica e nada rastreado); tradução EF/SQLite conferida (ponto 22: projeção estreita traduz; o agrupamento no banco também traduz e dá valores certos, mas não foi adotado); `.http` com login, solicitar, listar, consultar e baixar, sem credenciais (`http-client.env.json.user` ignorado); `Guid` como identificador; POST responde 503 com o id enquanto não houver publicador real (teste com fake que não confirma e HTTP real); pacote `DocumentFormat.OpenXml` 3.5.1 (MIT).
+
+Resultados: build 0 avisos e 0 erros; 788 testes aprovados (611 do CP2 e 177 novos); script de qualidade 100/100 (achado informativo `FIAP0002`; um primeiro passe deu 99 por `IDE1006` em campos `private static readonly`, corrigido). Pendências para as próximas issues: regra de escopo por papel e testes de isolamento por papel (CP3-I02); publicador real, worker e `202` de verdade (CP3-I03); completar o `.http` (CP3-I06). A migration `AddReportRequests` precisa de `dotnet ef database update` em bancos existentes.
 
 ### CP3-I02: Autorização e isolamento (15)
 
