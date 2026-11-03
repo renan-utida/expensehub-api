@@ -15,8 +15,13 @@ public static class PersistenceServiceCollectionExtensions
     /// <summary>The name of the connection string in the configuration.</summary>
     public const string ConnectionStringName = "ExpenseHub";
 
+    // One instance for the whole application, so Entity Framework Core reuses the same internal service provider.
+    private static readonly SqliteConnectionInterceptor _connectionInterceptor = new();
+
     /// <summary>
-    /// Registers <see cref="ExpenseHubDbContext"/> using SQLite.
+    /// Registers <see cref="ExpenseHubDbContext"/> using SQLite, set up to be shared by the web application and the worker: a wait
+    /// for the locks of the other process and the write-ahead log (see <see cref="SqlitePragmas"/>). Both processes call this
+    /// method, so both run with the same settings. They must point to the same file, by an absolute path in the connection string.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The application configuration.</param>
@@ -27,9 +32,11 @@ public static class PersistenceServiceCollectionExtensions
         IConfiguration configuration,
         string basePath)
     {
-        string connectionString = ResolveConnectionString(configuration, basePath);
+        string connectionString = SqlitePragmas.WithCommandTimeout(ResolveConnectionString(configuration, basePath));
 
-        return services.AddDbContext<ExpenseHubDbContext>(options => options.UseSqlite(connectionString));
+        return services.AddDbContext<ExpenseHubDbContext>(options => options
+            .UseSqlite(connectionString)
+            .AddInterceptors(_connectionInterceptor));
     }
 
     /// <summary>
