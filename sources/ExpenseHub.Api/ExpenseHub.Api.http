@@ -6,10 +6,19 @@
 # http-client.env.json.user (ignorado pelo git pela regra *.user do .gitignore), no formato abaixo,
 # e escolha o ambiente "dev" na lista do editor:
 #
-#   { "dev": { "email": "<e-mail do usuário>", "password": "<senha do usuário>" } }
+#   {
+#     "dev": {
+#       "email": "<e-mail de um usuário Employee>",
+#       "password": "<senha desse usuário>",
+#       "auditorEmail": "<e-mail de um usuário Auditor>",
+#       "auditorPassword": "<senha desse usuário>"
+#     }
+#   }
 #
-# O usuário precisa ter a role Employee (concedida pelo Admin). O token vem da resposta do login e
-# não é gravado em lugar nenhum.
+# Quem pode pedir cada escopo (CP3-I02): Employee pede Mine, Auditor pede Global, e quem tem as duas
+# roles pede os dois. Admin, Approver e Finance sozinhos não pedem nada (403). As roles são concedidas
+# pelo Admin e a pessoa precisa entrar de novo depois. Os tokens vêm das respostas dos logins e não são
+# gravados em lugar nenhum.
 
 ### Saúde da aplicação
 GET {{ExpenseHub_Api_HostAddress}}/health
@@ -25,7 +34,17 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-### CP3-I01: solicitar um relatório do período (escopo Mine)
+### CP3-I02: login do usuário Auditor (devolve o accessToken usado nos pedidos Global)
+# @name loginAuditor
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "{{auditorEmail}}",
+  "password": "{{auditorPassword}}"
+}
+
+### CP3-I01: solicitar um relatório do período (escopo Mine, usuário Employee)
 # Enquanto o publicador do RabbitMQ não existe (CP3-I03), a resposta é 503 com o id do relatório
 # salvo e o relatório fica Pending. Com o broker confirmando, a resposta é 202 com Location.
 # @name createReport
@@ -39,7 +58,45 @@ Content-Type: application/json
   "scope": "Mine"
 }
 
+### CP3-I02: solicitar um relatório Global (usuário Auditor)
+# Global exige a role Auditor. Mesmo resultado do Mine enquanto não há publicador: 503 com o id e o
+# relatório Pending. O relatório pertence ao Auditor que o pediu e só ele consegue ler.
+# @name createGlobalReport
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Global"
+}
+
+### CP3-I02: usuário Employee pede Global (403, nada é salvo nem publicado)
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Global"
+}
+
+### CP3-I02: usuário Auditor pede Mine (403, nada é salvo nem publicado)
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Mine"
+}
+
 ### CP3-I01: período invertido (400, nada é salvo nem publicado)
+# Ordem das respostas do POST: 401 sem token, 403 sem role que possa pedir, 400 de validação, 403 de
+# escopo não permitido para a role. Aqui o Employee tem a role, então o período invertido dá 400.
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
@@ -58,6 +115,12 @@ Accept: application/json
 ### CP3-I01: consultar o andamento e o resultado do relatório solicitado acima
 # Pending, Processing, Completed (com result) ou Failed (com error). Relatório de outro usuário: 404.
 GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Accept: application/json
+
+### CP3-I02: o Employee tenta ler o relatório Global do Auditor (404, igual a um id que não existe)
+# Ninguém lê relatório de outro usuário, nem o Auditor: listagem, detalhe e Excel são só do solicitante.
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createGlobalReport.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Accept: application/json
 

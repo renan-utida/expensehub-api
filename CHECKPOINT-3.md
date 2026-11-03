@@ -44,6 +44,10 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 | 02/11/2026 | Cálculo | `ReportCalculator.Select` (consulta com o período inclusivo e o escopo) e `Summarize` (centavos); projeção estreita no banco, sem agrupar no SQL | CP3-I01 |
 | 02/11/2026 | Entrada e respostas | `scope` só pelo nome exato; `503` com `id` quando o broker não confirma (continua `Pending`) e `503` sem `id` quando o banco falha | CP3-I01 |
 | 02/11/2026 | Autorização da CP3-I01 | Só autenticação e dono; a regra de escopo por papel fica para a CP3-I02 | CP3-I01 |
+| 02/11/2026 | Matriz de role por escopo | Classe pura `ReportAccess`: `Mine` exige `Employee`, `Global` exige `Auditor`, quem tem as duas pede os dois, e Admin, Approver e Finance não somam nada; os nomes das roles são comparados exatamente | CP3-I02 |
+| 02/11/2026 | Ordem das respostas do `POST` | `401`, `403` por role (atributo da rota, antes do corpo), `400`, `403` por escopo, depois `202` ou `503`; o serviço repete a ordem sozinho, sem depender do atributo | CP3-I02 |
+| 02/11/2026 | Leitura sem role | Listar, detalhar e baixar o Excel exigem só autenticação e posse, mesmo para o Auditor; relatório alheio e inexistente dão o mesmo `404` | CP3-I02 |
+| 02/11/2026 | Consulta do worker | `ReportQuery.From` monta a consulta só do pedido gravado (solicitante, escopo e período); a mensagem leva apenas o `reportId`, e o worker nunca relê as roles | CP3-I02 e CP3-I03 |
 
 ## Fora de escopo do CP3
 
@@ -67,7 +71,7 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 
 ## Detalhe da CP3-I01: Contrato e resultado do relatório
 
-Issue central: [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11). Branch: `cp3-i01`. Pontos: 20. Estado: Concluída. O fluxo real até `Completed` e o `202` com o RabbitMQ dependem da CP3-I03; nesta issue o `202` é provado por teste com um publicador falso que confirma, e o `Completed` por um registro gravado direto no banco.
+Issue central: [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11). Branch: `cp3-i01`. Pontos: 20. Estado: Concluída, mergeada na `main` como PR 12 da equipe (merge commit `48810e3f69def12fdc391d5d6e440af75f481836`), com score oficial do workflow `code-quality` de 100/100 na execução 69. O fluxo real até `Completed` e o `202` com o RabbitMQ dependem da CP3-I03; nesta issue o `202` é provado por teste com um publicador falso que confirma, e o `Completed` por um registro gravado direto no banco.
 
 Critérios de aceite:
 
@@ -88,7 +92,7 @@ Decisões:
 - **Respostas.** `202` só com confirmação do broker. Sem confirmação: `503` com o `id` do pedido salvo, que continua `Pending` e nunca vira `Failed`. Banco indisponível ao registrar: `503` sem `id` e sem publicar. Relatório alheio e inexistente: o mesmo `404`. Excel de relatório próprio que não está `Completed`: `409`.
 - **Instantes com `Z`.** O envelope usa `DateTime` UTC e não `DateTimeOffset`, que sairia com `+00:00`.
 - **Publicação.** `IReportPublisher` devolve confirmado ou não confirmado, e a exceção `ReportPublishException` conta como não confirmado. Sem publicador real, `UnavailableReportPublisher` nunca confirma, então o `POST` responde `503` e nunca finge `202`. A CP3-I03 o substitui (registro com `TryAdd`).
-- **Autorização desta issue.** Só autenticação e dono: listar, detalhar e baixar mostram apenas o que o próprio usuário pediu. A regra de escopo por papel é da CP3-I02, e até lá qualquer usuário autenticado pode pedir `Global`.
+- **Autorização desta issue.** Só autenticação e dono: listar, detalhar e baixar mostram apenas o que o próprio usuário pediu. Na CP3-I01 qualquer usuário autenticado ainda podia pedir `Global`; a regra de escopo por papel foi fechada na CP3-I02 (veja a seção abaixo).
 - **Excel.** `DocumentFormat.OpenXml` 3.5.1 (MIT, com `DocumentFormat.OpenXml.Framework` e `System.IO.Packaging`, também MIT). Uma folha "Resumo": identificador, escopo, data inicial, data final e instante de geração, depois `Estado | Quantidade | Valor`, os cinco estados e `Total geral`, com formato `0.00` nos valores.
 
 O que foi medido (SQLite real, em um experimento descartável fora do repositório, e HTTP real contra a aplicação em um banco temporário):
@@ -111,17 +115,41 @@ Para ver as rotas rodando, use `sources/ExpenseHub.Api/ExpenseHub.Api.http` com 
 
 ## Detalhe da CP3-I02: Autorização e isolamento
 
-Issue central: [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12). Branch: `cp3-i02`. Pontos: 15. Estado: Pendente.
+Issue central: [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12). Branch: `cp3-i02`. Pontos: 15. Estado: Concluída na branch, aguardando a PR. A regra de role por escopo e o isolamento entram aqui; o worker que usa o pedido gravado chega na CP3-I03, e até lá um `POST` autorizado e válido responde `503` com o `id`, com o pedido `Pending`.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Autenticação e permissão por perfil e escopo | 5 | Pendente | A preencher ao concluir a issue |
-| Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor | 5 | Pendente | A preencher ao concluir a issue |
-| Solicitante e escopo controlados pelo servidor até o processamento | 5 | Pendente | A preencher ao concluir a issue |
+| Autenticação e permissão por perfil e escopo | 5 | Atendido | `ReportAccessTests` (59): tabela escrita à mão das 32 combinações das cinco roles contra `Mine` e `Global` (64 decisões), conferência de que a tabela não esqueceu nenhuma combinação, Admin, Approver e Finance nunca mudam a decisão, nome de role exato, escopo indefinido negado. `ReportServiceAuthorizationTests` (35): sem role que possa pedir, `Forbidden` até com corpo inválido (role antes da validação); com role e corpo inválido, `ValidationFailed` (o `400` vem antes do `403` de escopo); Employee pedindo `Global` e Auditor pedindo `Mine`: `Forbidden`, nada gravado e nada publicado. `ReportEndpointRolesTests` (6): o `POST` pede exatamente `Employee` ou `Auditor` e as três rotas de leitura não pedem role. Duas mutações feitas e desfeitas: trocar `Employee` e `Auditor` na regra quebrou 42 testes; tirar o atributo do `POST` quebrou 2. HTTP real: 7 contas pedindo `Mine` e `Global` e a ordem das respostas (seção "O que foi medido") |
+| Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor | 5 | Atendido | `ReportIsolationTests` (36): oito conjuntos de roles (Employee, Auditor, Employee e Auditor, Admin, Approver, Finance, os três juntos, sem role) contra lista, detalhe e Excel de relatórios de outro usuário em quatro estados (`Pending`, `Processing`, `Completed` `Global`, `Failed`): lista vazia, detalhe nulo, Excel não encontrado e sem dados, nunca o `409`; um Auditor não lê o `Global` de outro Auditor; ler o próprio relatório não exige role; nenhuma despesa é lida. Os testes do Auditor da CP3-I01 continuam. HTTP real: oito contas contra o relatório `Mine` de uma Employee e o `Global` de um Auditor, ambos `Completed` |
+| Solicitante e escopo controlados pelo servidor até o processamento | 5 | Atendido | `ReportServiceAuthorizationTests`: o pedido aceito grava o solicitante do token e o escopo pedido. `ReportQueryFromRequestTests` (10): `ReportQuery.From` copia solicitante, escopo e período do pedido gravado e não aceita mais nada; pelos fakes, do pedido ao resultado: Employee `Mine` soma 3 despesas e 175,00 sem a despesa de outro dono, outro Employee soma só a sua, Auditor `Global` soma 4 e 375,00, e quem tem as duas roles recebe cada escopo no pedido certo; o `IReportPublisher` leva só o `Guid`. O corpo com `ownerId`, `requesterId` e `status` continua ignorado (testes da CP3-I01 seguem passando). HTTP real: a linha gravada tem o `RequesterId` do token, o `Scope` pedido e `Pending`, mesmo com os três campos no corpo |
 
-Decisões e como validar: a preencher ao concluir a issue.
+Decisões:
+
+- **Matriz como classe pura.** `ReportAccess.HasRequestRole` (Employee ou Auditor) e `ReportAccess.CanRequest` (o escopo contra a role). Sem EF nem web, no estilo do `ExpenseAccess` do CP2. A constante `AppRoles.ReportRequesters` alimenta o atributo da rota, e um teste prova que atributo e regra aceitam as mesmas roles.
+- **Ordem das respostas do `POST`**, a mesma do CP2: (1) `401` sem token, pelo middleware de autorização; (2) `403` quando o usuário não tem `Employee` nem `Auditor`, pelo atributo da rota; (3) `400`, pela validação do corpo (o `[ApiController]` e, de novo, o serviço); (4) `403` quando a role não permite o escopo, no serviço; (5) gravação e publicação. A autorização por atributo roda no middleware, antes do MVC ler o corpo, então um usuário sem role recebe `403` até com corpo vazio, período invertido ou texto que não é JSON (provado no HTTP real). O serviço refaz a mesma sequência, para a regra não depender só do atributo.
+- **Um único resultado `Forbidden`** para role e escopo, que vira `403` com `ProblemDetails` sem `id`. O log da recusa leva só o escopo pedido, sem identidade, role, token ou corpo.
+- **Leitura sem role.** Listar, detalhar e baixar o Excel continuam exigindo só autenticação e posse, e o filtro por solicitante está na própria consulta ao banco. Admin, Approver, Finance e quem não tem role listam os próprios (vazios) e recebem `404` nos alheios. O privilégio `Global` do Auditor é sobre os dados do relatório dele, não sobre os relatórios dos outros.
+- **Junção com o worker.** `ReportQuery.From(ReportRequest)` é a única forma de o worker obter escopo, solicitante e período: do pedido gravado, sem reler roles e sem confiar na mensagem. A CP3-I03 só chama.
+- **Testes da CP3-I01 ajustados.** Os testes de `ReportServiceRequestTests` pediam relatório com um usuário sem role; agora o usuário é `Employee` (e Employee com Auditor onde o escopo é `Global`), porque a regra mudou.
+
+O que foi medido (HTTP real contra a aplicação e um SQLite temporário, com senhas geradas na hora e nunca impressas; 120 conferências, todas aprovadas):
+
+- Contas: o Admin do seed (só Admin), duas Employee, um Auditor, uma conta Employee e Auditor, um Approver, um Finance e uma conta sem role, com as roles atribuídas pelo Admin e novo login depois.
+- Sem token, `POST` válido, com corpo vazio ou com texto que não é JSON, e as três rotas de leitura: `401`, e a tabela `ReportRequests` com 0 linhas.
+- Matriz de 7 contas contra `Mine` e `Global`, com `requesterId`, `ownerId` e `status` no corpo: Employee `Mine` `503` com `id` e `Global` `403`; Auditor `Mine` `403` e `Global` `503` com `id`; Employee e Auditor `503` nos dois; Admin, Approver, Finance e sem role `403` nos dois. Cada `503` gravou uma linha com o `RequesterId` da conta, o `Scope` pedido e `Pending`; cada `403` deixou a tabela como estava e não trouxe `id`. Corpo do `403` por role: `ProblemDetails` com o título padrão; por escopo: o título "Your roles do not allow you to request a report of this scope."
+- Ordem: sem role, `403` com objeto vazio, período invertido com `Global`, `scope` numérico e texto que não é JSON (também para Admin, Approver e Finance); Employee com período invertido e `Global`: `400` (erro no campo `FromDate`); Auditor com período invertido e `Mine`: `400`; Employee com datas ausentes, escopo desconhecido, `scope` numérico ou texto que não é JSON: `400`; Employee com `Global` válido e Auditor com `Mine` válido: `403`. A tabela continuou com as mesmas 4 linhas depois de todos esses pedidos.
+- Isolamento com os relatórios `Completed` da Employee (`Mine`) e do Auditor (`Global`), gravados direto no banco: o dono recebe `200` no detalhe e no Excel; as outras sete contas, inclusive o Auditor lendo o relatório da Employee e a conta com as duas roles, recebem `404` no detalhe e no Excel, com o mesmo título de um id que não existe. Relatório `Pending` de outra pessoa dá `404` e nunca `409`; o `409` só vale para o dono. As listas: Employee 1, Auditor 1, conta com as duas roles 2 (nenhum relatório alheio), os outros 0, todas com `200`.
+- Log da aplicação: 3 recusas de `Global` e 2 de `Mine`, só com o escopo; nenhuma senha, nenhum token e nenhum e-mail de usuário.
+
+Como validar:
+
+```shell
+dotnet test ./sources/ExpenseHub.slnx
+```
+
+Para ver as rotas rodando, use `sources/ExpenseHub.Api/ExpenseHub.Api.http` com um usuário `Employee` e um `Auditor`; as credenciais ficam em `http-client.env.json.user`, que o git ignora.
 
 ## Detalhe da CP3-I03: RabbitMQ, worker e idempotência
 
