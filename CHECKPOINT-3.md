@@ -63,6 +63,8 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 | 03/11/2026 | Chaves do Data Protection | `DataProtection:KeysPath` (vazia por padrão, sem efeito): preenchida, as chaves vão para a pasta (volume `expensehub-keys` no Compose) com nome de aplicação fixo, e o token emitido antes de recriar o contêiner continua válido. Limite: as chaves ficam sem criptografia em repouso no volume | CP3-I05 |
 | 03/11/2026 | Evidência da versão em execução | `GIT_COMMIT` vira `ENV Build__Commit`, a label `org.opencontainers.image.revision` e uma linha de log na partida dos dois processos (`Image commit: <sha>`); o valor só é aceito se for hexadecimal de 7 a 64 caracteres, senão aparece `unknown`. O `/health` não muda | CP3-I05 |
 | 03/11/2026 | `publish` do worker | `dotnet publish` do worker falhava com NETSDK1152: o `appsettings.json` da Api (projeto web) chega ao destino de publicação pela referência e colide com o do worker. Um alvo no `.csproj` do worker remove só esse item da publicação; a checagem de duplicatas do SDK continua ligada e o worker publica o `appsettings.json` dele (sem connection string) | CP3-I05 |
+| 03/11/2026 | Auditoria da suíte | Os 13 cenários mínimos já tinham teste de efeito por componente; a issue acrescenta o percurso encadeado (controller, serviço e processador reais sobre fakes, 15 casos em `ReportScenarioTests`), reforça 7 asserções e não muda código de produção. A tabela cenário por teste está na seção da CP3-I04 | CP3-I04 |
+| 03/11/2026 | Verificação de mutação | Manual, numa cópia do repositório no scratchpad (nunca na árvore real, sem `git restore`), com 45 defeitos simples nas regras novas do CP3. Rodada 1: 42 de 44 mortas, com dois sobreviventes que eram lacunas reais (o estado decide o Excel e o envelope; a causa da exceção do serializador). Rodada 2, com a suíte final: 45 de 45. O EF e o RabbitMQ reais ficam fora da suíte unitária | CP3-I04 |
 
 ## Fora de escopo do CP3
 
@@ -226,28 +228,142 @@ Para rodar o fluxo real, suba o RabbitMQ, o web e o worker como no [README](READ
 
 ## Detalhe da CP3-I04: Testes próprios significativos
 
-Issue central: [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14). Branch: `cp3-i04`. Pontos: 15. Estado: Pendente.
+Issue central: [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14). Branch: `cp3-i04`. Pontos: 15. Estado: Concluída na branch, aguardando a PR. A issue audita a suíte contra a tabela de 13 cenários mínimos, cria só o que faltava, prova por mutação que os testes pegam defeitos nas regras novas do CP3 e documenta o comando. **Nenhum código de produção mudou**: só testes e documentação.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Cálculo, conjunto vazio e validação de período | 5 | Pendente | A preencher ao concluir a issue |
-| Negação por perfil e escopo; isolamento por solicitante | 5 | Pendente | A preencher ao concluir a issue |
-| Duplicata, resultado persistido e Excel, com asserções de comportamento | 5 | Pendente | A preencher ao concluir a issue |
+| Cálculo, conjunto vazio e validação de período | 5 | Atendido | `ReportCalculatorTests` (exemplo da apostila estado por estado, limites inclusivos, vazio com cinco estados), `ReportRulesTests`, `CreateReportRequestTests`, `ReportQueryFromRequestTests`; no percurso encadeado, `Scenario3_...` (400 sem gravar nem publicar); mutações C1 a C14 todas mortas |
+| Negação por perfil e escopo; isolamento por solicitante | 5 | Atendido | `ReportAccessTests` (as 32 combinações das cinco roles), `ReportServiceAuthorizationTests`, `ReportIsolationTests` (36 casos), `ReportEndpointRolesTests`; no percurso encadeado, `Scenario4_...`, `Scenario5_...` (detalhe e Excel) e `Scenario9_...`; mutações A1 a A15 todas mortas |
+| Duplicata, resultado persistido e Excel, com asserções de comportamento | 5 | Atendido | `ReportMessageProcessorTests` (duplicata, reinício, corrida entre workers), `ReportDeliveryTests`, `ReportResultSerializerTests`, `ReportExcelWriterTests`, `ReportServiceQueryTests` e `ReportServiceExcelTests`; no percurso encadeado, `Scenario6_...`, `Scenario7_...`, `Scenario8_...`, `Scenario10_...` e `Scenario12_...`; mutações D1 a D16 todas mortas |
 
-Decisões e como validar: a preencher ao concluir a issue. Inclui a tabela cenário por teste e o comando `dotnet test`.
+**Como a auditoria foi feita.** Li os testes (não só os nomes) contra cada linha da tabela de cenários mínimos da apostila, olhando se a asserção é de efeito (o que o cliente recebe e o que ficou gravado) e não só de chamada. Resultado: **nenhum cenário estava sem teste**, e os testes de serviço, isolamento e Excel já afirmavam efeito (resultado, arquivo e conteúdo vazios, o mesmo `NotFound` de um id inexistente, leitura de despesas em zero, nada salvo nem publicado). Faltava profundidade em três pontos: o **percurso encadeado** (o que o cliente recebe quando o controller, o serviço e o processador reais trabalham juntos), o **corpo das respostas de erro** (os testes do controller só conferiam o código) e a **prova** de que os testes pegam defeito nas regras do CP3, que nunca tinha sido medida.
+
+**Tabela cenário por teste.** A coluna da direita diz o que a issue acrescentou para o cenário.
+
+| # | Cenário mínimo | Testes que o provam | O que a issue acrescentou |
+|---|---|---|---|
+| 1 | Dados conhecidos e limites inclusivos do período | `ReportCalculatorTests`: `Calculate_ExampleOfTheAssignmentForMine_GivesThreeExpensesAnd175` e `..._ForGlobal_GivesFourExpensesAnd375` (quantidade e soma por estado e no total), `Calculate_ExpensesOnTheFirstAndOnTheLastDay_AreCounted`, `Calculate_ExpensesTheDayBeforeAndTheDayAfterThePeriod_AreNotCounted`, `Calculate_PeriodOfOneDay_CountsOnlyThatDay`, `Calculate_FiltersTheDateOfTheExpenseAndNotTheCreationDate`, `Calculate_OneExpenseInEachState_CountsOneInEachLine`, `Calculate_AmountsThatBreakFloatingPoint_AreExact`; pelo worker, `ReportMessageProcessorTests.HandleAsync_PendingMine_CompletesWithTheResultOfTheCalculator` | nada (já coberto) |
+| 2 | Nenhum reembolso elegível | `Calculate_NoExpenses_GivesFiveStatesAndTotalsAtZero`, `Calculate_NoEligibleExpense_GivesFiveStatesAndTotalsAtZero`, `HandleAsync_NoExpenses_CompletesWithFiveZeros`, `ReportResultSerializerTests.RoundTrip_EmptyResult_KeepsTheFiveStatesAtZero`, `ReportExcelWriterTests.Build_EmptyResult_HasNumericZeros` | nada (já coberto) |
+| 3 | Período invertido, datas ausentes ou inválidas: 400, nada salvo nem publicado | `ReportRulesTests` (`ValidatePeriodOrder_*`, `Validate_*`), `CreateReportRequestTests.Json_InvalidDate_IsRefused` e `Validate_*`, `ReportServiceRequestTests` (`RequestAsync_StartAfterEnd_IsRejectedWithoutSavingOrPublishing`, `..._MissingDates_...`, `..._InvalidScope_...`), `ReportsControllerTests.RequestAsync_ServiceReportsInvalidData_Returns400WithTheFieldErrors` | `ReportScenarioTests.Scenario3_RejectedRequest_Is400AndNothingIsSavedOrPublished` (3 casos): o 400 sai do controller real, com o erro no campo certo, e o repositório e o publicador ficam vazios |
+| 4 | Employee solicita `Global` | `ReportServiceAuthorizationTests` (`RequestAsync_EmployeeAsksForGlobal_CreatesNoRequestAndNoMessage`, `RequestAsync_ScopeFollowsTheRoles`), `ReportAccessTests` (`Matrix_ListsEveryCombinationOfTheFiveRolesOnce`, `CanRequest_FollowsTheMatrixOfTheAssignment`), `ReportsControllerTests.RequestAsync_Forbidden_Returns403WithoutAnIdentifier` | `Scenario4_EmployeeAsksForGlobal_Is403AndNothingIsCreated`: 403 do controller real e nada que um worker pudesse processar |
+| 5 | Solicitação de outro usuário: não expõe detalhe nem resultado | `ReportIsolationTests` (36 casos: lista, detalhe e Excel, oito conjuntos de roles, quatro estados), `ReportServiceQueryTests` (`GetAsync_RequestOfAnotherUserOrMissing_GivesTheSameAnswer`, `GetAsync_AuditorDoesNotReadTheRequestOfAnotherUser`), `ReportsControllerTests.GetAsync_NotFound_Returns404` | `Scenario5_DetailOfAnotherUsersReport_Is404WithTheBodyOfAMissingReport` e `Scenario5_ExcelOfAnotherUsersReport_Is404WithoutAFile`: o corpo do 404 é igual ao de um id inexistente e não traz id, solicitante, valor nem `result`; a lista do chamador não inclui o relatório alheio, mesmo com `Employee` e `Auditor` |
+| 6 | Mesma mensagem novamente: nenhum novo resultado ou efeito | `ReportMessageProcessorTests`: `HandleAsync_SameMessageTwice_HasOneEffect`, `HandleAsync_CompletedReport_IsADuplicateAndChangesNothing`, `HandleAsync_FailedReport_IsADuplicateAndChangesNothing`, `HandleAsync_AfterARestart_TheCompletedReportIsStillADuplicate`; `ReportDeliveryTests` (a confirmação) | `Scenario6_SameMessageAgain_AfterTheExpenseChanged_LeavesTheSavedResultUntouched`: mensagem repetida depois de alterar um reembolso e de reiniciar o worker é `Duplicate`, o estado gravado fica idêntico, nada é escrito nem lido, e o que o web devolve não muda |
+| 7 | Consulta depois de alterar um reembolso: resultado persistido, sem recálculo | `ReportServiceQueryTests.GetAsync_AfterAnExpenseChanges_ReturnsTheSavedResultWithoutRecalculating`, `ReportServiceExcelTests.GetExcelAsync_AfterAnExpenseChanges_StillHasTheSavedResultAndReadsNoExpense`, `ReportServiceQueryTests.ListAsync_DoesNotReadAnyExpense`, `ReportIsolationTests.Reading_NeverReadsAnExpense` | `Scenario7_WorkerResult_SurvivesAnExpenseChange_ForTheDetailAndTheExcel`: o resultado agora é o que o **processador** gravou (nos testes antigos era montado por um ajudante), e o detalhe e o Excel continuam iguais depois da alteração, sem nenhuma leitura de despesa |
+| 8 | Download concluído: planilha válida, cabeçalhos corretos, números iguais ao salvo | `ReportExcelWriterTests` (`Build_ProducesARealXlsxPackage`, `Build_OpensAndIsValid`, `Build_HasTheHeadersTheFiveStatesInOrderAndTheGrandTotal`, `Build_CountsAndAmountsAreNumericCellsEqualToTheSavedResult`), `ReportsControllerTests.ExcelAsync_Ready_ReturnsTheFileWithTheContract`, `ReportServiceExcelTests.GetExcelAsync_OwnCompletedReport_GivesTheFile` | `Scenario8_CompletedExcel_HasTheContractAndTheCellsOfTheSavedResult`: o arquivo entregue pelo controller tem o tipo e o nome do contrato e, aberto, cada contagem e valor é uma célula numérica igual ao `ResultJson` gravado; e `GetExcelAsync_OwnCompletedReport_GivesTheFile` passou a abrir o arquivo (antes só conferia `PK`) |
+| 9 | Download pendente, `Failed` ou alheio: 409 / 404 sem arquivo nem dados | `ReportServiceExcelTests` (`GetExcelAsync_OwnReportNotCompleted_IsAConflict` com os três estados, `GetExcelAsync_ReportOfAnotherUser_IsNotFound`), `ReportIsolationTests.GetExcelAsync_NoUserDownloadsTheFileOfSomeoneElse` e `GetExcelAsync_Auditor_OwnNotCompletedIsAConflictAndSomeoneElsesIsNotFound`, `ReportsControllerTests.ExcelAsync_NotCompleted_Returns409` e `ExcelAsync_NotFound_Returns404` | `Scenario9_OwnReportNotCompleted_Is409WithoutAFile` (três estados): 409 do controller real, resultado que não é arquivo e corpo sem resultado; dois testes de serviço ganharam a asserção de que não há nome de arquivo nem conteúdo; `GetExcelAsync_OwnReportNotCompleted_GivesNoFileEvenWithAResultSaved` (veja os sobreviventes) |
+| 10 | Publicação sem confirmação: 503 com o id, registro `Pending`, nunca `Failed` | `ReportServiceRequestTests` (`RequestAsync_BrokerDoesNotConfirm_KeepsTheSavedReportPendingAndGivesItsIdentifier`, `RequestAsync_BrokerCannotBeReached_...`), `ReportServiceAuthorizationTests.RequestAsync_AllowedScopeAndBrokerDoesNotConfirm_StillKeepsTheSavedReportPending`, `ReportsControllerTests.RequestAsync_NotPublished_Returns503WithTheIdentifierOfTheSavedReport` | `Scenario10_BrokerDoesNotConfirm_Is503WithTheIdAndTheReportStaysPending` (broker sem confirmar e broker fora do ar): o 503 do controller real traz o `id` do relatório gravado, o relatório está `Pending` e o detalhe consultado por esse id não tem erro nem resultado |
+| 11 | Cálculo somente leitura | `ReportCalculatorTests.Calculate_IsReadOnly_NoExpenseChanges` e `Summarize_SameLinesTwice_GiveTheSameResult` (a prova em SQLite real foi manual, na CP3-I01) | nada (já coberto) |
+| 12 | Corpo com `ownerId` ou `requesterId`: ignorado | `CreateReportRequestTests` (`Json_RequesterAndOwnerInTheBody_AreIgnored`, `CreateReportRequest_HasOnlyTheDatesAndTheScope`), `ReportServiceRequestTests.RequestAsync_TheRequesterIsAlwaysTheAuthenticatedUser`, `ReportsControllerTests.RequestAsync_ForwardsTheUserOfTheClaimsAndTheFieldsOfTheBody` | `Scenario12_BodyWithOwnerIdAndRequesterId_IsIgnored_TheSavedRequesterIsTheCaller`: do JSON bruto ao pedido gravado, o solicitante é o do token e o nome do corpo não aparece em lugar nenhum |
+| 13 | Decisão ack/nack numa classe testável | `ReportDeliveryTests` (`For_FollowsTheTable`, `For_UnknownOutcome_PutsTheMessageBack`, `UnavailableDatabase_AtAnyStep_PutsTheMessageBack`, `Acknowledgement_IsGivenOnlyWhenTheWorkIsSaved`), `ReportMessageProcessorTests` (os desfechos) | nada (já coberto) |
+
+**O que a issue criou e reforçou.** A suíte passa de 1149 para 1170 testes (21 novos), todos sem banco, rede, RabbitMQ nem Docker, em fakes escritos à mão.
+- **`ReportScenarioTests` (15 casos).** Usam o `ReportsController`, o `ReportService` e o `ReportMessageProcessor` **reais** sobre os fakes que já existiam, e conferem o que o cliente recebe e o que ficou gravado. O percurso web e worker é: `POST` pelo controller, o worker (processador sobre o fake do estado) trata a mensagem, e o web lê o que o worker gravou.
+- **6 testes que o primeiro passe de mutação mostrou faltar:** `GetExcelAsync_OwnReportNotCompleted_GivesNoFileEvenWithAResultSaved` (3 estados) e `ReportResponseTests.From_ReportNotCompletedWithAResultSaved_HasNoResult` (3 estados). Veja os sobreviventes abaixo.
+- **7 testes antigos reforçados** (sem teste novo): três de `ReportServiceExcelTests` (arquivo e conteúdo vazios no 404 do Auditor e do inexistente; o arquivo concluído passa a ser aberto e conferido) e quatro de `ReportResultSerializerTests` (a exceção passa a ter a causa certa, `five states` ou `cannot be read`, e não só o tipo).
+
+### Verificação de mutação da CP3-I04
+
+Mesmo método da I09 do CP2 (quebrar a regra de propósito, ver o teste falhar, desfazer), com duas diferenças: **nenhuma mutação toca a árvore real** e **não se usa `git restore`**, que é proibido nesta sessão. Um script local de Python, fora do repositório, não versionado e fora do CI:
+- copia o repositório (sem `.git`, `bin` nem `obj`) para o scratchpad; cada rodada tem a sua cópia, e os três grupos rodam em paralelo, cada um na sua. As cópias ficam fisicamente no scratchpad e são acessadas por uma letra de unidade curta (`subst`), porque o caminho do scratchpad faz alguns arquivos do repositório passarem dos 260 caracteres do Windows;
+- antes da primeira mutação, confirma que a cópia compila e passa inteira, sem nenhuma mutação (1149 testes na rodada 1, 1170 na 2);
+- aplica **uma** mutação por vez, só na cópia, conferindo que o trecho existe uma vez só; roda `dotnet test`; classifica o resultado (morta, sobrevivente, não compilou ou erro de execução) e anota o primeiro teste que falhou; e restaura o arquivo a partir dos bytes originais, conferindo que voltou idêntico;
+- ao fim, roda a suíte de novo na cópia restaurada (passou inteira nas seis cópias).
+
+A rodada 1 usou a suíte como estava antes desta issue, para descobrir sobreviventes; a rodada 2 usou a suíte final. Cada mutação é um defeito simples em código de produção das regras novas: limites do período, filtro de dono, estados, soma em centavos, matriz de roles, ordem das respostas, ordem de gravar e publicar, estados do Excel, duplicata, retomada, confirmação, tipo das células, tipo e nome do arquivo, envelope.
+
+| Grupo | Mutações | Mortas na rodada 1 (1149 testes) | Mortas na rodada 2 (1170 testes) |
+|---|---:|---:|---:|
+| C. Cálculo, vazio e período (`ReportCalculator`, `ReportRules`, `ReportQuery`) | 14 | 14 | 14 |
+| A. Negação, escopo e isolamento (`ReportAccess`, `ReportService`, `ReportsController`, `AppRoles`) | 15 | 14 (sobreviveu A10) | 15 |
+| D. Duplicata, resultado salvo e Excel (`ReportMessageProcessor`, `ReportDelivery`, `ReportService`, `ReportExcelWriter`, `ReportResultSerializer`, `ReportResponse`, `ReportMessage`) | 16 | 14 de 15 (sobreviveu D13; D16 ainda não existia) | 16 |
+| **Total** | **45** | **42 de 44** | **45 de 45** |
+
+**A história, com honestidade.** A rodada 1 deixou **dois sobreviventes**, e os dois eram lacunas reais dos testes, não defeitos inventados:
+- **A10** (o Excel deixa de checar que o relatório é `Completed` e só olha se existe resultado). O `CHECK` da tabela só exige resultado quando o estado é `Completed`; ele não proíbe um resultado em outro estado, então o caso não é impossível por desenho. Nenhum teste dizia que **o estado decide**. Novo: `GetExcelAsync_OwnReportNotCompleted_GivesNoFileEvenWithAResultSaved`. O mesmo padrão no envelope virou a mutação **D16**, acrescentada depois da rodada 1 (por isso 45 e não 44), e `From_ReportNotCompletedWithAResultSaved_HasNoResult`.
+- **D13** (a leitura do resultado salvo deixa de exigir os cinco estados uma vez cada). Os testes só pediam `InvalidOperationException`, e sem a checagem uma exceção do mesmo tipo vinha de um passo posterior, por acidente. Os quatro testes do serializador passaram a afirmar a causa da exceção.
+
+Depois disso, a rodada 2 matou as 45. As mutações que dependiam de **um único teste** passaram de 9 na rodada 1 (C13, A11, A12, A15, D2, D3, D6, D7, D11) para 3 na rodada 2 (C13, D2 e D3): apagar ou enfraquecer esses três testes deixaria o defeito passar.
+
+**Qual é o valor dos 15 testes de cenário.** Para não supor, rodei uma passada só com eles contra as mesmas 45 mutações: **os 15 sozinhos matam 29 das 45**. Não pegam o que é regra de um componente só (por exemplo, o período de um dia ser válido, `mine` em minúsculas, os valores sem centavos, o `Processing` retomado), que continua nos testes por componente. Também não foram eles que fecharam os dois sobreviventes. O valor deles é outro: mostram que as peças, juntas, dão as respostas do contrato, e dão um segundo detector a seis mutações que na rodada 1 dependiam de um teste só (A11, A12, A15, D6, D7 e D11).
+
+<details>
+<summary>As 45 mutações da rodada 2: defeito simples, testes que falharam e o primeiro teste que pegou</summary>
+
+| Id | Defeito simples | Falhas | Primeiro teste que pegou |
+|---|---|---:|---|
+| C1 | o primeiro dia do período deixa de entrar (`>=` vira `>`) | 25 | `Calculate_PeriodOfOneDay_CountsOnlyThatDay` |
+| C2 | o último dia do período deixa de entrar (`<=` vira `<`) | 21 | `Scenario7_WorkerResult_SurvivesAnExpenseChange_ForTheDetailAndTheExcel` |
+| C3 | o período filtra a data de criação e não a data da despesa | 23 | `Calculate_ExampleOfTheAssignmentForGlobal_GivesFourExpensesAnd375` |
+| C4 | `Mine` soma as despesas de todos os donos | 19 | `Scenario7_WorkerResult_SurvivesAnExpenseChange_ForTheDetailAndTheExcel` |
+| C5 | escopo invertido (`Mine` lê todos, `Global` lê só o solicitante) | 22 | `AuditorGlobal_TheSavedRequestAddsUpTheExpensesOfEveryone` |
+| C6 | só quatro dos cinco estados (sem `Rejected`) | 93 | `Build_CountsAndAmountsAreNumericCellsEqualToTheSavedResult` |
+| C7 | valores somados sem os centavos | 4 | `Calculate_AmountsThatBreakFloatingPoint_AreExact` |
+| C8 | total de itens é o maior estado, não a soma | 94 | `GetExcelAsync_AuditorForTheReportOfAnotherUser_IsNotFound` |
+| C9 | período de um dia passa a ser inválido (`>` vira `>=`) | 2 | `Validate_PeriodOfOneDay_HasNoErrors` |
+| C10 | a ordem do período nunca é checada | 7 | `RequestAsync_SameEmployeeAndScope_Is400WithBadDataAnd403WithGoodData` |
+| C11 | a data inicial deixa de ser obrigatória | 3 | `Validate_MissingFields_ReportEachField` |
+| C12 | o escopo aceita `mine` em minúsculas | 3 | `TryParseScope_AnythingElse_IsNotAScope` |
+| C13 | a consulta do worker recusa período de um dia | 1 | `Calculate_PeriodOfOneDay_CountsOnlyThatDay` |
+| C14 | a consulta do worker ignora o escopo gravado e lê todos | 10 | `EmployeeMine_TheSavedRequestAddsUpOnlyTheExpensesOfTheRequester` |
+| A1 | `Global` exige `Employee` em vez de `Auditor` | 29 | `CanRequest_FollowsTheMatrixOfTheAssignment` |
+| A2 | `Mine` também aberto ao `Auditor` | 10 | `CanRequest_FollowsTheMatrixOfTheAssignment` |
+| A3 | o `Admin` pode pedir relatório | 5 | `AdminApproverAndFinance_NeverChangeTheDecision` |
+| A4 | o serviço deixa de checar o escopo contra as roles | 10 | `RequestAsync_ScopeFollowsTheRoles` |
+| A5 | o 403 de escopo vem antes do 400 de validação | 2 | `RequestAsync_InvalidDataWithAnAllowedRole_IsValidationFailedBeforeTheScopeIsChecked` |
+| A6 | o solicitante gravado não é o usuário autenticado | 13 | `Scenario10_BrokerDoesNotConfirm_Is503WithTheIdAndTheReportStaysPending` |
+| A7 | publica antes de gravar o pedido | 17 | `RequestAsync_Accepted_RecordsTheRequesterAndTheScopeOnTheSavedRequest` |
+| A8 | sem confirmação do broker o relatório vira `Failed` | 5 | `RequestAsync_AllowedScopeAndBrokerDoesNotConfirm_StillKeepsTheSavedReportPending` |
+| A9 | Excel de relatório alheio ou inexistente dá 409 em vez de 404 | 14 | `GetExcelAsync_NoUserDownloadsTheFileOfSomeoneElse` |
+| A10 | o Excel não checa o estado `Completed` (só se há resultado) | 3 | `GetExcelAsync_OwnReportNotCompleted_GivesNoFileEvenWithAResultSaved` (sobrevivente da rodada 1) |
+| A11 | pedido recusado responde 401 em vez de 403 | 2 | `Scenario4_EmployeeAsksForGlobal_Is403AndNothingIsCreated` |
+| A12 | Excel de relatório não concluído responde 404 em vez de 409 | 4 | `ExcelAsync_NotCompleted_Returns409` |
+| A13 | publicação sem confirmação responde 202 em vez de 503 | 4 | `RequestAsync_NotPublished_Returns503WithTheIdentifierOfTheSavedReport` |
+| A14 | a rota do pedido também aberta ao `Admin` | 2 | `RequestRoute_AsksForExactlyEmployeeOrAuditor` |
+| A15 | o controller descarta as roles do token | 9 | `Scenario3_RejectedRequest_Is400AndNothingIsSavedOrPublished` |
+| D1 | mensagem de relatório já terminado deixa de ser duplicata | 6 | `HandleAsync_FailedReport_IsADuplicateAndChangesNothing` |
+| D2 | perder a corrida de conclusão ainda responde `Completed` | 1 | `HandleAsync_AnotherWorkerCompletedDuringTheCalculation_TheSavedResultIsKept` |
+| D3 | relatório `Processing` é iniciado de novo (o início é regravado) | 1 | `HandleAsync_ProcessingReport_IsResumedAndCompleted` |
+| D4 | falha definitiva é confirmada sem ser gravada | 9 | `UnavailableDatabase_AtAnyStep_PutsTheMessageBack` |
+| D5 | falha transitória é confirmada (a mensagem se perde) | 9 | `UnavailableDatabase_AtAnyStep_PutsTheMessageBack` |
+| D6 | consultar um relatório o recalcula (lê as despesas) | 2 | `GetAsync_AfterAnExpenseChanges_ReturnsTheSavedResultWithoutRecalculating` |
+| D7 | o Excel sai de um novo cálculo e não do resultado salvo | 4 | `Scenario7_WorkerResult_SurvivesAnExpenseChange_ForTheDetailAndTheExcel` |
+| D8 | contagens da tabela como texto | 3 | `Scenario8_CompletedExcel_HasTheContractAndTheCellsOfTheSavedResult` |
+| D9 | valores da tabela como texto | 3 | `Scenario8_CompletedExcel_HasTheContractAndTheCellsOfTheSavedResult` |
+| D10 | falta a linha do total geral | 6 | `GetExcelAsync_AfterAnExpenseChanges_StillHasTheSavedResultAndReadsNoExpense` |
+| D11 | tipo do download é `text/csv` | 2 | `ExcelAsync_Ready_ReturnsTheFileWithTheContract` |
+| D12 | nome do download termina em `.csv` | 4 | `FileName_FollowsTheContract` |
+| D13 | a leitura do resultado deixa de exigir os cinco estados | 3 | `Deserialize_StateMissing_Throws` (sobrevivente da rodada 1) |
+| D14 | o envelope `Completed` não traz o resultado | 7 | `From_CompletedReportWithAnUnreadableResult_Throws` |
+| D15 | mensagem com o identificador vazio é aceita | 2 | `HandleAsync_InvalidMessage_IsDiscardedWithoutTouchingTheStore` |
+| D16 | o envelope mostra resultado sempre que há um salvo, em qualquer estado (acrescentada depois da rodada 1) | 3 | `From_ReportNotCompletedWithAResultSaved_HasNoResult` |
+
+</details>
+
+**O que a verificação não cobre.** O filtro por solicitante do repositório de produção (`ReportRepository`, em EF), as transições condicionais do `ReportProcessingStore`, os adaptadores do RabbitMQ e o host do worker não têm teste unitário, porque os testes não podem tocar banco nem broker. Uma mutação ali sobreviveria por desenho, e não a contei como morta nem como sobrevivente. O isolamento da suíte vem do `FakeReportRepository`, que imita esse filtro, e a prova no SQLite real foi feita à mão (CP3-I01 a CP3-I03). As regras da entrega (CP3-I05) têm a sua própria verificação, com 4 mutações mortas. A verificação é manual e não faz parte do CI.
+
+**Como validar.**
+
+```shell
+dotnet build ./sources/ExpenseHub.slnx --no-incremental
+dotnet test ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx --filter "FullyQualifiedName~ExpenseHub.UnitTests.Reports.ReportScenarioTests"
+dotnet test ./sources/ExpenseHub.slnx --list-tests
+```
+
+O primeiro comando roda a suíte unitária inteira (1170 testes aprovados, 0 falhas), sem banco, rede, RabbitMQ nem Docker; o segundo, só os 15 cenários. Os testes operacionais (E01 a E05) ficam na CP3-I06, e quantidade de testes e cobertura percentual não dão pontos.
 
 ## Detalhe da CP3-I05: Publicação e execução reproduzível
 
-Issue central: [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15). Branch: `cp3-i05`. Pontos: 15. Estado: Concluída na branch, aguardando a PR. Os Dockerfiles, o workflow de publicação e o Compose estão prontos e foram exercitados aqui no Docker com imagens construídas localmente; o que só existe depois do merge na `main` (primeira execução do workflow, pacotes no GHCR e `docker compose pull` com a tag do SHA) está na lista "O que depende do merge", mais abaixo.
+Issue central: [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15). Branch: `cp3-i05`. Pontos: 15. Estado: Concluída, mergeada na `main` como PR 15 da equipe (merge commit `fb89a4f1e115287df60e9cff7075edd2bfda7a0d`), com score oficial do workflow `code-quality` de 100/100 na execução 78. Os Dockerfiles, o workflow de publicação e o Compose foram exercitados aqui no Docker com imagens construídas localmente. Depois do merge, o workflow `publish-images` terminou na `main` com as duas imagens publicadas com o SHA completo do merge, os pacotes `expensehub-web` e `expensehub-worker` ficaram públicos e o `docker pull` anônimo por SHA completo foi conferido pelo Renan (informado por ele). O `docker compose pull` com o `IMAGE_TAG` final continua pendente até a conferência final (CP3-I06 e CP3-I07), como está em "O que aconteceu depois do merge", mais abaixo.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Duas imagens publicadas e identificadas pelo commit, com testes antes da publicação | 5 | Pronto na branch; a publicação acontece no merge | `sources/ExpenseHub.Api/Dockerfile` e `sources/ExpenseHub.Worker/Dockerfile` (mesmas bases, usuário não root, commit na variável `Build__Commit` e na label `revision`); `.github/workflows/publish-images.yml` (job `images` com `needs: test`, tag `${GITHUB_SHA}` completa, sem `latest`, login e push só em push na `main`); `DeliveryFilesTests` (22) e quatro mutações que quebraram testes; as duas imagens construídas aqui (415 MB cada, label e variável iguais ao commit) |
-| Compose executa as imagens publicadas e o RabbitMQ com configuração documentada | 5 | Pronto na branch; `docker compose pull` depende do merge | `compose.yaml` com `${IMAGE_TAG:?...}`, RabbitMQ 4.4.0 por tag e digest, volume nomeado, hostname fixo e healthcheck; README "Rodar com Docker Compose"; subida real aqui com as imagens construídas com os mesmos nomes (71 conferências, nenhuma falha) |
+| Duas imagens publicadas e identificadas pelo commit, com testes antes da publicação | 5 | Atendido | `sources/ExpenseHub.Api/Dockerfile` e `sources/ExpenseHub.Worker/Dockerfile` (mesmas bases, usuário não root, commit na variável `Build__Commit` e na label `revision`); `.github/workflows/publish-images.yml` (job `images` com `needs: test`, tag `${GITHUB_SHA}` completa, sem `latest`, login e push só em push na `main`); `DeliveryFilesTests` (22) e quatro mutações que quebraram testes; as duas imagens construídas aqui (415 MB cada, label e variável iguais ao commit); depois do merge, o workflow terminou na `main` com as duas imagens publicadas com o SHA completo do merge, os pacotes ficaram públicos e o `docker pull` anônimo por SHA completo foi conferido pelo Renan (informado por ele) |
+| Compose executa as imagens publicadas e o RabbitMQ com configuração documentada | 5 | Atendido na execução local; `docker compose pull` pendente até a conferência final com o `IMAGE_TAG` final (CP3-I06 e CP3-I07) | `compose.yaml` com `${IMAGE_TAG:?...}`, RabbitMQ 4.4.0 por tag e digest, volume nomeado, hostname fixo e healthcheck; README "Rodar com Docker Compose"; subida real aqui com as imagens construídas com os mesmos nomes (71 conferências, nenhuma falha) |
 | Banco e armazenamento compatíveis, inicialização reproduzível e segredos externos | 5 | Atendido | Um volume `expensehub-data` em `/data` nos dois contêineres, com a mesma connection string absoluta (WAL entre dois contêineres, `-wal` e `-shm` vistos pelo worker); `Database:MigrateOnStartup` (migrations aplicadas na primeira partida, 4 pendentes, e 0 na segunda); chaves do Data Protection em `expensehub-keys` (o token anterior continuou valendo depois de recriar web e worker); `.env.example` com os segredos em branco; script de qualidade sem FIAP1002; logs dos três serviços sem as credenciais geradas, sem o token e sem a connection string |
 
 **O que foi entregue.**
@@ -277,13 +393,12 @@ Critérios de aceite:
 - Logs do web, do worker e do RabbitMQ: nenhuma ocorrência da senha do broker, da senha do Admin, do token nem de `Data Source`.
 - Ao final só `docker compose stop`: os contêineres parados e os três volumes do projeto `expensehub-i05` continuam no Docker.
 
-**O que depende do merge (não dá para provar antes).**
+**O que aconteceu depois do merge** (informado pelo Renan; não verifiquei na rede).
 
-1. A execução do workflow `publish-images` na `main` (o push só ocorre lá) e as duas tags com o SHA completo no GHCR.
-2. Tornar os dois pacotes públicos, na página de cada um no GitHub (Package settings, Change visibility, Public). Passo manual do Renan.
-3. `docker compose pull` com a tag do SHA e a conferência das referências, depois do passo 2.
-4. O último commit da `main` precisa ser o commit de que o workflow publicou as imagens (a tag é o SHA completo desse commit); depois dele nada muda. O dossiê da CP3-I06 informa o SHA usado nos experimentos.
-5. O número da PR e o score oficial do workflow `code-quality` desta issue entram aqui e no README quando existirem.
+1. O workflow `publish-images` terminou na `main` e publicou as duas imagens com o SHA completo do merge (`fb89a4f1e115287df60e9cff7075edd2bfda7a0d`) como tag.
+2. Os pacotes `expensehub-web` e `expensehub-worker` foram tornados públicos, e o `docker pull` anônimo por SHA completo foi conferido pelo Renan.
+3. **Pendente até a conferência final:** o `docker compose pull` com o `IMAGE_TAG` final. A tag é o SHA completo do último commit da `main`, e cada push na `main` gera imagens novas, então essa conferência só vale com o commit de entrega (CP3-I06 e CP3-I07). O dossiê da CP3-I06 informa o SHA usado nos experimentos, e as referências completas da entrega saem na CP3-I07. Depois do commit final, nada muda.
+4. O número da PR (15) e o score oficial do workflow `code-quality` desta issue (100/100, execução 78) já estão aqui e no README.
 
 **Como validar.**
 
@@ -300,7 +415,7 @@ docker compose up -d worker
 docker compose up -d --force-recreate web worker
 ```
 
-Sem o registry (antes do merge): construir as duas imagens à mão com os comandos do README ("Construir as imagens à mão"), usar `IMAGE_TAG=local` no `.env` e pular o `docker compose pull`.
+Sem puxar do registry (por exemplo, para testar uma alteração local): construir as duas imagens à mão com os comandos do README ("Construir as imagens à mão"), usar `IMAGE_TAG=local` no `.env` e pular o `docker compose pull`.
 
 **Limites.** Imagens `linux/amd64`; o WAL exige web e worker no mesmo host e disco local (volume nomeado, nunca pasta do Windows); as chaves do Data Protection ficam sem criptografia em repouso no volume; o `RABBITMQ_DEFAULT_*` só vale quando o volume do broker nasce; não há Transactional Outbox.
 

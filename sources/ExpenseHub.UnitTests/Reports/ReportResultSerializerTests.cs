@@ -18,6 +18,9 @@ public sealed class ReportResultSerializerTests
 {
     private const string Generated = "2026-10-02T15:00:00+00:00";
 
+    // The part of the message of the check "each of the five states exactly once".
+    private const string FiveStatesMessage = "five states";
+
     /// <summary>A result written and read back keeps the counts, the amounts, the totals and the instant of generation.</summary>
     [TestMethod]
     public void RoundTrip_KeepsCountsAmountsTotalsAndTheInstant()
@@ -91,8 +94,11 @@ public sealed class ReportResultSerializerTests
         ReportSummary missing = good with { ByStatus = good.ByStatus.Take(4).ToList() };
         ReportSummary repeated = good with { ByStatus = good.ByStatus.Take(4).Append(good.ByStatus[0]).ToList() };
 
-        Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Serialize(missing));
-        Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Serialize(repeated));
+        // The cause is checked, not only the type: another check further on would also throw the same type by accident.
+        InvalidOperationException forMissing = Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Serialize(missing));
+        InvalidOperationException forRepeated = Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Serialize(repeated));
+        Assert.Contains(FiveStatesMessage, forMissing.Message);
+        Assert.Contains(FiveStatesMessage, forRepeated.Message);
     }
 
     /// <summary>Reading a saved result with a state missing is an error, not a guess.</summary>
@@ -101,7 +107,8 @@ public sealed class ReportResultSerializerTests
     {
         string json = Json(["Draft", "Submitted", "Approved", "Rejected"], 0, 0);
 
-        Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        Assert.Contains(FiveStatesMessage, error.Message);
     }
 
     /// <summary>Reading a saved result with a state repeated is an error.</summary>
@@ -110,7 +117,8 @@ public sealed class ReportResultSerializerTests
     {
         string json = Json(["Draft", "Draft", "Approved", "Rejected", "Paid"], 0, 0);
 
-        Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        Assert.Contains(FiveStatesMessage, error.Message);
     }
 
     /// <summary>Reading a saved result with an unknown state is an error.</summary>
@@ -119,7 +127,8 @@ public sealed class ReportResultSerializerTests
     {
         string json = Json(["Draft", "Submitted", "Approved", "Rejected", "Archived"], 0, 0);
 
-        Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ReportResultSerializer.Deserialize(json));
+        Assert.Contains("cannot be read", error.Message);
     }
 
     /// <summary>Reading a saved result that gives a state as a number is an error: the states are saved by name.</summary>
