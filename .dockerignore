@@ -1,0 +1,48 @@
+# Keeps the build context of the images small and clean. Without these lines the COPY of the sources would bring the bin and obj
+# folders of the machine that builds, which breaks the restore inside the image, and it would send local files that must never
+# enter an image (environment files, databases, keys).
+
+# Git and tooling
+**/.git
+.git
+.github
+.vs
+.claude
+.idea
+.vscode
+
+# Build output and test results
+**/bin
+**/obj
+**/TestResults
+artifacts
+publish
+
+# Documentation and working files (the build only needs the sources)
+andamento
+docs
+scripts
+tests
+**/*.md
+
+# The unit tests are not part of the images
+sources/ExpenseHub.UnitTests
+
+# Local state and secrets
+**/*.env
+**/.env
+**/.env.*
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite*
+**/*.user
+**/*.log
+**/secrets.json
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# Deployment files that the images do not use
+compose.yaml
+**/Dockerfile
+.dockerignore
