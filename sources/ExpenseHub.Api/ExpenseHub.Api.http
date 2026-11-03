@@ -1,9 +1,66 @@
 @ExpenseHub_Api_HostAddress = http://localhost:5245
 
+# Requisições de apoio para validar a API pelo Visual Studio ou pelo VS Code.
+#
+# Credenciais: nada de e-mail ou senha fica neste arquivo. Crie, ao lado dele, o arquivo
+# http-client.env.json.user (ignorado pelo git pela regra *.user do .gitignore), no formato abaixo,
+# e escolha o ambiente "dev" na lista do editor:
+#
+#   { "dev": { "email": "<e-mail do usuário>", "password": "<senha do usuário>" } }
+#
+# O usuário precisa ter a role Employee (concedida pelo Admin). O token vem da resposta do login e
+# não é gravado em lugar nenhum.
+
+### Saúde da aplicação
 GET {{ExpenseHub_Api_HostAddress}}/health
 Accept: application/json
 
-###
+### Login (devolve o accessToken usado nas requisições abaixo)
+# @name login
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
 
-# Os endpoints do checkpoint estão definidos em docs/REQUISITOS.md.
-# Implemente e adicione aqui as requisições usadas para validar cada issue.
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### CP3-I01: solicitar um relatório do período (escopo Mine)
+# Enquanto o publicador do RabbitMQ não existe (CP3-I03), a resposta é 503 com o id do relatório
+# salvo e o relatório fica Pending. Com o broker confirmando, a resposta é 202 com Location.
+# @name createReport
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Mine"
+}
+
+### CP3-I01: período invertido (400, nada é salvo nem publicado)
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-30",
+  "toDate": "2026-09-01",
+  "scope": "Mine"
+}
+
+### CP3-I01: listar os relatórios do próprio usuário
+GET {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Accept: application/json
+
+### CP3-I01: consultar o andamento e o resultado do relatório solicitado acima
+# Pending, Processing, Completed (com result) ou Failed (com error). Relatório de outro usuário: 404.
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Accept: application/json
+
+### CP3-I01: baixar o Excel do relatório (200 só quando Completed; 409 se ainda não concluído; 404 se alheio)
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}/excel
+Authorization: Bearer {{login.response.body.$.accessToken}}
