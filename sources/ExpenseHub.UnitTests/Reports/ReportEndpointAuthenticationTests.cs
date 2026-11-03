@@ -11,8 +11,9 @@ namespace ExpenseHub.UnitTests.Reports;
 
 /// <summary>
 /// Tests of the first barrier of the report routes: every route asks for an authenticated user and none is open to anonymous
-/// requests. They read the attributes by reflection because the unit tests have no host to send requests to. Which role may
-/// ask for which scope is not decided here: it is the rule of the authorization issue.
+/// requests. They read the attributes by reflection because the unit tests have no host to send requests to. Which roles the
+/// request route asks for is checked in <see cref="ReportEndpointRolesTests"/>, and which role may ask for which scope in
+/// <see cref="ReportAccessTests"/>.
 /// </summary>
 [TestClass]
 public sealed class ReportEndpointAuthenticationTests

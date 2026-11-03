@@ -25,6 +25,9 @@ public static class AppRoles
     /// <summary>The roles that can read expenses, as a comma separated list for an authorization attribute.</summary>
     public const string ExpenseReaders = Employee + "," + Approver + "," + Finance + "," + Auditor;
 
+    /// <summary>The roles that can request a report, as a comma separated list for an authorization attribute.</summary>
+    public const string ReportRequesters = Employee + "," + Auditor;
+
     /// <summary>Gets every role the application needs.</summary>
     public static IReadOnlyList<string> All { get; } = new[] { Admin, Employee, Approver, Finance, Auditor };
 }
