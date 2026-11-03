@@ -4,7 +4,7 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 ## Estado atual
 
-> CP3-00 (preparação) concluída e mergeada na `main` como PR #11 da equipe (merge commit `6d7f811`): pasta `andamento/`, `CLAUDE.md` do CP3, baseline (build 0 avisos e 0 erros, 611 testes, SDK 10.0.403, Docker 29.9.2) e documentação reorganizada (`CHECKPOINT-2.md`, `CHECKPOINT-3.md` e `README.md` como página de entrada). CP3-I01 concluída na branch `cp3-i01`, aguardando a PR e o merge: rotas e DTOs de relatório, entidade e migration `AddReportRequests`, calculadora pura, resultado salvo, Excel com `DocumentFormat.OpenXml` 3.5.1 (MIT), publicador atrás de `IReportPublisher` (o POST responde 503 até a CP3-I03) e esqueleto do `.http`. Build 0 avisos e 0 erros, 788 testes (177 novos), script de qualidade 100/100, SQLite e HTTP reais conferidos. O texto da PR está em `andamento/PR-CP3-I01.md`. Nenhuma outra issue começou. Próximo passo: depois do merge da CP3-I01, planejar a CP3-I02 (a regra de escopo por papel).
+> CP3-00 (preparação) concluída e mergeada na `main` como PR #11 da equipe (merge commit `6d7f811`): pasta `andamento/`, `CLAUDE.md` do CP3, baseline (build 0 avisos e 0 erros, 611 testes, SDK 10.0.403, Docker 29.9.2) e documentação reorganizada (`CHECKPOINT-2.md`, `CHECKPOINT-3.md` e `README.md` como página de entrada). CP3-I01 concluída e mergeada na `main` como PR #12 da equipe (merge commit `48810e3`, SHA completo `48810e3f69def12fdc391d5d6e440af75f481836`), com score oficial do workflow `code-quality` de 100/100 na execução #69 (informado pelo Renan): rotas e DTOs de relatório, entidade e migration `AddReportRequests`, calculadora pura, resultado salvo, Excel com `DocumentFormat.OpenXml` 3.5.1 (MIT), publicador atrás de `IReportPublisher` (o POST responde 503 até a CP3-I03) e esqueleto do `.http`; 788 testes. CP3-I02 (autorização e isolamento) concluída na branch `cp3-i02`, aguardando a PR e o merge: matriz de role por escopo (`ReportAccess`), ordem das respostas (401, 403 por role, 400, 403 por escopo), consulta do worker montada do pedido gravado (`ReportQuery.From`) e testes de isolamento por role; build 0 avisos e 0 erros, 936 testes (148 novos), script de qualidade 100/100, HTTP real com 120 conferências. O texto da PR está em `andamento/PR-CP3-I02.md`. Nenhuma outra issue começou. Próximo passo: depois do merge da CP3-I02, planejar a CP3-I03 (RabbitMQ, worker e idempotência).
 
 ## Links
 
@@ -77,8 +77,8 @@ Decisões que ficam para o plano da issue (o agente propõe, o Renan aprova):
 | Item | Estado | Branch | PR | Pontos da rubrica |
 | :- | :- | :- | :- | :- |
 | CP3-00 Preparação | Concluída | `cp3-00-preparacao` | PR #11 (merge `6d7f811`) | n/d |
-| CP3-I01 Contrato e resultado | Concluída na branch (aguardando PR) | `cp3-i01` | n/d | 20 |
-| CP3-I02 Autorização e isolamento | Pendente | `cp3-i02` | n/d | 15 |
+| CP3-I01 Contrato e resultado | Concluída | `cp3-i01` | PR #12 (merge `48810e3`) | 20 |
+| CP3-I02 Autorização e isolamento | Concluída na branch (aguardando PR) | `cp3-i02` | n/d | 15 |
 | CP3-I03 RabbitMQ, worker e idempotência | Pendente | `cp3-i03` | n/d | 20 |
 | CP3-I04 Testes próprios | Pendente | `cp3-i04` | n/d | 15 |
 | CP3-I05 Publicação e execução reproduzível | Pendente | `cp3-i05` | n/d | 15 |
@@ -335,7 +335,7 @@ Apoio: Decisões de projeto, Fora de escopo e Fluxo de trabalho do CP2 foram par
 
 ### CP3-I01: Contrato e resultado do relatório (20)
 
-**Estado:** concluída na branch, aguardando PR e merge (texto da PR em `andamento/PR-CP3-I01.md`). **Branch:** `cp3-i01`. **Issue:** #11.
+**Estado:** concluída; PR #12 da equipe, merge commit `48810e3` (SHA completo `48810e3f69def12fdc391d5d6e440af75f481836`); score oficial do workflow `code-quality` 100/100 na execução #69 (informado pelo Renan). **Branch:** `cp3-i01`. **Issue:** #11.
 
 - [x] Entrada, período e solicitação persistida conforme o contrato (4): `CreateReportRequestTests`, `ReportRulesTests`, `ReportServiceRequestTests`, `ReportsControllerTests`; HTTP real com 11 corpos inválidos e 0 linhas gravadas
 - [x] Listagem, detalhe e estados observáveis (4): `ReportResponseTests`, `ReportServiceQueryTests`; HTTP real com `Pending`, `Completed` e `Failed`
@@ -349,13 +349,15 @@ Resultados: build 0 avisos e 0 erros; 788 testes aprovados (611 do CP2 e 177 nov
 
 ### CP3-I02: Autorização e isolamento (15)
 
-**Estado:** pendente. **Branch:** `cp3-i02`. **Issue:** #12.
+**Estado:** concluída na branch, aguardando PR e merge (texto da PR em `andamento/PR-CP3-I02.md`). **Branch:** `cp3-i02`. **Issue:** #12.
 
-- [ ] Autenticação e permissão por perfil e escopo (5)
-- [ ] Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor (5)
-- [ ] Solicitante e escopo controlados pelo servidor até o processamento (5)
+- [x] Autenticação e permissão por perfil e escopo (5): `ReportAccessTests` (59, tabela escrita à mão das 32 combinações das cinco roles), `ReportServiceAuthorizationTests` (35), `ReportEndpointRolesTests` (6); duas mutações quebraram os testes (42 e 2) e foram desfeitas; HTTP real com 7 contas x `Mine` e `Global`
+- [x] Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor (5): `ReportIsolationTests` (36, oito conjuntos de roles x lista, detalhe e Excel x quatro estados); HTTP real com oito contas cruzadas, `404` igual ao de um id inexistente
+- [x] Solicitante e escopo controlados pelo servidor até o processamento (5): registro com `RequesterId` e `Scope` (teste e banco real), `ReportQuery.From` e `ReportQueryFromRequestTests` (10), mensagem do publicador só com o `Guid`
 
-Apoio: corpo com `ownerId` ou `requesterId` é ignorado (teste); ordem das respostas documentada (401, 403 por papel, 400, 403 por escopo).
+Apoio, tudo verificado: ordem das respostas (401, 403 por role, 400, 403 por escopo) provada com HTTP real (sem role e corpo inválido dá 403; Employee com período invertido e `Global` dá 400); corpo com `ownerId`, `requesterId` e `status` ignorado (testes da I01 seguem passando e HTTP real); leitura sem role, só posse; `.http` com login do Auditor, `Mine`, `Global`, os dois `403` e o `404`; testes de serviço da I01 ajustados para um chamador `Employee`.
+
+Resultados: build 0 avisos e 0 erros; 936 testes aprovados (788 da base e 148 novos); script de qualidade 100/100 (achado informativo `FIAP0002`); HTTP real com 120 conferências aprovadas, log sem senha, token nem e-mail. Pendências: `main` fica com `Global` aberto a qualquer autenticado até esta PR entrar (mergear em seguida); publicador real, worker e `202` de verdade na CP3-I03 (que chama `ReportQuery.From`); completar o `.http` na CP3-I06.
 
 ### CP3-I03: RabbitMQ, worker e idempotência (20)
 
