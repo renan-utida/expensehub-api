@@ -33,6 +33,9 @@ public class ExpenseHubDbContext : IdentityDbContext<IdentityUser>
     /// <summary>Gets the payment records.</summary>
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
 
+    /// <summary>Gets the report requests, with their saved results.</summary>
+    public DbSet<ReportRequest> ReportRequests => Set<ReportRequest>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -44,5 +47,6 @@ public class ExpenseHubDbContext : IdentityDbContext<IdentityUser>
         builder.ApplyConfiguration(new ExpenseCategoryConfiguration());
         builder.ApplyConfiguration(new ExpenseHistoryConfiguration());
         builder.ApplyConfiguration(new PaymentRecordConfiguration());
+        builder.ApplyConfiguration(new ReportRequestConfiguration());
     }
 }

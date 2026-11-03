@@ -148,6 +148,68 @@ namespace ExpenseHub.Api.Persistence.Migrations
                     b.ToTable("PaymentRecords", (string)null);
                 });
 
+            modelBuilder.Entity("ExpenseHub.Api.Domain.Entities.ReportRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CompletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FromDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequesterId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("StartedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("ToDate")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequesterId", "CreatedAtUtc");
+
+                    b.ToTable("ReportRequests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ReportRequests_Completed_Has_Result", "\"Status\" <> 'Completed' OR \"ResultJson\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_ReportRequests_Failed_Has_Error", "\"Status\" <> 'Failed' OR \"ErrorCode\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_ReportRequests_Period_Order", "\"FromDate\" <= \"ToDate\"");
+                        });
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
