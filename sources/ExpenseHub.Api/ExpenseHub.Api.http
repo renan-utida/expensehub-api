@@ -1,36 +1,145 @@
 @ExpenseHub_Api_HostAddress = http://localhost:5245
 
-# Requisições de apoio para validar a API pelo Visual Studio ou pelo VS Code.
+# Requisições de apoio para validar a API pelo Visual Studio ou pelo VS Code. Cobrem o fluxo inteiro do CP3: contas e
+# papéis, despesas de teste, solicitar relatórios (Mine e Global), listar, consultar, baixar o Excel e os casos negativos.
 #
 # Ambientes: "dev" aponta para a API rodando com dotnet run (porta 5245) e "compose" para a API do Docker Compose
 # (porta 8080 por padrão; se mudou WEB_PORT no .env, ajuste o endereço no http-client.env.json).
 #
-# Credenciais: nada de e-mail ou senha fica neste arquivo. Crie, ao lado dele, o arquivo
-# http-client.env.json.user (ignorado pelo git pela regra *.user do .gitignore), no formato abaixo,
-# e escolha o ambiente ("dev" ou "compose") na lista do editor. Repita o bloco para cada ambiente que for usar:
+# Credenciais: nada de e-mail, senha ou token fica neste arquivo. Crie, ao lado dele, o arquivo
+# http-client.env.json.user (ignorado pelo git pela regra *.user do .gitignore), no formato abaixo, e escolha o
+# ambiente ("dev" ou "compose") na lista do editor. Repita o bloco para cada ambiente que for usar. Os tokens vêm das
+# respostas dos logins e não são gravados em lugar nenhum.
 #
 #   {
-#     "dev": {
-#       "email": "<e-mail de um usuário Employee>",
+#     "compose": {
+#       "adminEmail": "<ADMIN_EMAIL do .env>",
+#       "adminPassword": "<ADMIN_PASSWORD do .env>",
+#       "email": "<e-mail do primeiro Employee>",
 #       "password": "<senha desse usuário>",
-#       "auditorEmail": "<e-mail de um usuário Auditor>",
-#       "auditorPassword": "<senha desse usuário>"
+#       "employee2Email": "<e-mail do segundo Employee>",
+#       "employee2Password": "<senha desse usuário>",
+#       "auditorEmail": "<e-mail do Auditor>",
+#       "auditorPassword": "<senha desse usuário>",
+#       "approverEmail": "<e-mail do usuário que aprova e paga (Approver e Finance)>",
+#       "approverPassword": "<senha desse usuário>"
 #     }
 #   }
 #
-# No Compose esses usuários não existem no começo: o banco nasce só com o Admin (ADMIN_EMAIL e ADMIN_PASSWORD do .env).
-# Cadastre os usuários em POST /register e peça ao Admin para conceder as roles (README, "Cadastro e roles").
+# Ordem sugerida, de cima para baixo: 1) Admin; 2) cadastro das quatro contas e papéis; 3) logins; 4) despesas de teste;
+# 5) relatórios; 6) leituras e negativos. No Compose o banco nasce só com o Admin, então o cadastro e os papéis vêm
+# primeiro. Se uma conta já existir, o cadastro devolve 409 e o id vem da listagem de usuários.
 #
-# Quem pode pedir cada escopo (CP3-I02): Employee pede Mine, Auditor pede Global, e quem tem as duas
-# roles pede os dois. Admin, Approver e Finance sozinhos não pedem nada (403). As roles são concedidas
-# pelo Admin e a pessoa precisa entrar de novo depois. Os tokens vêm das respostas dos logins e não são
-# gravados em lugar nenhum.
+# Quem pode pedir cada escopo (CP3-I02): Employee pede Mine, Auditor pede Global, e quem tem as duas roles pede os
+# dois. Admin, Approver e Finance sozinhos não pedem nada (403). As roles são concedidas pelo Admin e a pessoa precisa
+# entrar de novo depois.
+#
+# Atenção: o escopo Global soma as despesas de TODOS os usuários do período. Os números dos experimentos do CP3
+# (CHECKPOINT-3.md) só valem num banco sem outras despesas em setembro de 2026, então use este arquivo DEPOIS deles
+# (ou com outro período).
 
 ### Saúde da aplicação
+# @name health
 GET {{ExpenseHub_Api_HostAddress}}/health
 Accept: application/json
 
-### Login (devolve o accessToken usado nas requisições abaixo)
+### 1. Login do Admin (a conta que o seed cria na primeira partida)
+# @name loginAdmin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### 2. Cadastro do primeiro Employee (nasce sem roles; 201 com o id, ou 409 se já existe)
+# @name registerEmployee
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 2. Cadastro do segundo Employee
+# @name registerEmployee2
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "{{employee2Email}}",
+  "password": "{{employee2Password}}"
+}
+
+### 2. Cadastro do Auditor
+# @name registerAuditor
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "{{auditorEmail}}",
+  "password": "{{auditorPassword}}"
+}
+
+### 2. Cadastro do usuário que aprova e paga (uma conta só com as duas roles; ninguém aprova nem paga a própria despesa)
+# @name registerApprover
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "{{approverEmail}}",
+  "password": "{{approverPassword}}"
+}
+
+### 2. Listagem de usuários (Admin): traz o id de cada conta caso o cadastro tenha devolvido 409
+# @name listUsers
+GET {{ExpenseHub_Api_HostAddress}}/api/admin/users
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Accept: application/json
+
+### 2. Papel Employee para o primeiro usuário (o PUT substitui as roles; a pessoa entra de novo depois)
+# @name grantEmployee
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerEmployee.response.body.$.id}}/roles
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee"]
+}
+
+### 2. Papel Employee para o segundo usuário
+# @name grantEmployee2
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerEmployee2.response.body.$.id}}/roles
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee"]
+}
+
+### 2. Papel Auditor
+# @name grantAuditor
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerAuditor.response.body.$.id}}/roles
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Auditor"]
+}
+
+### 2. Papéis Approver e Finance para o usuário que aprova e paga
+# @name grantApprover
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerApprover.response.body.$.id}}/roles
+Authorization: Bearer {{loginAdmin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Approver", "Finance"]
+}
+
+### 3. Login do primeiro Employee (devolve o accessToken usado nas requisições dele)
 # @name login
 POST {{ExpenseHub_Api_HostAddress}}/login
 Content-Type: application/json
@@ -40,7 +149,17 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-### CP3-I02: login do usuário Auditor (devolve o accessToken usado nos pedidos Global)
+### 3. Login do segundo Employee
+# @name loginEmployee2
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "{{employee2Email}}",
+  "password": "{{employee2Password}}"
+}
+
+### 3. CP3-I02: login do usuário Auditor (devolve o accessToken usado nos pedidos Global)
 # @name loginAuditor
 POST {{ExpenseHub_Api_HostAddress}}/login
 Content-Type: application/json
@@ -50,7 +169,140 @@ Content-Type: application/json
   "password": "{{auditorPassword}}"
 }
 
-### CP3-I01: solicitar um relatório do período (escopo Mine, usuário Employee)
+### 3. Login do usuário que aprova e paga
+# @name loginApprover
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "{{approverEmail}}",
+  "password": "{{approverPassword}}"
+}
+
+### 4. Despesas de teste (o exemplo da apostila). Período 2026-09-01 a 2026-09-30:
+# Employee 1: 100,00 Approved, 50,00 Approved, 25,00 Paid. Employee 2: 200,00 Approved. Employee 1 ainda tem 500,00 Paid
+# em 2026-10-01, fora do período. Esperado: Mine do Employee 1 = 3 itens e 175,00; Global = 4 itens e 375,00.
+# Despesa 1: Employee 1, 100,00, 2026-09-01 (Approved)
+# @name expense1
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Despesa de teste 1 do relatorio",
+  "amount": 100.00,
+  "expenseDate": "2026-09-01"
+}
+
+### 4. Despesa 1: enviar para aprovação (Employee 1)
+# @name expense1Submit
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense1.response.body.$.id}}/submit
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 4. Despesa 1: aprovar (quem aprova não é o dono)
+# @name expense1Approve
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense1.response.body.$.id}}/approve
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 2: Employee 1, 50,00, 2026-09-15 (Approved)
+# @name expense2
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Despesa de teste 2 do relatorio",
+  "amount": 50.00,
+  "expenseDate": "2026-09-15"
+}
+
+### 4. Despesa 2: enviar
+# @name expense2Submit
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense2.response.body.$.id}}/submit
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 4. Despesa 2: aprovar
+# @name expense2Approve
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense2.response.body.$.id}}/approve
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 3: Employee 1, 25,00, 2026-09-30 (Paid)
+# @name expense3
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Despesa de teste 3 do relatorio",
+  "amount": 25.00,
+  "expenseDate": "2026-09-30"
+}
+
+### 4. Despesa 3: enviar
+# @name expense3Submit
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense3.response.body.$.id}}/submit
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 4. Despesa 3: aprovar
+# @name expense3Approve
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense3.response.body.$.id}}/approve
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 3: pagar (quem paga não é o dono)
+# @name expense3Pay
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense3.response.body.$.id}}/pay
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 4: Employee 2, 200,00, 2026-09-10 (Approved)
+# @name expense4
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{loginEmployee2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Despesa de teste 4 do relatorio",
+  "amount": 200.00,
+  "expenseDate": "2026-09-10"
+}
+
+### 4. Despesa 4: enviar
+# @name expense4Submit
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense4.response.body.$.id}}/submit
+Authorization: Bearer {{loginEmployee2.response.body.$.accessToken}}
+
+### 4. Despesa 4: aprovar
+# @name expense4Approve
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense4.response.body.$.id}}/approve
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 5: Employee 1, 500,00, 2026-10-01 (Paid, FORA do período)
+# @name expense5
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Despesa de teste 5 do relatorio",
+  "amount": 500.00,
+  "expenseDate": "2026-10-01"
+}
+
+### 4. Despesa 5: enviar
+# @name expense5Submit
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense5.response.body.$.id}}/submit
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 4. Despesa 5: aprovar
+# @name expense5Approve
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense5.response.body.$.id}}/approve
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 4. Despesa 5: pagar
+# @name expense5Pay
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{expense5.response.body.$.id}}/pay
+Authorization: Bearer {{loginApprover.response.body.$.accessToken}}
+
+### 5. CP3-I01: solicitar um relatório do período (escopo Mine, Employee 1)
 # Com o RabbitMQ no ar e o broker confirmando a mensagem, a resposta é 202 com Location e o relatório
 # Pending; o worker o leva a Completed. Se o broker não confirmar (ou estiver fora), a resposta é 503 com
 # o id do relatório salvo, que fica Pending. Um 503 não garante que a mensagem não chegou ao broker:
@@ -66,7 +318,19 @@ Content-Type: application/json
   "scope": "Mine"
 }
 
-### CP3-I02: solicitar um relatório Global (usuário Auditor)
+### 5. Relatório Mine do Employee 2 (serve de relatório alheio para os negativos abaixo)
+# @name createReportEmployee2
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Authorization: Bearer {{loginEmployee2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Mine"
+}
+
+### 5. CP3-I02: solicitar um relatório Global (usuário Auditor)
 # Global exige a role Auditor. Mesmo fluxo do Mine: 202 com Location quando o broker confirma, 503 com o
 # id se não confirmar. O relatório pertence ao Auditor que o pediu e só ele consegue ler.
 # @name createGlobalReport
@@ -80,7 +344,8 @@ Content-Type: application/json
   "scope": "Global"
 }
 
-### CP3-I02: usuário Employee pede Global (403, nada é salvo nem publicado)
+### 6. CP3-I02: usuário Employee pede Global (403, nada é salvo nem publicado)
+# @name employeeAsksGlobal
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
@@ -91,7 +356,8 @@ Content-Type: application/json
   "scope": "Global"
 }
 
-### CP3-I02: usuário Auditor pede Mine (403, nada é salvo nem publicado)
+### 6. CP3-I02: usuário Auditor pede Mine (403, nada é salvo nem publicado)
+# @name auditorAsksMine
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
 Content-Type: application/json
@@ -102,9 +368,10 @@ Content-Type: application/json
   "scope": "Mine"
 }
 
-### CP3-I01: período invertido (400, nada é salvo nem publicado)
+### 6. CP3-I01: período invertido (400, nada é salvo nem publicado)
 # Ordem das respostas do POST: 401 sem token, 403 sem role que possa pedir, 400 de validação, 403 de
 # escopo não permitido para a role. Aqui o Employee tem a role, então o período invertido dá 400.
+# @name invertedPeriod
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
@@ -115,23 +382,79 @@ Content-Type: application/json
   "scope": "Mine"
 }
 
-### CP3-I01: listar os relatórios do próprio usuário
+### 6. Sem token (401)
+# @name anonymousRequest
+POST {{ExpenseHub_Api_HostAddress}}/api/reports
+Content-Type: application/json
+
+{
+  "fromDate": "2026-09-01",
+  "toDate": "2026-09-30",
+  "scope": "Mine"
+}
+
+### 7. CP3-I01: listar os relatórios do próprio usuário (só os dele, mesmo para o Auditor)
+# @name listReports
 GET {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Accept: application/json
 
-### CP3-I01: consultar o andamento e o resultado do relatório solicitado acima
+### 7. CP3-I01: consultar o andamento e o resultado do relatório solicitado acima
 # Pending, Processing, Completed (com result) ou Failed (com error). Relatório de outro usuário: 404.
+# Esperado quando Completed: totalCount 3 e totalAmount 175.00 (Approved 2 e 150.00, Paid 1 e 25.00).
+# @name getReport
 GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Accept: application/json
 
-### CP3-I02: o Employee tenta ler o relatório Global do Auditor (404, igual a um id que não existe)
+### 7. Resultado do Global do Auditor (esperado quando Completed: totalCount 4 e totalAmount 375.00)
+# @name getGlobalReport
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createGlobalReport.response.body.$.id}}
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
+Accept: application/json
+
+### 7. CP3-I01: baixar o Excel do relatório (200 só quando Completed; 409 se ainda não concluído; 404 se alheio)
+# Para ver o 409, pare só o worker (docker compose stop worker), peça um relatório e baixe antes de religar.
+# @name downloadExcel
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}/excel
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 7. Excel do Global do Auditor (200 quando Completed)
+# @name downloadGlobalExcel
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createGlobalReport.response.body.$.id}}/excel
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
+
+### 8. CP3-I02: o Employee tenta ler o relatório Global do Auditor (404, igual a um id que não existe)
 # Ninguém lê relatório de outro usuário, nem o Auditor: listagem, detalhe e Excel são só do solicitante.
+# @name employeeReadsAuditorReport
 GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createGlobalReport.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Accept: application/json
 
-### CP3-I01: baixar o Excel do relatório (200 só quando Completed; 409 se ainda não concluído; 404 se alheio)
+### 8. O Employee 2 tenta ler o relatório do Employee 1 (404)
+# @name employee2ReadsEmployeeReport
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{loginEmployee2.response.body.$.accessToken}}
+Accept: application/json
+
+### 8. O Employee 2 tenta baixar o Excel do Employee 1 (404, sem arquivo)
+# @name employee2DownloadsEmployeeExcel
 GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}/excel
+Authorization: Bearer {{loginEmployee2.response.body.$.accessToken}}
+
+### 8. O Employee 1 tenta ler o relatório do Employee 2 (404, o mesmo cruzamento no outro sentido)
+# @name employeeReadsEmployee2Report
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReportEmployee2.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
+Accept: application/json
+
+### 8. O Auditor tenta ler o relatório de um Employee (404): o privilégio Global é sobre os dados do relatório dele
+# @name auditorReadsEmployeeReport
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}
+Accept: application/json
+
+### 8. O Auditor tenta baixar o Excel de um Employee (404, sem arquivo)
+# @name auditorDownloadsEmployeeExcel
+GET {{ExpenseHub_Api_HostAddress}}/api/reports/{{createReport.response.body.$.id}}/excel
+Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}

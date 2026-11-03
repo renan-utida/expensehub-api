@@ -228,7 +228,7 @@ Para rodar o fluxo real, suba o RabbitMQ, o web e o worker como no [README](READ
 
 ## Detalhe da CP3-I04: Testes próprios significativos
 
-Issue central: [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14). Branch: `cp3-i04`. Pontos: 15. Estado: Concluída na branch, aguardando a PR. A issue audita a suíte contra a tabela de 13 cenários mínimos, cria só o que faltava, prova por mutação que os testes pegam defeitos nas regras novas do CP3 e documenta o comando. **Nenhum código de produção mudou**: só testes e documentação.
+Issue central: [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14). Branch: `cp3-i04`. Pontos: 15. Estado: Concluída, mergeada na `main` como PR 16 da equipe (merge commit `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`), com score oficial do workflow `code-quality` de 100/100 na execução 81 (da PR) e execução 82 na `main` concluída com sucesso, e `publish-images` concluído na `main` (execução 4), tudo informado pelo Renan. A issue audita a suíte contra a tabela de 13 cenários mínimos, cria só o que faltava, prova por mutação que os testes pegam defeitos nas regras novas do CP3 e documenta o comando. **Nenhum código de produção mudou**: só testes e documentação.
 
 Critérios de aceite:
 
@@ -265,7 +265,7 @@ Critérios de aceite:
 
 ### Verificação de mutação da CP3-I04
 
-Mesmo método da I09 do CP2 (quebrar a regra de propósito, ver o teste falhar, desfazer), com duas diferenças: **nenhuma mutação toca a árvore real** e **não se usa `git restore`**, que é proibido nesta sessão. Um script local de Python, fora do repositório, não versionado e fora do CI:
+Mesmo método da I09 do CP2 (quebrar a regra de propósito, ver o teste falhar, desfazer), com duas diferenças: **nenhuma mutação toca a árvore real** e **não se usa `git restore`**: a mutação roda numa cópia para que a árvore real nunca receba um mutante nem corra risco de perder alterações ainda não commitadas. Um script local de Python, fora do repositório, não versionado e fora do CI:
 - copia o repositório (sem `.git`, `bin` nem `obj`) para o scratchpad; cada rodada tem a sua cópia, e os três grupos rodam em paralelo, cada um na sua. As cópias ficam fisicamente no scratchpad e são acessadas por uma letra de unidade curta (`subst`), porque o caminho do scratchpad faz alguns arquivos do repositório passarem dos 260 caracteres do Windows;
 - antes da primeira mutação, confirma que a cópia compila e passa inteira, sem nenhuma mutação (1149 testes na rodada 1, 1170 na 2);
 - aplica **uma** mutação por vez, só na cópia, conferindo que o trecho existe uma vez só; roda `dotnet test`; classifica o resultado (morta, sobrevivente, não compilou ou erro de execução) e anota o primeiro teste que falhou; e restaura o arquivo a partir dos bytes originais, conferindo que voltou idêntico;
@@ -421,19 +421,33 @@ Sem puxar do registry (por exemplo, para testar uma alteração local): construi
 
 ## Detalhe da CP3-I06: Experimentos e diagnóstico
 
-Issue central: [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16). Branch: `cp3-i06`. Pontos: 10. Estado: Pendente.
+Issue central: [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16). Branch: `cp3-i06`. Pontos: 10. Estado: Concluída na branch, aguardando a PR. O arquivo `.http` está completo, os cinco experimentos foram executados pelo Renan em 03/11/2026 no Docker dele, com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, e as saídas reais e o diagnóstico estão no [Dossiê](#dossiê-dos-experimentos-e01-a-e05). O commit final de entrega gera imagens próprias (outra tag); os experimentos não foram repetidos com elas.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| E01 com Excel e E02 correlacionados na mesma solicitação | 3 | Pendente | A preencher ao concluir a issue |
-| E03 duplicata depois de reiniciar o worker, sem novo efeito | 2 | Pendente | A preencher ao concluir a issue |
-| E04 cenários de autorização reproduzíveis | 2 | Pendente | A preencher ao concluir a issue |
-| E05 persistência depois de recriar web e worker | 2 | Pendente | A preencher ao concluir a issue |
-| Diagnóstico correto de aceitação, publicação e janela sem Outbox | 1 | Pendente | A preencher ao concluir a issue |
+| E01 com Excel e E02 correlacionados na mesma solicitação | 3 | Atendido | E01: relatório `2e1a02c1-aac4-40ca-b2c9-2e4043209fa3`, `202` com `Location`, `Completed` com 3 itens e 175, Excel `.xlsx` com as mesmas células do JSON e logs do web e do worker pelo id. E02: worker parado, `202`, relatório `56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f` `Pending` com a fila em `1 0`, e o mesmo id `Completed` depois de religar o worker ([E01](#e01-fluxo-normal), [E02](#e02-worker-parado)) |
+| E03 duplicata depois de reiniciar o worker, sem novo efeito | 2 | Atendido | Worker reiniciado às 18:18:52Z, mesmo `reportId` republicado pelo painel às 18:24:34Z, log `duplicate message ignored, nothing was changed`, hash do JSON, listagem e hash das células do Excel idênticos, fila `0 0` e uma só conclusão no log ([E03](#e03-duplicata-depois-de-reiniciar-o-worker)) |
+| E04 cenários de autorização reproduzíveis | 2 | Atendido | Oito casos com `OK`: `403` do Employee em `Global`, `404` ao consultar e ao baixar o Excel alheio (Employee e Auditor), `202` e 4 itens e 375 do Auditor em `Global`, `404` do Employee para o relatório do Auditor e listagem do Auditor só com o dele ([E04](#e04-isolamento)) |
+| E05 persistência depois de recriar web e worker | 2 | Atendido | Web e worker com contêineres novos, RabbitMQ intacto, mesma versão (rótulo `revision` e linha `Image commit` com o SHA `f18cadbc…`), mesmo token ainda válido e hashes do JSON e do Excel iguais antes e depois, sem remover volume ([E05](#e05-persistência-e-versão)) |
+| Diagnóstico correto de aceitação, publicação e janela sem Outbox | 1 | Atendido | Quatro partes no [Diagnóstico](#diagnóstico): aceitação e conclusão com a linha do tempo do E01; worker parado, broker indisponível e janela sem Outbox como falhas diferentes; duplicata e novo `POST`; `Ready` e `Unacked` contra `Pending` e `Processing` |
 
-Decisões e como validar: a preencher ao concluir a issue. As evidências ficam no [Dossiê dos experimentos](#dossiê-dos-experimentos-e01-a-e05).
+Decisões:
+
+- **Versão dos experimentos.** São usadas as imagens publicadas do SHA completo `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (merge da CP3-I04, PR 16), com `IMAGE_TAG` igual a esse SHA. Esta branch só traz documentação e o arquivo `.http`; a CP3-I07 provará com `git diff --stat` que a diferença até o SHA final de entrega é só documentação.
+- **Ambiente real.** Projeto Compose `expensehub` do `compose.yaml`, com os serviços reais `web`, `worker` e `rabbitmq`, rodando no Docker do Renan (Git Bash no Windows). Nenhum passo remove volume ou banco: não há `docker compose down`, nem `docker volume rm`, nem `prune`; a recriação de web e worker do E05 troca os contêineres e preserva os volumes.
+- **Senhas.** A do Admin não é digitada: o bloco 1 a gera com `openssl` (`Aa1!` mais 32 caracteres hexadecimais, o que cumpre a política padrão do ASP.NET Core Identity usada pelo projeto) e a grava no `.env` sem imprimir. Só usa letras, dígitos e `!`, porque `$` ou `#` seriam alterados pela interpolação do Compose e o Admin só é criado na primeira subida (sem remover volume não haveria como corrigir). A senha das contas de teste é digitada com `read -rs` e validada antes de seguir. Tokens e senhas ficam só em variáveis do shell, nunca em arquivo; o diretório temporário guarda apenas as planilhas baixadas.
+- **Dados mínimos e conhecidos.** Quatro contas e cinco despesas (tabela no Dossiê), para que os totais sejam conferíveis à mão: `Mine` da ana = 3 itens e 175,00; `Global` do Auditor = 4 itens e 375,00.
+- **Comparação do Excel.** O pacote `.xlsx` é um zip e guarda o horário de gravação das entradas, então dois downloads do mesmo relatório diferem em bytes. A comparação usa o hash do conteúdo de `xl/worksheets/sheet1.xml`.
+- **Republicação (E03).** Pelo painel de gerenciamento do RabbitMQ, como a apostila sugere, sem endpoint de negócio e sem alterar o banco.
+- **Arquivo `.http`.** Completo (50 requisições nomeadas, sem token nem senha: as credenciais vêm de `http-client.env.json.user`, ignorado pelo git, e os tokens vêm das respostas dos logins). Foi executado de verdade contra uma pilha de ensaio por um executor em Python fora do repositório, que conferiu o código HTTP esperado de cada requisição (50 de 50 sem divergência); não foi aberto no Visual Studio. O `Global` soma as despesas de todos os usuários, então o `.http` só deve rodar depois dos experimentos.
+- **Ensaio do roteiro (observação do assistente, não é evidência dos experimentos).** Antes de entregar o roteiro, o assistente o executou de ponta a ponta em um projeto Compose separado (`expensehub-i06dry`), com credenciais descartáveis, portas diferentes e as mesmas imagens publicadas, para corrigir o texto dos blocos. Nesse ensaio o `docker compose pull` das duas imagens com a tag do SHA acima funcionou sem login no GHCR (Docker configurado sem credenciais). No ensaio o passo do painel foi substituído pela API HTTP de gerenciamento do RabbitMQ, que publica a mesma mensagem; o painel em si não foi exercitado pelo assistente (o Renan o usou no E03, e os rótulos da tela bateram com o roteiro).
+- **Tentativas que falharam.** Três falhas de colagem no terminal (bloco 1 e bloco 5 por causa da barra de continuação, bloco 3a por uma linha vazia) foram refeitas, com a causa e a ordem real em [Tentativas que falharam](#tentativas-que-falharam-e-foram-refeitas-ordem-real). O roteiro passou a ter a regra "nenhum comando com barra de continuação", e o bloco 1 ganhou uma trava (`cmp -s`) e a conferência `docker compose config --quiet`. Nenhuma das falhas criou contêiner, rede, volume ou relatório.
+- **Resultado dos experimentos.** Nenhum experimento revelou defeito de produção. As duas observações que valem registro (o intervalo de 1 a 2 s entre `message received` e `processing started` na primeira mensagem de cada processo do worker, e por que o token continuou valendo depois de recriar o web) foram conferidas no código e estão em [Observações que os experimentos levantaram](#observações-que-os-experimentos-levantaram).
+- **Limites.** O E04 não cobre o `409` do Excel de um relatório próprio ainda não `Completed` (não faz parte dos cinco experimentos; está nos testes unitários, por exemplo `ReportServiceExcelTests.GetExcelAsync_OwnReportNotCompleted_IsAConflict` e `ReportsControllerTests.ExcelAsync_NotCompleted_Returns409`); o painel do RabbitMQ não tem captura de tela no dossiê, só a descrição do passo e o log do worker que confirma a hora da publicação; o `.http` não foi aberto no Visual Studio.
+
+As evidências ficam no [Dossiê dos experimentos](#dossiê-dos-experimentos-e01-a-e05).
 
 ## Detalhe da CP3-I07: Qualidade objetiva das alterações
 
@@ -458,22 +472,1123 @@ Atividade opcional e manual: publicação própria no LinkedIn, com texto própr
 
 ## Dossiê dos experimentos (E01 a E05)
 
+Os cinco experimentos foram executados pelo Renan no Docker dele, em 03/11/2026, com o roteiro abaixo (objetivo, pré-condições, comandos, o que observar e o resultado esperado pelo contrato). Cada campo **"Saída real colada pelo Renan"** traz o texto do terminal como veio: ficaram de fora só as linhas de prompt, os comandos ecoados (que estão nos blocos de comando acima de cada saída) e as linhas em branco que a colagem duplicou. Os trechos que o Renan escreveu entre colchetes no arquivo de saídas eram resumos dele, não saída de terminal, e não são citados como saída. O arquivo de saídas original não foi copiado para o repositório.
+
 | Experimento | Situação | Evidência |
 |---|---|---|
-| E01 Fluxo normal | Pendente | A preencher na CP3-I06 |
-| E02 Worker parado | Pendente | A preencher na CP3-I06 |
-| E03 Duplicata | Pendente | A preencher na CP3-I06 |
-| E04 Isolamento | Pendente | A preencher na CP3-I06 |
-| E05 Persistência e versão | Pendente | A preencher na CP3-I06 |
+| E01 Fluxo normal | Executado, resultado e Excel conferidos | [E01](#e01-fluxo-normal): relatório `2e1a02c1-aac4-40ca-b2c9-2e4043209fa3`, 3 itens e 175.00, planilha igual ao JSON |
+| E02 Worker parado | Executado, mesmo id retomado | [E02](#e02-worker-parado): relatório `56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f`, fila `1 0` com o worker parado e `Completed` depois |
+| E03 Duplicata | Executado, sem novo efeito | [E03](#e03-duplicata-depois-de-reiniciar-o-worker): três hashes e a listagem iguais, log de duplicata, uma só conclusão |
+| E04 Isolamento | Executado, 8 de 8 | [E04](#e04-isolamento): `403`, `404` e `202` como esperado |
+| E05 Persistência e versão | Executado, mesmo token ainda valeu | [E05](#e05-persistência-e-versão): contêineres novos, mesma versão, mesmos hashes |
+
+Houve tentativas que falharam por causa da colagem no terminal e foram refeitas (os blocos 1 e 5, o bloco 2 como consequência do 1, e uma leitura de senha recusada no 3a); a causa e a ordem real estão em [Tentativas que falharam](#tentativas-que-falharam-e-foram-refeitas-ordem-real). Nenhuma delas alterou o sistema além do que está dito ali. Nenhum experimento revelou defeito de produção.
+
+### Ambiente e versão dos experimentos
+
+| Item | Valor |
+|---|---|
+| SHA completo das imagens (`IMAGE_TAG`) | `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (merge da CP3-I04, PR 16) |
+| Imagem do web | `ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` |
+| Imagem do worker | `ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` |
+| Projeto Compose | `expensehub` (nome do `compose.yaml`), serviços `web`, `worker` e `rabbitmq` |
+| Máquina, ferramentas e versões | Git Bash no Windows; Docker 29.9.2 (build a82e528), Docker Compose v5.6.1, Python 3.12.2; `docker`, `curl`, `python`, `sha256sum`, `unzip`, `openssl`, `cygpath`, `netstat` e `git` presentes (bloco 0). RabbitMQ 4.4.0 em Erlang 29.1.2 (lidos no painel pelo Renan, sem captura de tela) |
+| Branch e HEAD do repositório na execução | `cp3-i06`, HEAD `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (igual ao SHA das imagens, porque a branch ainda não tinha commits próprios) |
+| Data e hora da execução | 03/11/2026, de cerca de 14:40 a 15:35 em horário de Brasília (o arquivo de saídas informa "14:4x a 15:35"); os logs estão em UTC, e os contêineres subiram às 17:51:54Z (RabbitMQ), 17:52:00Z (web) e 17:52:06Z (worker) |
+
+**Versão dos experimentos e commit final.** Os experimentos rodaram com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`. O commit final de entrega gera imagens próprias: o workflow `publish-images` publica web e worker com a tag do SHA completo de cada commit da `main`, então as imagens finais têm outra tag e os experimentos não foram repetidos com elas. A branch `cp3-i06` só traz documentação e o `.http`, e a CP3-I07 provará com `git diff --stat` do SHA dos experimentos até o SHA final que a diferença é só documentação.
+
+### Regras de sanitização
+
+- Os blocos foram escritos para não imprimir senha, token, cabeçalho de autorização nem connection string. Mesmo assim, antes de colar uma saída, o Renan confere se não há nada disso nela.
+- Se uma colagem trouxer um segredo, ela não é gravada no dossiê: o assistente avisa e pede para refazer a execução do bloco sanitizada.
+- O arquivo `.env` nunca é lido nem colado. Os comandos de `docker inspect` usam sempre `--format` com campos específicos (nunca a lista de variáveis de ambiente), e `docker compose config` só roda com `--quiet`.
+- Imagens são identificadas pela tag (o SHA completo), nunca por digest.
+- Instantes ficam em UTC como a API devolve. Identificadores de relatório são GUIDs gerados pela aplicação e podem aparecer.
+- Antes de gravar, o arquivo de saídas do Renan foi varrido por `Data Source`, `eyJ` (início de token em base64), `Bearer ` seguido de valor, textos longos em base64 ou hexadecimal e valores literais depois de `password` ou `senha`: nada foi encontrado (as únicas ocorrências são os nomes das variáveis nas mensagens de erro do Compose, os `traceId` dos erros `404` e o texto do comando que gera a senha do Admin). A senha das contas de teste não é registrada. Uma tentativa que imprimiu um caminho de usuário do Windows em um erro do Python foi resumida em vez de copiada.
+
+### Dados de teste conhecidos
+
+Quatro contas, criadas por registro (o `/register` nunca recebe papéis) e com os papéis dados pelo Admin; todas usam a mesma senha, digitada no bloco 3a e nunca versionada.
+
+| Conta | Papel | Uso |
+|---|---|---|
+| Admin do `.env` | Admin | concede os papéis |
+| `ana.i06@example.test` | Employee | E01, E02, E03, E05 e alvo do E04 |
+| `bruno.i06@example.test` | Employee | segundo Employee do E04, dono de um relatório alheio e de uma despesa |
+| `caio.i06@example.test` | Auditor | E04 (`Global`) |
+| `gestor.i06@example.test` | Approver e Finance | aprova e paga as despesas dos outros (ninguém aprova nem paga a própria) |
+
+| Dono | Valor | Data da despesa | Estado final |
+|---|---:|---|---|
+| ana | 100,00 | 2026-09-01 | Approved |
+| ana | 50,00 | 2026-09-15 | Approved |
+| ana | 25,00 | 2026-09-30 | Paid |
+| bruno | 200,00 | 2026-09-10 | Approved |
+| ana | 500,00 | 2026-10-01 | Paid (fora do período) |
+
+Período dos relatórios: `fromDate` 2026-09-01 e `toDate` 2026-09-30, com os dois limites inclusivos. Esperado pelo contrato:
+
+- `Mine` da ana: 3 itens e 175,00 (Approved 2 e 150,00; Paid 1 e 25,00; Draft, Submitted e Rejected com 0 e 0,00).
+- `Global` do caio: 4 itens e 375,00 (Approved 3 e 350,00; Paid 1 e 25,00; os demais com zeros). Esses números só valem num banco sem outras despesas de setembro de 2026, porque o `Global` soma todos os usuários.
+
+### Preparação (blocos 0 a 3d)
+
+Todos os blocos rodam no Git Bash, na raiz do repositório, **no mesmo terminal** (as variáveis passam de um bloco para o outro). Cada bloco começa com `set +x; set +H` para que o `!` não dispare expansão de histórico. Cole um bloco por vez e espere terminar.
+
+**Regra do roteiro: nenhum comando usa barra de continuação (`\`) no fim da linha.** Cada comando cabe em uma única linha. A colagem no terminal pode inserir linhas em branco entre as linhas, e uma barra invertida seguida de linha em branco corta o comando ao meio: foi o que quebrou o bloco 1 (o `sed -i \`) e o bloco 5 (o `curl ... \`) na primeira tentativa. Comandos compostos (`if`, `for`, `while`, funções) podem ocupar várias linhas, porque o Bash espera o `fi`, o `done` ou a chave de fechamento, e todos os que foram colados assim funcionaram. As versões dos blocos 1 e 5 abaixo são as de uma linha por comando que funcionaram.
+
+**Bloco 0: ferramentas, versões, portas e arquivo de ambiente.**
+
+```bash
+set +x; set +H
+SHA=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+ENVFILE="${ENVFILE:-.env}"
+BASE="${BASE:-http://localhost:8080}"
+PORTAS="${PORTAS:-8080 15672}"
+echo "== ferramentas =="
+faltou=0
+for t in docker curl python sha256sum unzip openssl cygpath netstat git; do
+  if command -v "$t" > /dev/null 2>&1; then echo "ok     $t"; else echo "FALTA  $t"; faltou=1; fi
+done
+[ "$faltou" = 0 ] && echo "todas as ferramentas existem" || echo "ATENCAO: instale o que falta antes de seguir"
+echo "== versões =="
+docker --version
+docker compose version
+python --version
+echo "== repositório =="
+if [ -f compose.yaml ] && [ -f .env.example ]; then echo "ok     compose.yaml e .env.example na pasta atual"; else echo "ERRO   rode a partir da raiz do repositório"; fi
+echo "branch: $(git branch --show-current)"
+echo "HEAD:   $(git rev-parse HEAD)"
+echo "SHA das imagens dos experimentos: $SHA"
+echo "== portas (0 linhas = livre) =="
+for p in $PORTAS; do echo "porta $p: $(netstat -ano | grep -E ":$p[[:space:]]" | wc -l) linha(s) no netstat"; done
+echo "== arquivo de ambiente =="
+if [ "$ENVFILE" = ".env" ]; then git check-ignore -v .env; fi
+if [ -f "$ENVFILE" ]; then echo "$ENVFILE já existe (o bloco 1 não vai sobrescrever)"; else echo "$ENVFILE ainda não existe"; fi
+```
+
+**Bloco 1: cria o `.env` a partir do `.env.example`, sem digitar nada e sem imprimir valores.** Recusa se o `.env` já existir, porque a senha do Admin só vale na primeira subida. As duas senhas (Admin e broker) são geradas com `openssl` e gravadas direto no arquivo. A primeira linha de lógica é uma trava: ela apaga o `.env` **somente** se ele for byte a byte igual ao `.env.example` (a cópia em branco que sobrou de uma tentativa que falhou) e nunca apaga um `.env` preenchido. No fim, `docker compose config --quiet` confirma que o Compose aceita o arquivo antes do bloco 2.
+
+```bash
+set +x; set +H
+SHA=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+ENVFILE="${ENVFILE:-.env}"
+if [ -f "$ENVFILE" ] && cmp -s .env.example "$ENVFILE"; then rm "$ENVFILE"; echo "removido: $ENVFILE era a cópia em branco do exemplo (sobra da tentativa anterior)"; fi
+if [ -f "$ENVFILE" ]; then echo "RECUSADO: $ENVFILE já existe e não será sobrescrito (a senha do Admin só vale na primeira subida)."; else cp .env.example "$ENVFILE"; novo_admin="$(printf '%s%s' 'Aa1!' "$(openssl rand -hex 16)")"; novo_broker="$(openssl rand -hex 16)"; sed -i -e "s/^IMAGE_TAG=.*/IMAGE_TAG=$SHA/" -e "s/^RABBITMQ_USER=.*/RABBITMQ_USER=expensehub/" -e "s/^RABBITMQ_PASSWORD=.*/RABBITMQ_PASSWORD=$novo_broker/" -e "s/^ADMIN_EMAIL=.*/ADMIN_EMAIL=admin@expensehub.local/" -e "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$novo_admin/" "$ENVFILE"; unset novo_admin novo_broker; echo "criado: $ENVFILE (nenhum valor foi impresso)"; fi
+echo "== campos obrigatórios =="
+for k in IMAGE_TAG RABBITMQ_USER RABBITMQ_PASSWORD ADMIN_EMAIL ADMIN_PASSWORD; do if grep -q "^$k=." "$ENVFILE"; then echo "ok     $k preenchido"; else echo "FALTA  $k em branco"; fi; done
+if [ "$(sed -n 's/^IMAGE_TAG=//p' "$ENVFILE")" = "$SHA" ]; then echo "ok     IMAGE_TAG é o SHA dos experimentos"; else echo "ERRO   IMAGE_TAG diferente do SHA dos experimentos"; fi
+if [ "$ENVFILE" = ".env" ]; then git check-ignore -v .env; fi
+if docker compose config --quiet 2>/dev/null; then echo "ok     o Compose aceitou o .env (config --quiet)"; else echo "ERRO   o Compose recusou o .env: não rode o bloco 2"; fi
+```
+
+O arquivo de saídas do Renan mostra a execução desta versão com os comandos compostos abreviados por `...`; o texto acima é a reconstrução dessas partes abreviadas: junta, com `;`, os mesmos comandos do bloco original, mais três acréscimos que a saída da segunda tentativa mostra por inteiro (a trava `cmp -s`, a definição de `SHA` e de `ENVFILE` no início e o `docker compose config --quiet` no fim). Se o texto exato digitado pelo Renan for necessário, ele está no histórico do terminal dele. Antes de entregar esta versão, o assistente a executou em um arquivo de ambiente descartável fora do repositório: ela recriou o `.env` a partir de uma cópia em branco, recusou sobrescrever na segunda vez, o Compose aceitou o arquivo e a saída não trouxe nenhum valor gerado. Esse teste não é evidência dos experimentos.
+
+**Bloco 2: baixa as imagens publicadas, sobe a pilha, confere versão e saúde.** O progresso das camadas fica de fora da saída; linhas de erro continuam aparecendo.
+
+```bash
+set +x; set +H
+echo "== pull (uma linha por imagem; o progresso das camadas fica de fora, os erros não) =="
+docker compose pull 2>&1 | grep -E '^ Image |[Ee]rror|denied|unauthorized|not found|required variable' | sed 's/@sha256:[0-9a-f]*//'
+echo "== subir =="
+docker compose up -d 2>&1 | sed 's/@sha256:[0-9a-f]*//'
+echo "== aguardando o web ficar saudável (até 3 minutos) =="
+fim=$((SECONDS+180)); saude=""
+while [ $SECONDS -lt $fim ]; do
+  saude=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q web)" 2>/dev/null)
+  [ "$saude" = "healthy" ] && break
+  sleep 3
+done
+echo "web: $saude"
+echo "== serviços =="
+docker compose ps -a --format '{{.Service}} | estado={{.State}} | saude={{.Health}} | imagem={{.Image}}' | sed 's/@sha256:[0-9a-f]*//'
+echo "== versão em execução (label, imagem, início) =="
+for s in web worker; do
+  docker inspect --format "$s | {{.Config.Image}} | revision={{index .Config.Labels \"org.opencontainers.image.revision\"}} | iniciado={{.State.StartedAt}}" "$(docker compose ps -q $s)"
+done
+echo "== linha de log da versão =="
+docker compose logs web worker 2>&1 | grep "Image commit"
+echo "== health =="
+curl -s "$BASE/health"; echo
+```
+
+**Bloco 3a: senha das contas de teste.** Cole **só este bloco**, digite a senha (ela não aparece na tela) e dê Enter. O bloco valida a senha e pede de novo, sem ecoar, se ela não servir. Como a senha não fica em arquivo, pode ser digitada de novo se o terminal for fechado.
+
+```bash
+set +x; set +H
+echo "Regras: 12 ou mais caracteres, com maiúscula, minúscula, dígito e símbolo; sem cifrão, jogo da velha, aspas, barra invertida nem espaço."
+while :; do
+  read -rs -p "Senha das contas de teste: " TEST_PW; echo
+  motivo=""
+  [ "${#TEST_PW}" -ge 12 ] || motivo="tem menos de 12 caracteres"
+  printf '%s' "$TEST_PW" | LC_ALL=C grep -q '[A-Z]' || motivo="${motivo:-não tem letra maiúscula}"
+  printf '%s' "$TEST_PW" | LC_ALL=C grep -q '[a-z]' || motivo="${motivo:-não tem letra minúscula}"
+  printf '%s' "$TEST_PW" | LC_ALL=C grep -q '[0-9]' || motivo="${motivo:-não tem dígito}"
+  printf '%s' "$TEST_PW" | LC_ALL=C grep -q '[^A-Za-z0-9]' || motivo="${motivo:-não tem símbolo}"
+  case $TEST_PW in *[\$\#\"\'\\\ ]*) motivo="tem um caractere proibido (cifrão, jogo da velha, aspas, barra invertida ou espaço)";; esac
+  if [ -z "$motivo" ]; then echo "senha aceita (${#TEST_PW} caracteres)"; break; fi
+  echo "recusada: $motivo. Digite de novo."
+done
+```
+
+**Bloco 3b: funções auxiliares e login do Admin.** A senha do Admin é lida do arquivo de ambiente para uma variável do shell, sem imprimir. O token fica em variável e nunca é impresso. O diretório temporário guarda só as planilhas baixadas.
+
+```bash
+set +x; set +H
+ADMIN_EMAIL="$(sed -n 's/^ADMIN_EMAIL=//p' "$ENVFILE")"
+ADMIN_PW="$(sed -n 's/^ADMIN_PASSWORD=//p' "$ENVFILE")"
+W="$(mktemp -d)"; WW="$(cygpath -m "$W")"
+PERIODO='"fromDate":"2026-09-01","toDate":"2026-09-30"'
+
+# api MÉTODO CAMINHO TOKEN [CORPO]: resposta em RESP, cabeçalhos em HDRS, código em CODE (nada vai para arquivo)
+api() {
+  local m=$1 p=$2 t=$3 b=${4:-} out
+  local args=(-s -i -w '\n%{http_code}' -X "$m" "$BASE$p")
+  [ -n "$t" ] && args+=(-H "Authorization: Bearer $t")
+  [ -n "$b" ] && args+=(-H 'Content-Type: application/json' -d "$b")
+  out=$(curl "${args[@]}")
+  CODE=${out##*$'\n'}
+  out=${out%$'\n'*}
+  HDRS=${out%%$'\r\n\r\n'*}
+  RESP=${out#*$'\r\n\r\n'}
+}
+# jf CAMPO: primeiro valor de texto do campo na última resposta
+jf() { printf '%s' "$RESP" | grep -o "\"$1\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
+# login E-MAIL SENHA: o token fica em TOK (nunca é impresso)
+login() { api POST /login '' "{\"email\":\"$1\",\"password\":\"$2\"}"; TOK=$(jf accessToken); }
+# wait_status TOKEN ID ESTADO SEGUNDOS: espera o estado e imprime o último visto
+wait_status() {
+  local fim=$((SECONDS+$4)) atual=""
+  while [ $SECONDS -lt $fim ]; do
+    api GET "/api/reports/$2" "$1"; atual=$(jf status)
+    [ "$atual" = "$3" ] && break
+    sleep 1
+  done
+  printf '%s' "$atual"
+}
+# chk DESCRIÇÃO ESPERADO OBTIDO
+chk() {
+  local r=DIVERGE; [ "$2" = "$3" ] && r=OK
+  printf '%-66s esperado=%-6s obtido=%-6s %s\n' "$1" "$2" "$3" "$r"
+}
+# hash curto das células de uma planilha (o zip tem horário de gravação, então não se compara o arquivo)
+sheet_hash() { unzip -p "$1" xl/worksheets/sheet1.xml | sha256sum | cut -c1-16; }
+# número de relatórios na última resposta de listagem
+count_ids() { printf '%s' "$RESP" | grep -o '"id":"' | wc -l; }
+
+PY_SHOW=$(cat <<'PY'
+import json, sys
+from decimal import Decimal
+d = json.load(sys.stdin)
+r = d.get('result') or {}
+print('status=%s scope=%s createdAt=%s startedAt=%s completedAt=%s' % (d['status'], d['scope'], d['createdAt'], d.get('startedAt'), d.get('completedAt')))
+if d.get('error'):
+    print('error=%s' % d['error'])
+if r:
+    print('totalCount=%s totalAmount=%s generatedAt=%s' % (r['totalCount'], r['totalAmount'], r['generatedAt']))
+    for s in r['byStatus']:
+        print('  %-9s count=%s amount=%s' % (s['status'], s['count'], s['amount']))
+    if len(sys.argv) > 2:
+        ok = r['totalCount'] == int(sys.argv[1]) and Decimal(str(r['totalAmount'])) == Decimal(sys.argv[2])
+        print('esperado %s itens e %s: %s' % (sys.argv[1], sys.argv[2], 'OK' if ok else 'DIVERGE'))
+PY
+)
+PY_XLSX=$(cat <<'PY'
+import sys, zipfile
+import xml.etree.ElementTree as ET
+ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+root = ET.fromstring(zipfile.ZipFile(sys.argv[1]).read('xl/worksheets/sheet1.xml'))
+for row in root.iter(ns + 'row'):
+    out = []
+    for c in row.findall(ns + 'c'):
+        inline = c.find(ns + 'is')
+        value = c.find(ns + 'v')
+        if inline is not None:
+            out.append('%s=%s[texto]' % (c.get('r'), inline.find(ns + 't').text))
+        else:
+            out.append('%s=%s[numero]' % (c.get('r'), value.text if value is not None else ''))
+    print(' | '.join(out))
+PY
+)
+
+login "$ADMIN_EMAIL" "$ADMIN_PW"; T_ADMIN=$TOK
+echo "login do Admin: HTTP $CODE"
+```
+
+**Bloco 3c: cadastro das quatro contas, papéis pelo Admin e login de cada uma.** Cole **uma vez só**. Se for repetido, o cadastro devolve `409` (esperado), mas nunca repita o bloco 3d.
+
+```bash
+set +x; set +H
+for u in ana bruno caio gestor; do
+  api POST /register '' "{\"email\":\"$u.i06@example.test\",\"password\":\"$TEST_PW\"}"
+  printf 'cadastro %-24s HTTP %s\n' "$u.i06@example.test" "$CODE"
+done
+api GET /api/admin/users "$T_ADMIN"; echo "lista de usuários (Admin): HTTP $CODE"
+USERS="$RESP"
+uid() { printf '%s' "$USERS" | grep -o "\"id\":\"[^\"]*\",\"email\":\"$1\"" | cut -d'"' -f4; }
+grant() { api PUT "/api/admin/users/$(uid "$1")/roles" "$T_ADMIN" "{\"roles\":$2}"; printf 'papéis   %-24s %-26s HTTP %s\n' "$1" "$2" "$CODE"; }
+grant ana.i06@example.test '["Employee"]'
+grant bruno.i06@example.test '["Employee"]'
+grant caio.i06@example.test '["Auditor"]'
+grant gestor.i06@example.test '["Approver","Finance"]'
+for u in ana bruno caio gestor; do
+  login "$u.i06@example.test" "$TEST_PW"
+  case $u in ana) T_ANA=$TOK;; bruno) T_BRUNO=$TOK;; caio) T_CAIO=$TOK;; gestor) T_GESTOR=$TOK;; esac
+  printf 'login    %-24s HTTP %s\n' "$u.i06@example.test" "$CODE"
+done
+```
+
+**Bloco 3d: cria, envia, aprova e paga as cinco despesas de teste.** Cole **uma vez só**: repetir duplicaria as despesas e mudaria os totais esperados.
+
+```bash
+set +x; set +H
+# despesa DONO TOKEN-DO-DONO VALOR DATA ESTADO-FINAL (Approved ou Paid); o gestor aprova e paga
+despesa() {
+  local c1 c2 c3 c4=- id
+  api POST /api/expenses "$2" "{\"description\":\"Despesa de teste I06 $3\",\"amount\":$3,\"expenseDate\":\"$4\"}"; c1=$CODE
+  id=$(jf id)
+  api POST "/api/expenses/$id/submit" "$2"; c2=$CODE
+  api POST "/api/expenses/$id/approve" "$T_GESTOR"; c3=$CODE
+  if [ "$5" = Paid ]; then api POST "/api/expenses/$id/pay" "$T_GESTOR"; c4=$CODE; fi
+  printf '%-6s %8s %s %-8s criar=%s enviar=%s aprovar=%s pagar=%s\n' "$1" "$3" "$4" "$5" "$c1" "$c2" "$c3" "$c4"
+}
+despesa ana   "$T_ANA"   100.00 2026-09-01 Approved
+despesa ana   "$T_ANA"    50.00 2026-09-15 Approved
+despesa ana   "$T_ANA"    25.00 2026-09-30 Paid
+despesa bruno "$T_BRUNO" 200.00 2026-09-10 Approved
+despesa ana   "$T_ANA"   500.00 2026-10-01 Paid
+```
+
+Esperado pelo contrato: `cadastro` com `201`, `papéis` com `200`, `login` com `200` e, nas despesas, `criar=201 enviar=200 aprovar=200` e `pagar=200` nas duas pagas (`pagar=-` nas aprovadas, que não são pagas).
+
+**Saída real colada pelo Renan, blocos 0 a 3d** (as execuções que passaram; as que falharam estão em [Tentativas que falharam](#tentativas-que-falharam-e-foram-refeitas-ordem-real)).
+
+Bloco 0:
+
+```
+== ferramentas ==
+ok     docker
+ok     curl
+ok     python
+ok     sha256sum
+ok     unzip
+ok     openssl
+ok     cygpath
+ok     netstat
+ok     git
+todas as ferramentas existem
+== versões ==
+Docker version 29.9.2, build a82e528
+Docker Compose version v5.6.1
+Python 3.12.2
+== repositório ==
+ok     compose.yaml e .env.example na pasta atual
+branch: cp3-i06
+HEAD:   f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+SHA das imagens dos experimentos: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+== portas (0 linhas = livre) ==
+porta 8080: 0 linha(s) no netstat
+porta 15672: 0 linha(s) no netstat
+== arquivo de ambiente ==
+.gitignore:49:*.env     .env
+.env ainda não existe
+```
+
+Bloco 1 (segunda tentativa, a que passou):
+
+```
+removido: .env era a cópia em branco do exemplo (sobra da tentativa anterior)
+criado: .env (nenhum valor foi impresso)
+== campos obrigatórios ==
+ok     IMAGE_TAG preenchido
+ok     RABBITMQ_USER preenchido
+ok     RABBITMQ_PASSWORD preenchido
+ok     ADMIN_EMAIL preenchido
+ok     ADMIN_PASSWORD preenchido
+ok     IMAGE_TAG é o SHA dos experimentos
+.gitignore:49:*.env     .env
+ok     o Compose aceitou o .env (config --quiet)
+```
+
+Bloco 2 (segunda tentativa, a que passou). As linhas repetidas do `up -d` estão como vieram:
+
+```
+== pull (uma linha por imagem; o progresso das camadas fica de fora, os erros não) ==
+ Image ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f Pulling
+ Image rabbitmq:4.4.0-management Pulling
+ Image ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f Pulling
+ Image ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f Pulled
+ Image ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f Pulled
+ Image rabbitmq:4.4.0-management Pulled
+== subir ==
+ Volume expensehub_rabbitmq-data Creating
+ Volume expensehub_expensehub-keys Creating
+ Network expensehub_default Creating
+ Volume expensehub_expensehub-data Creating
+ Volume expensehub_rabbitmq-data Creating
+ Volume expensehub_expensehub-data Creating
+ Network expensehub_default Creating
+ Volume expensehub_expensehub-keys Creating
+ Volume expensehub_expensehub-data Created
+ Volume expensehub_expensehub-data Created
+ Volume expensehub_rabbitmq-data Created
+ Volume expensehub_rabbitmq-data Created
+ Volume expensehub_expensehub-keys Created
+ Volume expensehub_expensehub-keys Created
+ Network expensehub_default Created
+ Network expensehub_default Created
+ Container expensehub-rabbitmq-1 Creating
+ Container expensehub-rabbitmq-1 Created
+ Container expensehub-web-1 Creating
+ Container expensehub-web-1 Created
+ Container expensehub-worker-1 Creating
+ Container expensehub-worker-1 Created
+ Container expensehub-rabbitmq-1 Starting
+ Container expensehub-rabbitmq-1 Started
+ Container expensehub-rabbitmq-1 Waiting
+ Container expensehub-rabbitmq-1 Healthy
+ Container expensehub-web-1 Starting
+ Container expensehub-web-1 Started
+ Container expensehub-rabbitmq-1 Waiting
+ Container expensehub-web-1 Waiting
+ Container expensehub-rabbitmq-1 Healthy
+ Container expensehub-web-1 Healthy
+ Container expensehub-worker-1 Starting
+ Container expensehub-worker-1 Started
+== aguardando o web ficar saudável (até 3 minutos) ==
+web: healthy
+== serviços ==
+rabbitmq | estado=running | saude=healthy | imagem=rabbitmq:4.4.0-management
+web | estado=running | saude=healthy | imagem=ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+worker | estado=running | saude= | imagem=ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+== versão em execução (label, imagem, início) ==
+web | ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | revision=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | iniciado=2026-11-03T17:52:00.653824754Z
+worker | ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | revision=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | iniciado=2026-11-03T17:52:06.331068374Z
+== linha de log da versão ==
+web-1     |       ExpenseHub web started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+worker-1  |       ExpenseHub worker started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+== health ==
+{"status":"ok"}
+```
+
+Sobre o `pull`: a saída está como veio (`Pulling` e `Pulled`). Ela não diz se as camadas foram baixadas naquele momento ou já estavam no Docker local, e este dossiê não afirma onde o download aconteceu. O serviço `worker` não tem healthcheck no `compose.yaml`, por isso a coluna `saude` dele está vazia. Observação do assistente, não do Renan: no ensaio do roteiro (03/11/2026, projeto separado, Docker configurado sem credenciais do GHCR) o `docker compose pull` dessas duas imagens funcionou, o que indica que os pacotes são públicos.
+
+Bloco 3a (a primeira leitura recebeu uma linha vazia da colagem e foi recusada por tamanho; a segunda foi aceita; a senha não aparece em lugar nenhum):
+
+```
+Regras: 12 ou mais caracteres, com maiúscula, minúscula, dígito e símbolo; sem cifrão, jogo da velha, aspas, barra invertida nem espaço.
+Senha das contas de teste:
+recusada: tem menos de 12 caracteres. Digite de novo.
+Senha das contas de teste:
+senha aceita (16 caracteres)
+```
+
+Bloco 3b:
+
+```
+login do Admin: HTTP 200
+```
+
+Bloco 3c:
+
+```
+cadastro ana.i06@example.test     HTTP 201
+cadastro bruno.i06@example.test   HTTP 201
+cadastro caio.i06@example.test    HTTP 201
+cadastro gestor.i06@example.test  HTTP 201
+lista de usuários (Admin): HTTP 200
+papéis   ana.i06@example.test     ["Employee"]               HTTP 200
+papéis   bruno.i06@example.test   ["Employee"]               HTTP 200
+papéis   caio.i06@example.test    ["Auditor"]                HTTP 200
+papéis   gestor.i06@example.test  ["Approver","Finance"]     HTTP 200
+login    ana.i06@example.test     HTTP 200
+login    bruno.i06@example.test   HTTP 200
+login    caio.i06@example.test    HTTP 200
+login    gestor.i06@example.test  HTTP 200
+```
+
+Bloco 3d (executado uma vez só):
+
+```
+ana      100.00 2026-09-01 Approved criar=201 enviar=200 aprovar=200 pagar=-
+ana       50.00 2026-09-15 Approved criar=201 enviar=200 aprovar=200 pagar=-
+ana       25.00 2026-09-30 Paid     criar=201 enviar=200 aprovar=200 pagar=200
+bruno    200.00 2026-09-10 Approved criar=201 enviar=200 aprovar=200 pagar=-
+ana      500.00 2026-10-01 Paid     criar=201 enviar=200 aprovar=200 pagar=200
+```
+
+**Resultado da preparação.** Tudo como o contrato esperado: quatro cadastros `201`, quatro trocas de papéis `200`, quatro logins `200` (o Admin do `.env` entrou, o que mostra que a senha gerada foi a gravada e que o seed rodou na primeira subida), as cinco despesas com `201`, `200` e `200` e o pagamento `200` nas duas pagas. O web ficou `healthy` e o `/health` respondeu `{"status":"ok"}`. Os dois contêineres da aplicação têm o rótulo `org.opencontainers.image.revision` igual ao SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` e a linha de log `Image commit` com o mesmo SHA. Os volumes `expensehub_rabbitmq-data`, `expensehub_expensehub-keys` e `expensehub_expensehub-data` foram criados nesta subida (o Compose imprimiu `Creating` e `Created` para cada um).
+
+### Tentativas que falharam e foram refeitas (ordem real)
+
+Nesta ordem (o texto de cada saída está resumido pelas linhas que o terminal imprimiu; as marcações entre colchetes do Renan não são citadas):
+
+1. **Bloco 0:** passou na primeira vez.
+2. **Bloco 1, primeira vez: falhou.** A colagem trouxe linhas em branco entre as linhas, a continuação do `sed -i \` quebrou e o `.env` ficou como cópia em branco do `.env.example`. O terminal imprimiu o texto de uso do `sed` e, depois, `bash: -e: command not found` (cinco vezes) e `bash: .env: command not found`. O bloco ainda imprimiu `criado: .env (nenhum valor foi impresso)`, porque essa mensagem não depende do resultado do `sed` (limite do texto do bloco, que não foi corrigido); quem acusou o problema foi a conferência seguinte: `FALTA  IMAGE_TAG em branco` e o mesmo para `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_PASSWORD`, e `ERRO   IMAGE_TAG diferente do SHA dos experimentos`. Nenhum valor gerado foi impresso nem gravado.
+3. **Bloco 2, primeira vez: falhou, sem criar nada.** O `docker compose pull` e o `up -d` recusaram com 11 mensagens do tipo `error while interpolating services.web.image: required variable IMAGE_TAG is missing a value: Defina IMAGE_TAG com o SHA completo do commit` (e as equivalentes para `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_PASSWORD`). O laço de espera terminou sem achar o web (`web:` vazio), o `docker compose ps -a` não listou serviço algum, o `docker inspect` respondeu `invalid container name or ID: value is empty`, e o `grep "Image commit"` e o `curl` ficaram sem saída. Nenhum contêiner, rede ou volume existia depois dessa tentativa: na segunda tentativa o `up -d` imprimiu `Volume ... Creating` e `Network ... Creating` para todos eles.
+4. **Bloco 1, segunda vez: passou**, na versão de uma linha por comando, com a trava `cmp -s` (apagou só a cópia em branco do exemplo: `removido: .env era a cópia em branco do exemplo`) e o `docker compose config --quiet` no fim (saída acima).
+5. **Bloco 2, segunda vez: passou** (saída acima).
+6. **Bloco 3a:** a primeira leitura recebeu uma linha vazia da colagem e foi recusada por tamanho (`recusada: tem menos de 12 caracteres`); a seguinte foi aceita.
+7. **Blocos 3b, 3c, 3d e 4 (E01-a):** passaram na primeira vez.
+8. **Bloco 5 (E01-b), primeira vez: falhou.** O `curl ... \` seguido de linha em branco rodou sem URL (`curl: (2) no URL specified`), a linha seguinte foi executada como comando (`bash: -H: command not found`) e o `| tr ...` deu `bash: syntax error near unexpected token '|'`. Como o arquivo não foi baixado, o `file` respondeu `cannot open ... (No such file or directory)`, o `unzip -Z1` não achou o pacote, o Python terminou com `FileNotFoundError` (o caminho do usuário que ele imprimiu não foi copiado para cá) e o `sheet_hash` imprimiu `e3b0c44298fc1c14`, que são os 16 primeiros caracteres do SHA-256 de uma entrada vazia; não é resultado de relatório. Nada foi alterado no sistema.
+9. **Bloco 5, segunda vez: passou**, com o `curl` em uma linha. **O E01-b foi feito antes do E02**, ou seja, com o worker ainda no primeiro processo (iniciado às 17:52:06Z).
+10. **Blocos 6 a 13 (E02 a Fim):** passaram na primeira vez.
+
+O que mudou no roteiro por causa das falhas: os blocos 1 e 5 passaram para uma linha por comando, o bloco 1 ganhou a trava e a conferência do Compose, e a regra "nenhum comando com barra de continuação" ficou escrita na [Preparação](#preparação-blocos-0-a-3d). No bloco 3a, uma primeira leitura recusada por tamanho logo depois de colar é a linha vazia da colagem; basta digitar de novo.
+
+**Retomada se o terminal fechar.** Cole de novo os blocos 0, 3a e 3b (o 1 recusa sobrescrever o `.env` e o 2 é inofensivo), depois o 3c (os cadastros repetidos devolvem `409`, o que é esperado, e ele refaz os papéis e os tokens). **Nunca** cole o 3d de novo. Os identificadores já impressos voltam por atribuição, por exemplo `REPORT_E01=<id impresso no E01>`.
+
+### E01: Fluxo normal
+
+**Objetivo.** Autenticar, solicitar, guardar o id, acompanhar até `Completed`, baixar o Excel e conferir resultado e planilha contra dados conhecidos.
+
+**Pré-condições.** Blocos 0 a 3d executados no mesmo terminal; pilha no ar; os dados de teste acima.
+
+**Comandos.**
+
+```bash
+set +x; set +H
+echo "== E01-a: a ana solicita o relatório Mine de setembro =="
+api POST /api/reports "$T_ANA" "{$PERIODO,\"scope\":\"Mine\"}"
+echo "POST /api/reports: HTTP $CODE"
+printf '%s\n' "$HDRS" | grep -i '^location:' | tr -d '\r'
+REPORT_E01=$(jf id)
+echo "id do relatório (E01): $REPORT_E01"
+echo "status depois de acompanhar: $(wait_status "$T_ANA" "$REPORT_E01" Completed 60)"
+api GET "/api/reports/$REPORT_E01" "$T_ANA"
+echo "GET /api/reports/{id}: HTTP $CODE"
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+echo "== linhas de log com o id (web e worker, com horário) =="
+docker compose logs --timestamps web worker 2>&1 | grep "$REPORT_E01"
+```
+
+```bash
+set +x; set +H
+echo "== E01-b: Excel do relatório $REPORT_E01 =="
+curl -s -o "$W/e01.xlsx" -D - -w 'download: HTTP %{http_code}, %{size_download} bytes\n' -H "Authorization: Bearer $T_ANA" "$BASE/api/reports/$REPORT_E01/excel" | tr -d '\r' | grep -i -E '^(HTTP|content-type|content-disposition|download)'
+file "$W/e01.xlsx"
+echo "entradas do pacote:"; unzip -Z1 "$W/e01.xlsx" | sed 's/^/  /'
+echo "== células da planilha (linhas 1 a 5: identificador, escopo, período, geração; linhas 7 a 13: a tabela) =="
+python -I -c "$PY_XLSX" "$WW/e01.xlsx"
+echo "hash das células (sheet1.xml): $(sheet_hash "$W/e01.xlsx")"
+```
+
+**O que observar (esperado pelo contrato).**
+
+- `POST /api/reports`: `202` com cabeçalho `Location` apontando para o relatório; o id é guardado em `REPORT_E01`.
+- O status chega a `Completed` para o mesmo id. O detalhe traz `result` com `totalCount` 3 e `totalAmount` 175.00; `byStatus` com os cinco estados: Approved 2 e 150.00, Paid 1 e 25.00, e Draft, Submitted e Rejected com 0 e 0.00. A linha final da conferência diz `OK`.
+- Logs do web e do worker com o mesmo id: publicação, início e conclusão.
+- Excel: `200`, `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Content-Disposition: attachment` com o nome `report-{id}.xlsx`; `file` reconhece um pacote Zip/OOXML (não é CSV); a planilha traz identificador, escopo, período e instante de geração e uma tabela com os cinco estados, contagens, valores e o total geral, em células numéricas, iguais ao JSON.
+
+**Saída real colada pelo Renan, E01-a** (a ordem das linhas de log é a do `docker compose logs`, que agrupa por serviço; a ordem no tempo está na tabela do [Diagnóstico](#diagnóstico)):
+
+```
+== E01-a: a ana solicita o relatório Mine de setembro ==
+POST /api/reports: HTTP 202
+Location: /api/reports/2e1a02c1-aac4-40ca-b2c9-2e4043209fa3
+id do relatório (E01): 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3
+status depois de acompanhar: Completed
+GET /api/reports/{id}: HTTP 200
+status=Completed scope=Mine createdAt=2026-11-03T18:09:44.076158Z startedAt=2026-11-03T18:09:45.96755Z completedAt=2026-11-03T18:09:46.276163Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:09:46.1549253Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+== linhas de log com o id (web e worker, com horário) ==
+worker-1  | 2026-11-03T18:09:44.404132798Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message received (redelivered: False).
+worker-1  | 2026-11-03T18:09:46.128546753Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 processing started (resumed: False).
+worker-1  | 2026-11-03T18:09:46.290841734Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 completed with 3 expenses.
+worker-1  | 2026-11-03T18:09:46.299946498Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message acknowledged after the result was saved or found saved.
+web-1     | 2026-11-03T18:09:44.343243735Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message confirmed by the broker.
+web-1     | 2026-11-03T18:09:44.344289397Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 registered and published.
+```
+
+**Saída real colada pelo Renan, E01-b** (segunda tentativa, a que passou; a primeira está em [Tentativas que falharam](#tentativas-que-falharam-e-foram-refeitas-ordem-real)):
+
+```
+== E01-b: Excel do relatório 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 ==
+HTTP/1.1 200 OK
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename=report-2e1a02c1-aac4-40ca-b2c9-2e4043209fa3.xlsx; filename*=UTF-8''report-2e1a02c1-aac4-40ca-b2c9-2e4043209fa3.xlsx
+download: HTTP 200, 2457 bytes
+/tmp/tmp.hePTViOUuz/e01.xlsx: Microsoft Excel 2007+
+entradas do pacote:
+  xl/workbook.xml
+  xl/styles.xml
+  xl/worksheets/sheet1.xml
+  _rels/.rels
+  xl/_rels/workbook.xml.rels
+  [Content_Types].xml
+== células da planilha (linhas 1 a 5: identificador, escopo, período, geração; linhas 7 a 13: a tabela) ==
+A1=Identificador[texto] | B1=2e1a02c1-aac4-40ca-b2c9-2e4043209fa3[texto]
+A2=Escopo[texto] | B2=Mine[texto]
+A3=Data inicial[texto] | B3=2026-09-01[texto]
+A4=Data final[texto] | B4=2026-09-30[texto]
+A5=Gerado em (UTC)[texto] | B5=2026-11-03T18:09:46Z[texto]
+A7=Estado[texto] | B7=Quantidade[texto] | C7=Valor[texto]
+A8=Draft[texto] | B8=0[numero] | C8=0.00[numero]
+A9=Submitted[texto] | B9=0[numero] | C9=0.00[numero]
+A10=Approved[texto] | B10=2[numero] | C10=150.00[numero]
+A11=Rejected[texto] | B11=0[numero] | C11=0.00[numero]
+A12=Paid[texto] | B12=1[numero] | C12=25.00[numero]
+A13=Total geral[texto] | B13=3[numero] | C13=175.00[numero]
+hash das células (sheet1.xml): ae3d22e2d17ba4e1
+```
+
+**Resultado do E01: atendido.** O `POST` respondeu `202` com `Location` apontando para o relatório; o mesmo id foi acompanhado até `Completed` e o detalhe trouxe 3 itens e 175 (Approved 2 e 150, Paid 1 e 25, os outros três estados em zero), exatamente o esperado para os dados conhecidos, com a conferência do bloco dizendo `OK`. Os logs do web e do worker correlacionam a mesma solicitação pelo id. O Excel veio com `200`, o `Content-Type` de planilha, `Content-Disposition: attachment` com `report-{id}.xlsx`, o `file` o reconheceu como `Microsoft Excel 2007+` (um pacote `.xlsx`, não CSV), e as células repetem o JSON: identificador, escopo, período, o instante de geração do resultado salvo (`2026-11-03T18:09:46Z`, que é o `generatedAt` do JSON sem as frações de segundo) e a tabela com os cinco estados e o total geral em células numéricas (`[numero]`). O hash das células (`ae3d22e2d17ba4e1`) é a referência que o E03 e o E05 vão comparar.
+
+### E02: Worker parado
+
+**Objetivo.** Parar só o worker, solicitar, observar a mensagem disponível na fila e o relatório não concluído, retomar e acompanhar o **mesmo** id até `Completed`.
+
+**Pré-condições.** E01 concluído (a pilha tem uma conclusão anterior para comparar); `T_ANA` válido (se o token expirar, cole o bloco 3b e o 3c de novo).
+
+**Comandos.**
+
+```bash
+set +x; set +H
+echo "== E02: parar só o worker =="
+docker compose stop worker
+docker compose ps -a --format '{{.Service}} | estado={{.State}}'
+echo "== a ana solicita outro relatório Mine, com o worker parado =="
+api POST /api/reports "$T_ANA" "{$PERIODO,\"scope\":\"Mine\"}"
+echo "POST /api/reports: HTTP $CODE"
+REPORT_E02=$(jf id)
+echo "id do relatório (E02): $REPORT_E02"
+sleep 5
+echo "== fila no RabbitMQ (Ready e Unacked não são Pending e Processing) =="
+docker compose exec -T rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+api GET "/api/reports/$REPORT_E02" "$T_ANA"
+echo "GET /api/reports/{id}: HTTP $CODE"
+printf '%s' "$RESP" | python -I -c "$PY_SHOW"
+echo "== religar o worker =="
+docker compose start worker
+echo "status do MESMO id depois de acompanhar: $(wait_status "$T_ANA" "$REPORT_E02" Completed 90)"
+api GET "/api/reports/$REPORT_E02" "$T_ANA"
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+echo "== fila depois =="
+docker compose exec -T rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+echo "== linhas de log com o id (web e worker, com horário) =="
+docker compose logs --timestamps web worker 2>&1 | grep "$REPORT_E02"
+```
+
+**O que observar (esperado pelo contrato).**
+
+- Com o worker parado, o `POST` ainda devolve `202` (o web persistiu o pedido e o broker confirmou a publicação).
+- Fila `expensehub.reports` com **1 mensagem Ready e 0 Unacked**; o relatório continua `Pending`, sem `startedAt` nem `result`.
+- Depois de religar o worker, o **mesmo id** chega a `Completed` com 3 itens e 175.00; a fila volta a 0 e 0.
+- Logs correlacionados pelo id: a publicação no web (antes de o worker voltar) e o início e a conclusão no worker (depois).
+
+**Saída real colada pelo Renan:**
+
+```
+== E02: parar só o worker ==
+[+] stop 1/1
+ ✔ Container expensehub-worker-1 Stopped                                                                               0.5s
+rabbitmq | estado=running
+web | estado=running
+worker | estado=exited
+== a ana solicita outro relatório Mine, com o worker parado ==
+POST /api/reports: HTTP 202
+id do relatório (E02): 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f
+== fila no RabbitMQ (Ready e Unacked não são Pending e Processing) ==
+Timeout: 60.0 seconds ...
+Listing queues for vhost / ...
+name    messages_ready  messages_unacknowledged
+expensehub.reports      1       0
+GET /api/reports/{id}: HTTP 200
+status=Pending scope=Mine createdAt=2026-11-03T18:17:27.6971126Z startedAt=None completedAt=None
+== religar o worker ==
+[+] start 3/3
+ ✔ Container expensehub-rabbitmq-1 Healthy                                                                             1.0s
+ ✔ Container expensehub-web-1      Healthy                                                                             0.5s
+ ✔ Container expensehub-worker-1   Started                                                                             0.3s
+status do MESMO id depois de acompanhar: Completed
+status=Completed scope=Mine createdAt=2026-11-03T18:17:27.6971126Z startedAt=2026-11-03T18:17:39.8944265Z completedAt=2026-11-03T18:17:40.0700856Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:17:40.033436Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+== fila depois ==
+Timeout: 60.0 seconds ...
+Listing queues for vhost / ...
+name    messages_ready  messages_unacknowledged
+expensehub.reports      0       0
+== linhas de log com o id (web e worker, com horário) ==
+worker-1  | 2026-11-03T18:17:38.705565839Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f message received (redelivered: False).
+worker-1  | 2026-11-03T18:17:40.019166755Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f processing started (resumed: False).
+worker-1  | 2026-11-03T18:17:40.083491704Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f completed with 3 expenses.
+worker-1  | 2026-11-03T18:17:40.090224827Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f message acknowledged after the result was saved or found saved.
+web-1     | 2026-11-03T18:17:27.706505470Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f message confirmed by the broker.
+web-1     | 2026-11-03T18:17:27.706509255Z       Report 56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f registered and published.
+```
+
+**Resultado do E02: atendido.** Com o worker parado (`estado=exited`, web e RabbitMQ no ar), o `POST` ainda respondeu `202` e o relatório `56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f` ficou `Pending` (sem `startedAt`, sem `completedAt`, sem `result`) enquanto a fila `expensehub.reports` mostrava **1 mensagem Ready e 0 Unacked**. Depois de religar só o worker, o **mesmo id** chegou a `Completed` com 3 itens e 175, a fila voltou a `0 0` e o log traz o ciclo inteiro por id: o web confirmou a publicação às 18:17:27.706Z, e o worker recebeu a mensagem só às 18:17:38.705Z, cerca de 11 s depois, logo depois de o worker ser religado, com `redelivered: False` (era a primeira entrega daquela mensagem, que esperou na fila). O relatório do E01 continuou com os mesmos instantes e o mesmo resultado nos blocos seguintes.
+
+### E03: Duplicata depois de reiniciar o worker
+
+**Objetivo.** Depois de concluir, reiniciar o worker e republicar a mensagem com o mesmo `reportId`; comparar resultado e registros e mostrar que não houve novo efeito.
+
+**Pré-condições.** E01 concluído; `T_ANA` válido; terminal aberto desde o E01 (as variáveis `REPORT_E01` e `ANTES_*` precisam sobreviver entre os blocos E03-a e E03-b).
+
+**Comandos, parte 1 (E03-a): estado antes e reinício do worker.**
+
+```bash
+set +x; set +H
+echo "== E03-a: estado do relatório $REPORT_E01 ANTES de reiniciar o worker e republicar a mensagem =="
+api GET "/api/reports/$REPORT_E01" "$T_ANA"; ANTES_DETALHE=$(printf '%s' "$RESP" | sha256sum | cut -c1-16)
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+api GET /api/reports "$T_ANA"; ANTES_LISTA=$(count_ids)
+curl -s -o "$W/e03-antes.xlsx" -H "Authorization: Bearer $T_ANA" "$BASE/api/reports/$REPORT_E01/excel"; ANTES_XLSX=$(sheet_hash "$W/e03-antes.xlsx")
+ANTES_DUP=$(docker compose logs worker 2>&1 | grep -c "duplicate message ignored")
+echo "hash do JSON do detalhe : $ANTES_DETALHE"
+echo "relatórios na listagem  : $ANTES_LISTA"
+echo "hash das células (Excel): $ANTES_XLSX"
+echo "linhas 'duplicate message ignored' no log do worker: $ANTES_DUP"
+echo "fila:"; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+echo "== reiniciar só o worker =="
+docker compose restart worker
+fim=$((SECONDS+60)); consumidores=""
+while [ $SECONDS -lt $fim ]; do
+  consumidores=$(docker compose exec -T rabbitmq rabbitmqctl list_queues name consumers 2>/dev/null | grep '^expensehub.reports' | tr -s '[:space:]' ' ' | cut -d' ' -f2)
+  [ "$consumidores" = "1" ] && break
+  sleep 2
+done
+echo "consumidores na fila depois do reinício: $consumidores"
+docker inspect --format 'worker reiniciado | iniciado={{.State.StartedAt}}' "$(docker compose ps -q worker)"
+echo
+echo "Agora faça o passo do painel (republicar a mensagem) e só depois cole o bloco E03-b."
+echo "Payload a publicar: {\"reportId\":\"$REPORT_E01\"}"
+```
+
+**Passo do painel: republicar a mensagem do E01.** O bloco E03-a imprime o payload pronto.
+
+1. Abrir `http://localhost:15672` no navegador e entrar com o usuário `expensehub` e a senha do broker, que está no `.env` (abra o arquivo no editor; não cole essa senha em lugar nenhum).
+2. Aba **Queues and Streams**, clicar na fila `expensehub.reports`.
+3. Descer até a seção **Publish message**.
+4. **Delivery mode**: `2 - Persistent`.
+5. **Properties**: `content_type` = `application/json` (o worker lê só o corpo da mensagem, mas assim ela fica igual à que o web publica).
+6. **Payload**: colar exatamente `{"reportId":"<id do E01>"}`, com o id impresso pelo bloco E03-a.
+7. Clicar em **Publish message**. A página mostra **Message published.**
+
+Se algum rótulo da tela for diferente, avisar o assistente, que ajusta o texto.
+
+**Comandos, parte 2 (E03-b): comparação depois da republicação.**
+
+```bash
+set +x; set +H
+echo "== E03-b: depois da republicação do mesmo reportId =="
+fim=$((SECONDS+60)); dup=0
+while [ $SECONDS -lt $fim ]; do
+  dup=$(docker compose logs worker 2>&1 | grep "$REPORT_E01" | grep -c "duplicate message ignored")
+  [ "$dup" -ge 1 ] && break
+  sleep 2
+done
+echo "linhas de duplicata para este id no log do worker: $dup"
+echo "== linhas de log do worker com o id (com horário) =="
+docker compose logs --timestamps worker 2>&1 | grep "$REPORT_E01"
+echo "== comparação =="
+api GET "/api/reports/$REPORT_E01" "$T_ANA"; DEPOIS_DETALHE=$(printf '%s' "$RESP" | sha256sum | cut -c1-16)
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+api GET /api/reports "$T_ANA"; DEPOIS_LISTA=$(count_ids)
+curl -s -o "$W/e03-depois.xlsx" -H "Authorization: Bearer $T_ANA" "$BASE/api/reports/$REPORT_E01/excel"; DEPOIS_XLSX=$(sheet_hash "$W/e03-depois.xlsx")
+chk "hash do JSON do detalhe" "$ANTES_DETALHE" "$DEPOIS_DETALHE"
+chk "relatórios na listagem" "$ANTES_LISTA" "$DEPOIS_LISTA"
+chk "hash das células do Excel" "$ANTES_XLSX" "$DEPOIS_XLSX"
+echo "fila:"; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+echo "linhas 'Report $REPORT_E01 completed with' no log do worker (a conclusão original): $(docker compose logs worker 2>&1 | grep "$REPORT_E01" | grep -c ' completed with ')"
+```
+
+**O que observar (esperado pelo contrato).**
+
+- O log do worker traz uma linha de duplicata (`duplicate message ignored`) com o `reportId` do E01 depois do reinício e da republicação.
+- As três comparações dizem `OK`: o JSON do detalhe (inclusive `completedAt` e `result`), a quantidade de relatórios na listagem e as células do Excel ficam idênticos. Nenhum relatório novo aparece na listagem.
+- A fila volta a 0 Ready e 0 Unacked (a mensagem foi consumida e confirmada).
+- A conclusão original (`completed with`) continua aparecendo uma vez só para esse id: não houve segunda conclusão.
+
+**Saída real colada pelo Renan, parte 1 (E03-a):**
+
+```
+== E03-a: estado do relatório 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 ANTES de reiniciar o worker e republicar a mensagem ==
+status=Completed scope=Mine createdAt=2026-11-03T18:09:44.076158Z startedAt=2026-11-03T18:09:45.96755Z completedAt=2026-11-03T18:09:46.276163Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:09:46.1549253Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+hash do JSON do detalhe : 225393dcc6004d6b
+relatórios na listagem  : 2
+hash das células (Excel): ae3d22e2d17ba4e1
+linhas 'duplicate message ignored' no log do worker: 0
+fila:
+Timeout: 60.0 seconds ...
+Listing queues for vhost / ...
+name    messages_ready  messages_unacknowledged
+expensehub.reports      0       0
+== reiniciar só o worker ==
+[+] restart 0/1
+ - Container expensehub-worker-1 Restarting                                                                            0.4s
+consumidores na fila depois do reinício: 1
+worker reiniciado | iniciado=2026-11-03T18:18:52.843633336Z
+
+Agora faça o passo do painel (republicar a mensagem) e só depois cole o bloco E03-b.
+Payload a publicar: {"reportId":"2e1a02c1-aac4-40ca-b2c9-2e4043209fa3"}
+```
+
+**Passo do painel (bloco 8), feito no navegador, sem saída de terminal.** Descrição do Renan (não há captura de tela no dossiê): RabbitMQ 4.4.0 em Erlang 29.1.2, usuário `expensehub` (a senha não aparece em nenhum registro). Caminho: **Queues and Streams**, fila `expensehub.reports` (virtual host `/`, com Consumers (1) e Bindings (1) visíveis na página), seção **Publish message**. Campos: Delivery mode `2 - Persistent`; Properties `content_type` = `application/json`; Payload encoding `String (default)`; Payload `{"reportId":"2e1a02c1-aac4-40ca-b2c9-2e4043209fa3"}` (o id do E01). Resultado: janela com o texto **Message published.** (botão Close). A página foi atualizada às 15:24:20 antes e às 15:24:35 depois do clique (horário de Brasília), e a publicação foi às 15:24:34, que são 18:24:34Z, instante que o log do worker confirma logo abaixo. Os rótulos da tela eram iguais aos do roteiro, sem nenhuma diferença.
+
+**Saída real colada pelo Renan, parte 2 (E03-b):**
+
+```
+== E03-b: depois da republicação do mesmo reportId ==
+linhas de duplicata para este id no log do worker: 1
+== linhas de log do worker com o id (com horário) ==
+worker-1  | 2026-11-03T18:09:44.404132798Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message received (redelivered: False).
+worker-1  | 2026-11-03T18:09:46.128546753Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 processing started (resumed: False).
+worker-1  | 2026-11-03T18:09:46.290841734Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 completed with 3 expenses.
+worker-1  | 2026-11-03T18:09:46.299946498Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message acknowledged after the result was saved or found saved.
+worker-1  | 2026-11-03T18:24:34.432351339Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message received (redelivered: False).
+worker-1  | 2026-11-03T18:24:35.324575544Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 is already Completed: duplicate message ignored, nothing was changed.
+worker-1  | 2026-11-03T18:24:35.331069330Z       Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 message acknowledged after the result was saved or found saved.
+== comparação ==
+status=Completed scope=Mine createdAt=2026-11-03T18:09:44.076158Z startedAt=2026-11-03T18:09:45.96755Z completedAt=2026-11-03T18:09:46.276163Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:09:46.1549253Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+hash do JSON do detalhe                                            esperado=225393dcc6004d6b obtido=225393dcc6004d6b OK
+relatórios na listagem                                            esperado=2      obtido=2      OK
+hash das células do Excel                                         esperado=ae3d22e2d17ba4e1 obtido=ae3d22e2d17ba4e1 OK
+fila:
+Timeout: 60.0 seconds ...
+Listing queues for vhost / ...
+name    messages_ready  messages_unacknowledged
+expensehub.reports      0       0
+linhas 'Report 2e1a02c1-aac4-40ca-b2c9-2e4043209fa3 completed with' no log do worker (a conclusão original): 1
+```
+
+**Resultado do E03: atendido.** O worker foi reiniciado (novo `StartedAt` 18:18:52Z, um consumidor na fila) e, depois da republicação do mesmo `reportId` às 18:24:34Z, o log do worker mostra a mensagem recebida, a linha `is already Completed: duplicate message ignored, nothing was changed.` e a confirmação 6,5 ms depois, sem nova linha de início nem de conclusão. O JSON do detalhe (inclusive `startedAt`, `completedAt` e `generatedAt`), a quantidade de relatórios na listagem (2: o do E01 e o do E02) e as células do Excel ficaram idênticos antes e depois (`225393dcc6004d6b`, `2` e `ae3d22e2d17ba4e1`, e o hash das células é o mesmo do E01-b), a fila terminou em `0 0` e a conclusão original (`completed with`) aparece uma só vez para esse id. A mensagem republicada pelo painel chegou com `redelivered: False`, porque para o broker é uma mensagem nova; quem a reconhece como duplicata é o estado gravado no banco (o relatório já estava `Completed`), que sobreviveu ao reinício do worker.
+
+### E04: Isolamento
+
+**Objetivo.** Employee não solicita `Global` nem consulta ou baixa Excel alheio; Auditor solicita `Global`, mas não consulta nem baixa relatório criado por outro usuário.
+
+**Pré-condições.** E01 concluído (o relatório da ana é o alvo do Auditor); `T_ANA`, `T_BRUNO` e `T_CAIO` válidos; banco sem outras despesas de setembro de 2026 (para o `Global` valer 4 itens e 375,00).
+
+**Comandos.**
+
+```bash
+set +x; set +H
+echo "== E04: um relatório de outro usuário para servir de alvo (bruno, Employee) =="
+api POST /api/reports "$T_BRUNO" "{$PERIODO,\"scope\":\"Mine\"}"; echo "POST do bruno: HTTP $CODE"
+REPORT_BRUNO=$(jf id); echo "id do relatório do bruno: $REPORT_BRUNO"
+echo "status: $(wait_status "$T_BRUNO" "$REPORT_BRUNO" Completed 60)"
+echo "== Employee (ana) =="
+api POST /api/reports "$T_ANA" "{$PERIODO,\"scope\":\"Global\"}"
+chk "1. Employee pede Global" 403 "$CODE"
+api GET "/api/reports/$REPORT_BRUNO" "$T_ANA"
+chk "2. Employee consulta o relatório do bruno" 404 "$CODE"
+echo "   corpo da resposta: $RESP"
+api GET "/api/reports/$REPORT_BRUNO/excel" "$T_ANA"
+chk "3. Employee baixa o Excel do relatório do bruno" 404 "$CODE"
+echo "   $(printf '%s\n' "$HDRS" | grep -i '^content-type' | tr -d '\r')"
+echo "   corpo da resposta: $RESP"
+echo "== Auditor (caio) =="
+api POST /api/reports "$T_CAIO" "{$PERIODO,\"scope\":\"Global\"}"
+chk "4. Auditor pede Global" 202 "$CODE"
+REPORT_CAIO=$(jf id); echo "   id do relatório do caio: $REPORT_CAIO"
+echo "   status: $(wait_status "$T_CAIO" "$REPORT_CAIO" Completed 60)"
+api GET "/api/reports/$REPORT_CAIO" "$T_CAIO"
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 4 375.00
+api GET "/api/reports/$REPORT_E01" "$T_CAIO"
+chk "5. Auditor consulta o relatório da ana" 404 "$CODE"
+echo "   corpo da resposta: $RESP"
+api GET "/api/reports/$REPORT_E01/excel" "$T_CAIO"
+chk "6. Auditor baixa o Excel do relatório da ana" 404 "$CODE"
+echo "   $(printf '%s\n' "$HDRS" | grep -i '^content-type' | tr -d '\r')"
+api GET "/api/reports/$REPORT_CAIO" "$T_ANA"
+chk "7. Employee consulta o relatório Global do Auditor" 404 "$CODE"
+api GET /api/reports "$T_CAIO"
+chk "8. a listagem do Auditor só tem o relatório dele (quantidade)" 1 "$(count_ids)"
+```
+
+**O que observar (esperado pelo contrato).** As oito linhas `chk` com `OK`: `403` para o Employee pedir `Global`; `404` para o Employee consultar e baixar o relatório do bruno, com corpo de erro (`ProblemDetails`, sem arquivo e sem `Content-Type` de planilha); `202` para o Auditor pedir `Global`, com resultado de 4 itens e 375.00; `404` para o Auditor consultar e baixar o relatório da ana; `404` para o Employee consultar o relatório do Auditor; e a listagem do Auditor com 1 relatório (só o dele).
+
+**Saída real colada pelo Renan:**
+
+```
+== E04: um relatório de outro usuário para servir de alvo (bruno, Employee) ==
+POST do bruno: HTTP 202
+id do relatório do bruno: 8061bff1-4218-4bad-82ba-e8a00991a926
+status: Completed
+== Employee (ana) ==
+1. Employee pede Global                                            esperado=403    obtido=403    OK
+2. Employee consulta o relatório do bruno                         esperado=404    obtido=404    OK
+   corpo da resposta: {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"Report not found.","status":404,"traceId":"00-5744775228ce03cee1cd1e06e5399822-761d3667ac8c4e71-00"}
+3. Employee baixa o Excel do relatório do bruno                   esperado=404    obtido=404    OK
+   Content-Type: application/problem+json; charset=utf-8
+   corpo da resposta: {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"Report not found.","status":404,"traceId":"00-b0ea1f69bdc2fa54be2558b466119e2d-b2c72ed15dfb08d3-00"}
+== Auditor (caio) ==
+4. Auditor pede Global                                             esperado=202    obtido=202    OK
+   id do relatório do caio: 3d7f3b45-d770-4a64-a0bc-3a56a1de61ad
+   status: Completed
+status=Completed scope=Global createdAt=2026-11-03T18:27:21.9674516Z startedAt=2026-11-03T18:27:21.9956811Z completedAt=2026-11-03T18:27:22.008155Z
+totalCount=4 totalAmount=375 generatedAt=2026-11-03T18:27:22.0078504Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=3 amount=350
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 4 itens e 375.00: OK
+5. Auditor consulta o relatório da ana                            esperado=404    obtido=404    OK
+   corpo da resposta: {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"Report not found.","status":404,"traceId":"00-f11359bbf772ae9ab637f6ff5866275b-3fb44d55ae484f51-00"}
+6. Auditor baixa o Excel do relatório da ana                      esperado=404    obtido=404    OK
+   Content-Type: application/problem+json; charset=utf-8
+7. Employee consulta o relatório Global do Auditor                esperado=404    obtido=404    OK
+8. a listagem do Auditor só tem o relatório dele (quantidade)    esperado=1      obtido=1      OK
+```
+
+**Resultado do E04: atendido, 8 de 8.** O Employee (ana) recebeu `403` ao pedir `Global` e `404` ao consultar e ao baixar o Excel do relatório do bruno, com corpo `ProblemDetails` (`Report not found.`) e `Content-Type: application/problem+json`, sem arquivo. O Auditor (caio) teve o `Global` aceito (`202`) e concluído com 4 itens e 375 (Approved 3 e 350, Paid 1 e 25), o esperado para os dados conhecidos num banco novo, sem outras despesas de setembro; recebeu `404` ao consultar e ao baixar o Excel do relatório da ana (criado por outro usuário), a ana recebeu `404` ao consultar o relatório `Global` do Auditor, e a listagem do Auditor trouxe só o relatório dele (1).
+
+### E05: Persistência e versão
+
+**Objetivo.** Recriar apenas web e worker usando as imagens publicadas, consultar um resultado anterior e comprovar versão e dados preservados. Não recria o banco nem remove volume.
+
+**Pré-condições.** E01 concluído; terminal aberto desde o E01 (as variáveis `E05_*` precisam sobreviver entre os blocos E05-a e E05-b). O bloco E05-a faz um login novo logo antes da recriação, para a prova do token não depender do tempo gasto entre os blocos.
+
+**Comandos, parte 1 (E05-a): estado antes.**
+
+```bash
+set +x; set +H
+echo "== E05-a: login novo da ana e o estado ANTES de recriar web e worker =="
+login ana.i06@example.test "$TEST_PW"; T_E05=$TOK; echo "login: HTTP $CODE"
+api GET "/api/reports/$REPORT_E01" "$T_E05"; E05_ANTES_DETALHE=$(printf '%s' "$RESP" | sha256sum | cut -c1-16)
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+curl -s -o "$W/e05-antes.xlsx" -H "Authorization: Bearer $T_E05" "$BASE/api/reports/$REPORT_E01/excel"; E05_ANTES_XLSX=$(sheet_hash "$W/e05-antes.xlsx")
+echo "hash do JSON do detalhe : $E05_ANTES_DETALHE"
+echo "hash das células (Excel): $E05_ANTES_XLSX"
+id_de() { docker inspect --format '{{printf "%.12s" .Id}}' "$(docker compose ps -q "$1")"; }
+E05_ID_web=$(id_de web); E05_ID_worker=$(id_de worker); E05_ID_rabbitmq=$(id_de rabbitmq)
+echo "== contêineres antes =="
+for s in web worker rabbitmq; do
+  echo "$s | id=$(id_de $s) | $(docker inspect --format 'iniciado={{.State.StartedAt}} | {{.Config.Image}}' "$(docker compose ps -q $s)" | sed 's/@sha256:[0-9a-f]*//')"
+done
+echo "== linha de log da versão (contêineres atuais; o worker aparece mais de uma vez porque este contêiner foi parado e religado nos E02 e E03, e o log fica no mesmo contêiner) =="
+docker compose logs web worker 2>&1 | grep "Image commit"
+```
+
+**Comandos, parte 2 (E05-b): recriar web e worker e comparar.**
+
+```bash
+set +x; set +H
+echo "== E05-b: recriar SÓ web e worker (sem remover volumes) =="
+docker compose up -d --force-recreate web worker
+fim=$((SECONDS+180)); saude=""
+while [ $SECONDS -lt $fim ]; do
+  saude=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q web)" 2>/dev/null)
+  [ "$saude" = "healthy" ] && break
+  sleep 3
+done
+echo "web: $saude"
+echo "== contêineres depois =="
+for s in web worker rabbitmq; do
+  echo "$s | id=$(id_de $s) | $(docker inspect --format 'iniciado={{.State.StartedAt}} | {{.Config.Image}} | revision={{index .Config.Labels "org.opencontainers.image.revision"}}' "$(docker compose ps -q $s)" | sed 's/@sha256:[0-9a-f]*//')"
+done
+[ "$(id_de web)" != "$E05_ID_web" ] && r_web=diferente || r_web=igual
+[ "$(id_de worker)" != "$E05_ID_worker" ] && r_worker=diferente || r_worker=igual
+[ "$(id_de rabbitmq)" = "$E05_ID_rabbitmq" ] && r_rabbit=igual || r_rabbit=diferente
+chk "web é um contêiner novo (id)" diferente "$r_web"
+chk "worker é um contêiner novo (id)" diferente "$r_worker"
+chk "o RabbitMQ não foi recriado (id)" igual "$r_rabbit"
+echo "== linha de log da versão (contêineres novos) =="
+docker compose logs web worker 2>&1 | grep "Image commit"
+echo "== o resultado anterior, com o MESMO token de antes da recriação =="
+api GET "/api/reports/$REPORT_E01" "$T_E05"
+echo "GET com o token anterior: HTTP $CODE"
+if [ "$CODE" != "200" ]; then
+  echo "o token anterior não valeu; nova autenticação (isso não invalida a prova de persistência do resultado)"
+  login ana.i06@example.test "$TEST_PW"; T_E05=$TOK; api GET "/api/reports/$REPORT_E01" "$T_E05"; echo "GET com login novo: HTTP $CODE"
+fi
+E05_DEPOIS_DETALHE=$(printf '%s' "$RESP" | sha256sum | cut -c1-16)
+printf '%s' "$RESP" | python -I -c "$PY_SHOW" 3 175.00
+curl -s -o "$W/e05-depois.xlsx" -H "Authorization: Bearer $T_E05" "$BASE/api/reports/$REPORT_E01/excel"; E05_DEPOIS_XLSX=$(sheet_hash "$W/e05-depois.xlsx")
+chk "hash do JSON do detalhe (antes e depois)" "$E05_ANTES_DETALHE" "$E05_DEPOIS_DETALHE"
+chk "hash das células do Excel (antes e depois)" "$E05_ANTES_XLSX" "$E05_DEPOIS_XLSX"
+```
+
+**O que observar (esperado pelo contrato).**
+
+- Web e worker com **ids de contêiner e horário de início novos**; o RabbitMQ com o mesmo id (não foi recriado). As três linhas `chk` dizem `OK`.
+- Versão: o rótulo `org.opencontainers.image.revision` dos dois contêineres e a linha `Image commit` do log são o SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, antes e depois.
+- O relatório do E01 continua `Completed` com o mesmo `result` (3 itens e 175.00): hash do JSON do detalhe e das células do Excel iguais antes e depois.
+- Token: com o `/keys` preservado, o mesmo token deve continuar valendo (`HTTP 200`); se não valer, a nova autenticação é aceita e registrada como veio.
+
+**Saída real colada pelo Renan, parte 1 (E05-a):**
+
+```
+== E05-a: login novo da ana e o estado ANTES de recriar web e worker ==
+login: HTTP 200
+status=Completed scope=Mine createdAt=2026-11-03T18:09:44.076158Z startedAt=2026-11-03T18:09:45.96755Z completedAt=2026-11-03T18:09:46.276163Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:09:46.1549253Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+hash do JSON do detalhe : 225393dcc6004d6b
+hash das células (Excel): ae3d22e2d17ba4e1
+== contêineres antes ==
+web | id=c7c38e21cac3 | iniciado=2026-11-03T17:52:00.653824754Z | ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+worker | id=5e5eff7f72fd | iniciado=2026-11-03T18:18:52.843633336Z | ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+rabbitmq | id=e9da1a9e8e44 | iniciado=2026-11-03T17:51:54.369066118Z | rabbitmq:4.4.0-management
+== linha de log da versão (contêineres atuais; o worker aparece mais de uma vez porque este contêiner foi parado e religado nos E02 e E03, e o log fica no mesmo contêiner) ==
+web-1     |       ExpenseHub web started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+worker-1  |       ExpenseHub worker started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+worker-1  |       ExpenseHub worker started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+worker-1  |       ExpenseHub worker started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+```
+
+**Saída real colada pelo Renan, parte 2 (E05-b):**
+
+```
+== E05-b: recriar SÓ web e worker (sem remover volumes) ==
+[+] up 3/3
+ ✔ Container expensehub-rabbitmq-1 Healthy                                                                             2.3s
+ ✔ Container expensehub-web-1      Healthy                                                                             7.3s
+ ✔ Container expensehub-worker-1   Started                                                                             6.8s
+web: healthy
+== contêineres depois ==
+web | id=f28c9d26aceb | iniciado=2026-11-03T18:29:20.941507984Z | ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | revision=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+worker | id=577614433ab7 | iniciado=2026-11-03T18:29:26.657281757Z | ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f | revision=f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+rabbitmq | id=e9da1a9e8e44 | iniciado=2026-11-03T17:51:54.369066118Z | rabbitmq:4.4.0-management | revision=
+web é um contêiner novo (id)                                     esperado=diferente obtido=diferente OK
+worker é um contêiner novo (id)                                  esperado=diferente obtido=diferente OK
+o RabbitMQ não foi recriado (id)                                  esperado=igual  obtido=igual  OK
+== linha de log da versão (contêineres novos) ==
+web-1     |       ExpenseHub web started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+worker-1  |       ExpenseHub worker started. Image commit: f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f.
+== o resultado anterior, com o MESMO token de antes da recriação ==
+GET com o token anterior: HTTP 200
+status=Completed scope=Mine createdAt=2026-11-03T18:09:44.076158Z startedAt=2026-11-03T18:09:45.96755Z completedAt=2026-11-03T18:09:46.276163Z
+totalCount=3 totalAmount=175 generatedAt=2026-11-03T18:09:46.1549253Z
+  Draft     count=0 amount=0
+  Submitted count=0 amount=0
+  Approved  count=2 amount=150
+  Rejected  count=0 amount=0
+  Paid      count=1 amount=25
+esperado 3 itens e 175.00: OK
+hash do JSON do detalhe (antes e depois)                           esperado=225393dcc6004d6b obtido=225393dcc6004d6b OK
+hash das células do Excel (antes e depois)                        esperado=ae3d22e2d17ba4e1 obtido=ae3d22e2d17ba4e1 OK
+```
+
+Conferência extra que o Renan fez depois do E05 (só listagem, fora do roteiro; o `docker volume ls` não altera nada):
+
+```
+expensehub_expensehub-data
+expensehub_expensehub-keys
+expensehub_rabbitmq-data
+```
+
+**Resultado do E05: atendido.** Só web e worker foram recriados (ids `c7c38e21cac3` para `f28c9d26aceb` e `5e5eff7f72fd` para `577614433ab7`, com novos horários de início); o RabbitMQ manteve o id `e9da1a9e8e44` e o horário de início 17:51:54Z. A versão é a mesma antes e depois: as duas imagens com a tag `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, o rótulo `org.opencontainers.image.revision` dos dois contêineres novos igual a esse SHA, e a linha `Image commit` do log igual a ele. O relatório do E01, consultado com **o mesmo token** emitido antes da recriação, respondeu `200` (não foi preciso autenticar de novo) e continuou `Completed` com o mesmo `result`: o hash do JSON do detalhe (`225393dcc6004d6b`) e o das células do Excel (`ae3d22e2d17ba4e1`) são iguais antes e depois, e iguais aos do E03 e do E01-b. Os três volumes continuaram a existir. Por que o token continuou valendo: ver a confirmação no código em [Diagnóstico, observações](#observações-que-os-experimentos-levantaram).
+
+### Bloco Fim: limpeza das variáveis e do diretório temporário
+
+```bash
+set +x; set +H
+echo "== estado final (os serviços continuam no ar; nada foi removido) =="
+docker compose ps -a --format '{{.Service}} | estado={{.State}} | saude={{.Health}} | imagem={{.Image}}' | sed 's/@sha256:[0-9a-f]*//'
+unset ADMIN_PW TEST_PW TOK T_ADMIN T_ANA T_BRUNO T_CAIO T_GESTOR T_E05 USERS
+rm -rf "$W"
+echo "variáveis de senha e de token apagadas; diretório temporário removido"
+```
+
+**Saída real colada pelo Renan:**
+
+```
+== estado final (os serviços continuam no ar; nada foi removido) ==
+rabbitmq | estado=running | saude=healthy | imagem=rabbitmq:4.4.0-management
+web | estado=running | saude=healthy | imagem=ghcr.io/renan-utida/expensehub-web:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+worker | estado=running | saude= | imagem=ghcr.io/renan-utida/expensehub-worker:f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f
+variáveis de senha e de token apagadas; diretório temporário removido
+```
+
+Os três serviços continuaram no ar ao fim, com as mesmas imagens. Nenhum volume foi removido e nenhum comando de remoção (`down`, `docker volume rm`, `prune`) foi usado em todo o roteiro; a única recriação de contêineres foi a do E05, pedida pelo experimento (a frase "nada foi removido" que o bloco imprime se refere aos dados e aos volumes).
 
 ### Diagnóstico
 
-A preencher na CP3-I06, explicando:
+O diagnóstico usa só o que os experimentos mostraram (com os ids e as linhas de log acima) e, onde diz expressamente, o que o código e os testes garantem. As partes (b) e (d) citam situações que **não** foram reproduzidas nesta sessão (broker indisponível, janela sem Outbox, mensagem `Unacked`); elas aparecem marcadas como "do código e dos testes" ou "da CP3-I03".
 
-- aceitação e conclusão;
-- worker parado e broker indisponível;
-- duplicata e novo POST;
-- a janela sem Transactional Outbox.
+**(a) Aceitação e conclusão.** Aceitar não é concluir. O `POST` só responde `202` depois de o pedido estar gravado como `Pending` e de o broker ter confirmado a publicação; a conclusão é do worker, depois. A linha do tempo do E01, em UTC (as linhas de log são as do web e do worker; as de banco vêm do JSON do detalhe):
+
+| Instante (18:09, UTC) | Origem | O que aconteceu |
+|---|---|---|
+| 44.076 | banco, `createdAt` | pedido gravado como `Pending` |
+| 44.343 | log do web | `message confirmed by the broker` |
+| 44.344 | log do web | `registered and published` (o `202` com `Location` só sai depois disso; o terminal não mediu o instante exato da resposta) |
+| 44.404 | log do worker | `message received (redelivered: False)` |
+| 45.968 | banco, `startedAt` | início gravado (o relatório passou a `Processing`) |
+| 46.128 | log do worker | `processing started (resumed: False)` |
+| 46.155 | banco, `result.generatedAt` | instante em que o resultado foi calculado |
+| 46.276 | banco, `completedAt` | `Completed` gravado junto com o `result` |
+| 46.290 | log do worker | `completed with 3 expenses` |
+| 46.300 | log do worker | `message acknowledged after the result was saved or found saved` |
+
+O que isso mostra: (1) o `202` quer dizer "aceito e publicado", não "concluído", e a prova está no E02, em que o `202` veio e o relatório ficou `Pending` por cerca de 12 s; (2) o relatório passou por `Pending`, `Processing` e `Completed` com o mesmo id; o `Pending` foi visto ao vivo no E02, mas o `Processing` **não foi capturado ao vivo** (a janela dura décimos de segundo e o acompanhamento consulta de 1 em 1 s), e a passagem por ele aparece pelo `startedAt` entre `createdAt` e `completedAt`, pela linha `processing started` e pelo código (`TryStartAsync` grava o início antes do cálculo); (3) `Completed` e `result` são gravados juntos: em todas as consultas dos cinco experimentos, um relatório `Completed` já veio com o `result`; (4) a confirmação da mensagem vem **depois** da gravação (46.300 depois de `completedAt` 46.276); (5) o resultado é salvo e não é recalculado na leitura: o `generatedAt`, o hash do JSON e o hash das células do Excel ficaram iguais em consultas feitas minutos depois (E03) e depois de recriar web e worker (E05), e o instante de geração da planilha (`2026-11-03T18:09:46Z`) é o do resultado salvo, não o do download; (6) o Excel sai do resultado salvo, sem nova mensagem: no E03-b, depois de três downloads do Excel (E01-b, E03-a e E03-b), o log do worker para esse id tem só as quatro linhas do E01 e as três da republicação.
+
+**(b) Três falhas diferentes (e uma quarta).** Worker parado, broker indisponível e janela sem Outbox não são a mesma falha. O que cada uma deixa no banco e na fila:
+
+| Falha | Resposta ao cliente | No banco | Na fila | Como se recupera | Fonte |
+|---|---|---|---|---|---|
+| Worker parado | `202` normal | relatório `Pending` | 1 mensagem `Ready`, 0 `Unacked` | religar o worker: a mensagem que esperava é entregue e o **mesmo id** chega a `Completed` | **observado no E02** (`1 0`, `Pending`, depois `Completed` e `0 0`) |
+| Broker indisponível (publicação não confirmada) | `503` com o `id` do pedido salvo e erro sanitizado | relatório `Pending` | nenhuma mensagem | reiniciar o worker **não** recupera uma mensagem que nunca foi publicada; consulta-se o `id` e, se continuar `Pending`, pede-se outro relatório | do código e dos testes (`ReportsControllerTests.RequestAsync_NotPublished_Returns503WithTheIdentifierOfTheSavedReport`, `ReportScenarioTests.Scenario10_BrokerDoesNotConfirm_Is503WithTheIdAndTheReportStaysPending`) e observado na CP3-I03 (RabbitMQ parado: `503` com `id` em cerca de 2 s e o pedido ficou `Pending` para sempre) |
+| Janela sem Transactional Outbox (queda do web entre gravar e publicar) | nenhuma (a conexão cai) ou erro | relatório `Pending` | nenhuma mensagem | não há reconciliação automática; só um novo pedido gera outro relatório | do código e do README; a janela está documentada na [CP3-I03](#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) e não foi reproduzida |
+| Banco indisponível antes de registrar | erro explícito (`503`) sem `202` e sem `id` inventado | nada gravado | nenhuma mensagem | repetir o pedido | do código e dos testes (`ReportsControllerTests.RequestAsync_StorageUnavailable_Returns503WithoutAnIdentifier`) |
+
+Como separar as falhas olhando o relatório e a fila juntos: `Pending` com `Ready` maior que zero e nenhum consumidor é worker parado ou fora do ar; `Pending` com a fila vazia (`0 0`) e consumidor presente é uma mensagem que nunca chegou ao broker (a segunda ou a terceira linha da tabela); `Pending` com `Unacked` 1 é o instante curto em que o worker já recebeu a mensagem e ainda não gravou o início. Um `503` com `id` também **não garante** que a mensagem não chegou ao broker (a confirmação pode ter se perdido), então quem recebe `503` consulta o `id` antes de pedir outro. O único dos quatro casos que um experimento obrigatório cobre é o do worker parado; o tratamento da publicação sem confirmação existe no código e é verificado por teste, como a apostila pede, e um sexto experimento de interrupção do broker não é obrigatório.
+
+**(c) Duplicata de mensagem e novo POST.** No E03, o mesmo `reportId` de um relatório já `Completed` foi publicado de novo pelo painel (18:24:34Z), depois de reiniciar o worker (18:18:52Z). O worker recebeu a mensagem (`redelivered: False`: para o broker é uma mensagem nova, não uma reentrega), leu o relatório, achou o estado `Completed` e registrou `is already Completed: duplicate message ignored, nothing was changed.`, confirmou a mensagem e não gravou nada: o JSON do detalhe, a listagem (2 relatórios) e as células do Excel ficaram idênticos, e a conclusão original aparece uma só vez no log. Esse reconhecimento não depende de memória do processo: o worker já era outro processo, então a prova é o estado gravado no banco (a idempotência é persistente). Já um **novo `POST /api/reports` não é duplicata**: o do E02 criou o relatório `56e9f508-b9eb-4e9f-b61d-6b15fc5d2f9f`, com id diferente do `2e1a02c1-aac4-40ca-b2c9-2e4043209fa3` e com ciclo próprio no log (recebida, início, conclusão, confirmação); o segundo `Completed` com os mesmos totais (3 e 175) é o efeito legítimo de uma solicitação nova, e por isso um novo `POST` não prova idempotência. A prova de idempotência é reaproveitar o `reportId` já concluído, que é o que o E03 fez.
+
+**(d) `Ready` e `Unacked` do RabbitMQ não são `Pending` e `Processing` da aplicação.** São dois vocabulários sobre dois lugares. `Ready` é a mensagem disponível na fila e `Unacked` é a mensagem já entregue a um consumidor e ainda sem confirmação; `Pending` e `Processing` são o estado do relatório no banco. No E02 coincidiram (relatório `Pending` e uma mensagem `Ready`, `1 0`), mas não é equivalência: um relatório `Pending` pode não ter mensagem nenhuma (publicação não confirmada, ver (b)) e uma mensagem `Unacked` pode corresponder a um relatório ainda `Pending` (recebida, início ainda não gravado) ou `Processing`. A única medição de `Unacked` do projeto foi feita na CP3-I03: com o pedido `Processing` visível a mensagem estava sem confirmação (`ready 0, unacked 1, consumers 1`); com o worker morto, o pedido continuou `Processing` sem resultado e a mensagem voltou (`ready 1, unacked 0`), isto é, um relatório `Processing` com a mensagem `Ready`. Nestes cinco experimentos nenhum comando pegou `Unacked` maior que zero, porque a mensagem fica sem confirmação por pouco tempo: cerca de 40 ms do `createdAt` ao `completedAt` com o worker aquecido (E04, relatório do caio) e 1,4 s a 1,9 s entre `message received` e a confirmação na primeira mensagem de um processo (E02 e E01). Por isso a correlação é feita pelo id: o estado do relatório vem do `GET /api/reports/{id}`, a fila vem do `rabbitmqctl list_queues`, e o que liga os dois são as linhas do worker com o `reportId`.
+
+### Observações que os experimentos levantaram
+
+**1. O intervalo entre `message received` e a linha seguinte do worker.** O Renan notou que, depois de `message received`, a linha seguinte do worker demorou mais de 1 s no E01 e no E02 e menos de 1 s na duplicata, enquanto no E04 o `startedAt` do relatório do caio veio 28 ms depois do `createdAt`. Os números, calculados dos instantes dos logs e do banco acima:
+
+| Execução | Processo do worker na hora | `message received` | Próxima linha do worker | Intervalo |
+|---|---|---|---|---|
+| E01 | primeira mensagem do processo (subiu às 17:52:06Z; ficou cerca de 17 min sem mensagens) | 18:09:44.404 | `processing started`, 18:09:46.128 | 1,724 s |
+| E02 | primeira mensagem do processo (acabou de ser religado) | 18:17:38.705 | `processing started`, 18:17:40.019 | 1,314 s |
+| E03 (duplicata) | primeira mensagem do processo (reiniciado às 18:18:52Z) | 18:24:34.432 | `duplicate message ignored`, 18:24:35.325 | 0,892 s |
+| E04 (caio, `Global`) | mesmo processo, que já tinha tratado a duplicata e o relatório do bruno | o log não foi colado | `startedAt` do banco, 18:27:21.996 | 28 ms contados do `createdAt` do web (18:27:21.967), o que inclui publicar, entregar e ler o relatório |
+
+O que o código mostra (verificado, sem afirmar mais do que isso):
+
+- **Não há atraso fixo nem espera programada nesse caminho.** O `message received` é a primeira coisa de `OnReceivedAsync` (`ReportConsumerService.cs`); depois vêm `CreateScope`, a resolução do `ReportMessageProcessor`, a leitura do relatório (`FindAsync`) e o início (`TryStartAsync`, `ReportMessageProcessor.cs`), e só então a linha `processing started`. Os únicos `Task.Delay` do worker são o `Timeout.Infinite` que mantém a conexão aberta, a pausa antes de devolver uma mensagem que falhou de forma transitória (`TransientRetryDelaySeconds`) e a pausa antes de reconectar ao broker; nenhum roda quando a mensagem é tratada com sucesso.
+- **Não há polling.** A entrega é por assinatura (`BasicConsumeAsync` com `AsyncEventingBasicConsumer`, `prefetch` 1) e a conexão e o canal são abertos quando o worker sobe, antes da linha de consumo, não a cada mensagem.
+- **O `startedAt` é lido antes da primeira gravação.** `GetUtcNow()` é o argumento de `TryStartAsync`, então o `startedAt` marca o instante anterior à escrita. No E01, 1,563 s dos 1,724 s passaram **antes** dessa leitura de relógio (escopo, injeção de dependências e a primeira leitura do relatório) e 0,161 s depois (a primeira escrita condicional); no E02, 1,189 s antes e 0,125 s depois.
+
+A explicação coerente com esses números é o **custo de primeiro uso por processo** do acesso a dados (montar o modelo do EF Core, abrir a conexão do SQLite com os `PRAGMA` e compilar o código na primeira passagem), que o caminho de duplicata paga em parte (só a leitura, 0,892 s) e que o processo já aquecido não paga (28 ms no E04). Sobre a hipótese de "ociosidade": o E02 foi a primeira mensagem logo depois de religar o worker, sem ociosidade nenhuma, e ainda assim levou 1,314 s, então a ociosidade não é necessária para o efeito; o que os três casos lentos têm em comum é serem a **primeira mensagem do processo** (o E03 esperou cerca de 5,7 min e o E01 cerca de 17 min depois de subir). Nenhum experimento isolou a ociosidade de um worker já aquecido (o caso do E04 teve o relatório do bruno segundos antes), então essa separação não está provada. Esta é uma explicação provável, **não medida** (não houve perfilador nem teste que isole o primeiro uso de um processo), e não é defeito: o contrato não depende desse tempo, e o efeito é só um `Pending` um a dois segundos mais longo na primeira mensagem depois de cada (re)início do worker.
+
+**2. Por que o token continuou valendo depois de recriar o web (E05).** Confirmado no compose e no código, sem inferir além disso:
+
+- O `AddBearerToken` do ASP.NET Core protege o token com o Data Protection (comportamento do framework; o registro está em `IdentityServiceCollectionExtensions.cs`, e o repositório não define outro protetor nem muda a validade padrão do token). As chaves do Data Protection são mantidas pelo repositório em `AddExpenseHubDataProtection` (`DeploymentServiceCollectionExtensions.cs`): quando `DataProtection:KeysPath` está definido, chama `AddDataProtection().SetApplicationName("ExpenseHub").PersistKeysToFileSystem(...)`, de modo que as chaves não nascem de novo a cada contêiner.
+- O `compose.yaml` define `DataProtection__KeysPath: /keys` no serviço `web` e monta o volume nomeado `expensehub-keys` em `/keys`; o volume sobrevive ao `docker compose up -d --force-recreate web worker` (a listagem depois do E05 mostra `expensehub_expensehub-keys`). Os testes `KeyStorageTests.AddExpenseHubDataProtection_KeepsTheKeysInTheConfiguredDirectory` e `DeliveryFilesTests.Compose_OnlyTheWebApplicationMigratesAndKeepsTheKeys` travam as duas pontas (o código usa a pasta configurada e o compose a define e a monta só no web).
+- O token do bloco 11 foi emitido depois do fim do E04 (18:27:22Z) e antes da recriação (18:29:20Z), e usado de novo logo depois dela, portanto bem dentro de 1 hora (a validade padrão do framework, que o repositório não altera).
+
+Então o experimento mostrou que o token **continuou válido**, e a configuração e o código apontam as chaves persistidas no volume `expensehub-keys` como o motivo. O contrafactual (recriar sem o volume de chaves e ver o token falhar) **não foi testado**, de propósito, porque o experimento não pode remover volume.
 
 ## Entrega
 
