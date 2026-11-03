@@ -45,8 +45,10 @@ Content-Type: application/json
 }
 
 ### CP3-I01: solicitar um relatório do período (escopo Mine, usuário Employee)
-# Enquanto o publicador do RabbitMQ não existe (CP3-I03), a resposta é 503 com o id do relatório
-# salvo e o relatório fica Pending. Com o broker confirmando, a resposta é 202 com Location.
+# Com o RabbitMQ no ar e o broker confirmando a mensagem, a resposta é 202 com Location e o relatório
+# Pending; o worker o leva a Completed. Se o broker não confirmar (ou estiver fora), a resposta é 503 com
+# o id do relatório salvo, que fica Pending. Um 503 não garante que a mensagem não chegou ao broker:
+# consulte o id devolvido (GET abaixo) antes de pedir outro relatório, porque um novo POST cria outro id.
 # @name createReport
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{login.response.body.$.accessToken}}
@@ -59,8 +61,8 @@ Content-Type: application/json
 }
 
 ### CP3-I02: solicitar um relatório Global (usuário Auditor)
-# Global exige a role Auditor. Mesmo resultado do Mine enquanto não há publicador: 503 com o id e o
-# relatório Pending. O relatório pertence ao Auditor que o pediu e só ele consegue ler.
+# Global exige a role Auditor. Mesmo fluxo do Mine: 202 com Location quando o broker confirma, 503 com o
+# id se não confirmar. O relatório pertence ao Auditor que o pediu e só ele consegue ler.
 # @name createGlobalReport
 POST {{ExpenseHub_Api_HostAddress}}/api/reports
 Authorization: Bearer {{loginAuditor.response.body.$.accessToken}}

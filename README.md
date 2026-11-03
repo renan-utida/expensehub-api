@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para a disciplina de C# da FIAP (turma 3ESPW) com ASP.NET Core (.NET 10), Entity Framework Core e SQLite. O projeto evolui por checkpoints: o Checkpoint 2 entregou a API de reembolsos, e o Checkpoint 3 a coloca em operação, com relatórios assíncronos, RabbitMQ, um worker C# e execução por imagens Docker.
 
-Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) está na `main` (PR #11 da equipe), a CP3-I01 (rotas de relatório, cálculo, resultado salvo e Excel) está na `main` (PR #12 da equipe, workflow `code-quality` com 100/100), a CP3-I02 (matriz de role por escopo, ordem das respostas e isolamento da leitura) está concluída na branch `cp3-i02`, aguardando a PR, e as issues CP3-I03 a CP3-I07 ainda não começaram. Até a CP3-I03 não existe publicador do RabbitMQ, então `POST /api/reports` salva o pedido e responde `503`. Os comandos do worker, do RabbitMQ e do Docker Compose entram nas CP3-I03 e CP3-I05.
+Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) está na `main` (PR #11 da equipe), a CP3-I01 (rotas de relatório, cálculo, resultado salvo e Excel) está na `main` (PR #12 da equipe, workflow `code-quality` com 100/100), a CP3-I02 (matriz de role por escopo, ordem das respostas e isolamento da leitura) está na `main` (PR #13 da equipe, workflow `code-quality` com 100/100), a CP3-I03 (RabbitMQ, worker e idempotência) está concluída na branch `cp3-i03`, aguardando a PR, e as issues CP3-I04 a CP3-I07 ainda não começaram. Com o RabbitMQ e o worker no ar, `POST /api/reports` responde `202` e o relatório chega a `Completed`; os comandos para rodar os dois localmente estão em [Mensageria e worker](#mensageria-e-worker-cp3-i03), e os do Docker Compose entram na CP3-I05.
 
 ## Sumário
 
@@ -51,8 +51,8 @@ O Checkpoint 3, ExpenseHub em operação, adiciona relatórios de reembolso ass�
 | Issue | Título | Requisito | Pontos | Estado | PR | Detalhe |
 |---|---|---|---:|---|---|---|
 | CP3-I01 (central [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11)) | Contrato e resultado do relatório | Rotas `POST` e `GET /api/reports`, validação de período e escopo, resumo por estado com totais, resultado salvo sem recálculo e download `.xlsx` | 20 | Concluída | PR #12 | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório) |
-| CP3-I02 (central [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12)) | Autorização e isolamento | `Mine` para Employee e `Global` para Auditor; listagem, detalhe e Excel só do solicitante (`404` para alheios); solicitante e escopo definidos pelo servidor | 15 | Concluída | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento) |
-| CP3-I03 (central [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13)) | RabbitMQ, worker e idempotência | Fila durável, mensagens persistentes e confirmação de publicação; worker separado, ack só depois de salvar, duplicata sem novo efeito e falha definitiva registrada | 20 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) |
+| CP3-I02 (central [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12)) | Autorização e isolamento | `Mine` para Employee e `Global` para Auditor; listagem, detalhe e Excel só do solicitante (`404` para alheios); solicitante e escopo definidos pelo servidor | 15 | Concluída | PR #13 | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento) |
+| CP3-I03 (central [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13)) | RabbitMQ, worker e idempotência | Fila durável, mensagens persistentes e confirmação de publicação; worker separado, ack só depois de salvar, duplicata sem novo efeito e falha definitiva registrada | 20 | Concluída | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) |
 | CP3-I04 (central [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14)) | Testes próprios significativos | Testes unitários de cálculo, conjunto vazio, período, negação, isolamento, duplicata, resultado persistido e Excel | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i04-testes-próprios-significativos) |
 | CP3-I05 (central [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15)) | Publicação e execução reproduzível | Duas imagens (web e worker) com a tag do commit, Compose com RabbitMQ, banco compartilhado e instruções sem segredos | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i05-publicação-e-execução-reproduzível) |
 | CP3-I06 (central [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16)) | Experimentos e diagnóstico | E01 a E05 com evidências reais e diagnóstico da aceitação, da publicação e da janela sem Outbox | 10 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i06-experimentos-e-diagnóstico) |
@@ -77,7 +77,7 @@ O Checkpoint 3, ExpenseHub em operação, adiciona relatórios de reembolso ass�
 | GET | `/api/expenses` | `Employee`, `Approver`, `Finance` ou `Auditor`. Lista as despesas do escopo do perfil, da mais nova para a mais antiga: Employee as próprias, Approver as `Submitted`, Finance as `Approved` e `Paid`, Auditor todas; roles acumuladas somam os filtros. O Admin sozinho e quem não tem role recebem `403`; sem token: `401` | I05 |
 | GET | `/api/expenses/{id}` | Mesmas roles da listagem. `200` com a despesa; inexistente ou fora do escopo: `404`, com a mesma resposta nos dois casos, para não revelar que o recurso existe; `403` para quem não lê despesas; `401` sem token | I05 |
 | GET | `/api/expenses/{id}/history` | Mesmas roles da listagem, com a visibilidade da despesa. `200` com as entradas do histórico, da mais antiga para a mais nova (`id`, `expenseId`, `action`, `actorId`, `occurredAtUtc`, `previousStatus`, `newStatus`, `reason` e `changes`), só com identificadores internos e sem e-mail; inexistente ou fora do escopo: `404`, com a mesma resposta nos dois casos; `403` para quem não lê despesas; `401` sem token | I08 |
-| POST | `/api/reports` | `Employee` ou `Auditor`; cada escopo exige a sua role: `Mine` para `Employee` e `Global` para `Auditor`, quem tem as duas pede os dois, e Admin, Approver ou Finance sozinhos não pedem nada. Solicita um relatório com `{"fromDate": "2026-09-01", "toDate": "2026-09-30", "scope": "Mine"}`: as datas são `yyyy-MM-dd`, inclusivas e comparadas com `expenseDate`; `scope` é exatamente `Mine` ou `Global`. O solicitante vem do token (`ownerId` e `requesterId` no corpo são ignorados). Salva o pedido como `Pending`, publica a mensagem e só responde `202`, com `Location` e o envelope, depois que o broker confirma. Sem confirmação: `503` com o `id` do pedido salvo (que continua `Pending`). Banco indisponível: `503` sem `id`. Datas ou escopo inválidos, ausentes ou inexistentes, e `scope` numérico: `400`, sem salvar nem publicar; sem token: `401`; sem nenhuma role que possa pedir: `403`, antes de validar o corpo; role que não permite o escopo pedido (`Global` sem `Auditor`, `Mine` sem `Employee`): `403`, depois da validação, sem salvar nem publicar (ordem completa na seção abaixo). Até a CP3-I03 não existe publicador real, então a resposta é sempre `503` | CP3-I01 |
+| POST | `/api/reports` | `Employee` ou `Auditor`; cada escopo exige a sua role: `Mine` para `Employee` e `Global` para `Auditor`, quem tem as duas pede os dois, e Admin, Approver ou Finance sozinhos não pedem nada. Solicita um relatório com `{"fromDate": "2026-09-01", "toDate": "2026-09-30", "scope": "Mine"}`: as datas são `yyyy-MM-dd`, inclusivas e comparadas com `expenseDate`; `scope` é exatamente `Mine` ou `Global`. O solicitante vem do token (`ownerId` e `requesterId` no corpo são ignorados). Salva o pedido como `Pending`, publica a mensagem e só responde `202`, com `Location` e o envelope, depois que o broker confirma. Sem confirmação: `503` com o `id` do pedido salvo (que continua `Pending`). Banco indisponível: `503` sem `id`. Datas ou escopo inválidos, ausentes ou inexistentes, e `scope` numérico: `400`, sem salvar nem publicar; sem token: `401`; sem nenhuma role que possa pedir: `403`, antes de validar o corpo; role que não permite o escopo pedido (`Global` sem `Auditor`, `Mine` sem `Employee`): `403`, depois da validação, sem salvar nem publicar (ordem completa na seção abaixo). Um `503` com `id` não garante que a mensagem não chegou ao broker (a confirmação pode ter se perdido): o relatório ainda pode ser concluído, então consulte o `id` retornado antes de pedir outro, porque um novo `POST` cria outro id (veja [a janela sem Outbox](#mensageria-e-worker-cp3-i03)) | CP3-I01 e CP3-I03 |
 | GET | `/api/reports` | Autenticado, sem exigir role (só posse). `200` com os envelopes dos relatórios do próprio usuário, do mais novo para o mais antigo; relatórios de outros usuários nunca aparecem; sem token: `401` | CP3-I01 |
 | GET | `/api/reports/{id}` | Autenticado, sem exigir role (só posse). `200` com o envelope (`id`, `scope`, `fromDate`, `toDate`, `status`, `createdAt`, `startedAt`, `completedAt`, `result` e `error`, com instantes em UTC terminando em `Z`) e o resultado que foi salvo, sem recalcular; relatório inexistente ou de outro usuário: `404`, com a mesma resposta nos dois casos; sem token: `401` | CP3-I01 |
 | GET | `/api/reports/{id}/excel` | Autenticado, sem exigir role (só posse). `200` com a planilha `.xlsx` (`Content-Type` `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` e `Content-Disposition` `attachment` com `report-{id}.xlsx`), montada do resultado salvo; relatório próprio que não está `Completed` (`Pending`, `Processing` ou `Failed`): `409`; inexistente ou de outro usuário: `404`; sem token: `401` | CP3-I01 |
@@ -90,7 +90,7 @@ Esta tabela lista todos os endpoints implementados.
 - O resultado fica salvo na própria linha do pedido (coluna `ResultJson`, com centavos inteiros e o instante de geração). Consultar, listar e baixar o Excel leem esse resultado e não leem as despesas de novo.
 - Biblioteca do Excel: `DocumentFormat.OpenXml` 3.5.1, licença MIT (traz `DocumentFormat.OpenXml.Framework` e `System.IO.Packaging`, também MIT). A planilha tem uma folha "Resumo" com identificador, escopo, período, instante de geração e a tabela dos cinco estados com o total geral; quantidades e valores são células numéricas.
 - A migration `AddReportRequests` cria a tabela `ReportRequests`: rode `dotnet ef database update` depois de atualizar o código.
-- A publicação fica atrás de `IReportPublisher`; enquanto não houver publicador real (CP3-I03), o `POST` autorizado e válido responde `503` com o `id` e o pedido fica `Pending`.
+- A publicação fica atrás de `IReportPublisher`. O web registra o publicador do RabbitMQ (CP3-I03); sem um publicador real registrado, `UnavailableReportPublisher` nunca confirma e o `POST` autorizado e válido responde `503` com o `id` e o pedido fica `Pending`.
 - Requisições de exemplo estão em `sources/ExpenseHub.Api/ExpenseHub.Api.http` (login do Employee e do Auditor, `Mine`, `Global`, os dois `403` e o `404` do relatório alheio); as credenciais ficam num arquivo local `http-client.env.json.user`, que o git ignora.
 
 ### Autorização dos relatórios (CP3-I02)
@@ -108,6 +108,92 @@ Quem pode pedir cada escopo é decidido pela classe `ReportAccess` (sem EF nem w
 - **Ordem das respostas do `POST /api/reports`**, a mesma do CP2: (1) `401` sem token; (2) `403` quando o usuário não tem `Employee` nem `Auditor`, pelo atributo `[Authorize(Roles = "Employee,Auditor")]` da rota, que roda antes de o corpo ser lido e por isso vem antes de qualquer `400`; (3) `400` para datas ou escopo inválidos; (4) `403` quando a role não permite o escopo pedido; (5) gravação e publicação (`202`, ou `503` com o `id`). Nos dois `403` nada é gravado nem publicado. O serviço repete a ordem (role, validação, escopo) e não depende só do atributo.
 - Listar, detalhar e baixar o Excel não exigem role, só autenticação e posse: cada usuário vê apenas os relatórios que pediu, inclusive o Auditor, cujo privilégio é sobre os dados do relatório dele e não sobre os relatórios dos outros. Relatório alheio e inexistente dão o mesmo `404`; o `409` do Excel é só para o dono.
 - Quem teve a role mudada precisa entrar de novo para o token trazer as roles novas (comportamento do CP2).
+
+### Mensageria e worker (CP3-I03)
+
+O `POST /api/reports` grava o pedido como `Pending`, publica `{"reportId": "<guid>"}` no RabbitMQ e só responde `202` (com `Location`) depois que o broker **confirma** a mensagem. O worker (`sources/ExpenseHub.Worker`) consome a fila, lê o período, o escopo e o solicitante do pedido **gravado** (a mensagem leva só o id), calcula com a mesma `ReportCalculator`, grava `Completed` e o resultado numa só gravação e só então confirma o consumo.
+
+**Fila e mensagem**
+
+| Item | Valor |
+|---|---|
+| Fila | `expensehub.reports` (chave `RabbitMq:QueueName`). Web e worker a declaram com os mesmos argumentos: durável, não exclusiva, sem exclusão automática, no exchange padrão (a chave de roteamento é o nome da fila) |
+| Mensagem | `{"reportId":"<guid>"}`, `application/json`, **persistente** (`delivery_mode` 2). Nada além do id: qualquer outro campo recebido é ignorado |
+| Publicação | conexão aberta na primeira publicação, canal com **confirmação de publicação**, publicação `mandatory` e espera de `RabbitMq:PublishTimeoutSeconds` (5 s). Mensagem recusada, devolvida, sem confirmação a tempo ou broker fora: `503` com o `id`, e o pedido continua `Pending` |
+| Consumo | confirmação manual, uma mensagem por vez (prefetch 1) e reconexão automática. A mensagem só é confirmada depois que o resultado ou o erro está gravado |
+
+**Configuração.** Seção `RabbitMq`, igual no web e no worker; o worker não inicia se estiver incompleta, e o web responde `503` com o `id` e registra o motivo.
+
+| Chave | Variável de ambiente | Padrão | Observação |
+|---|---|---|---|
+| `RabbitMq:Host` | `RabbitMq__Host` | `localhost` | |
+| `RabbitMq:Port` | `RabbitMq__Port` | `5672` | |
+| `RabbitMq:VirtualHost` | `RabbitMq__VirtualHost` | `/` | |
+| `RabbitMq:QueueName` | `RabbitMq__QueueName` | `expensehub.reports` | |
+| `RabbitMq:UserName` | `RabbitMq__UserName` | nenhum | Só de variável de ambiente ou user-secrets. Nunca de arquivo versionado |
+| `RabbitMq:Password` | `RabbitMq__Password` | nenhum | Idem |
+| `RabbitMq:PublishTimeoutSeconds` | `RabbitMq__PublishTimeoutSeconds` | `5` | Espera pela confirmação do broker |
+| `RabbitMq:TransientRetryDelaySeconds` | `RabbitMq__TransientRetryDelaySeconds` | `5` | Espera do worker antes de devolver uma mensagem que não pôde ser salva |
+| `ConnectionStrings:ExpenseHub` | `ConnectionStrings__ExpenseHub` | só no web: `Data Source=expensehub.db` | **Mesmo arquivo nos dois, por caminho absoluto** (abaixo) |
+
+Para guardar as credenciais do broker fora do repositório (o worker e a Api usam o mesmo `UserSecretsId`, então um `set` serve aos dois; o user-secrets só é lido no ambiente `Development`):
+
+```shell
+dotnet user-secrets set "RabbitMq:UserName" "<usuário do broker>" --project ./sources/ExpenseHub.Worker/ExpenseHub.Worker.csproj
+dotnet user-secrets set "RabbitMq:Password" "<senha do broker>" --project ./sources/ExpenseHub.Worker/ExpenseHub.Worker.csproj
+```
+
+**Web e worker precisam apontar para o mesmo arquivo de banco, por caminho absoluto na connection string**, definido por variável de ambiente nos dois processos. Um caminho relativo é resolvido contra a pasta de cada projeto e daria dois bancos diferentes: o worker não acharia os pedidos (a mensagem seria descartada) e os relatórios ficariam `Pending`. O worker avisa no log quando o caminho é relativo.
+
+```shell
+export ConnectionStrings__ExpenseHub="Data Source=/caminho/absoluto/expensehub.db"
+```
+
+No PowerShell: `$env:ConnectionStrings__ExpenseHub = "Data Source=C:\caminho\absoluto\expensehub.db"`.
+
+**Como rodar localmente.** Rode a partir da raiz do repositório, com o banco já migrado (`dotnet ef database update`).
+
+1. RabbitMQ, com um volume **nomeado** para os dados (defina `RABBITMQ_USER` e `RABBITMQ_PASSWORD` no terminal antes, sem escrevê-los em arquivo):
+
+```shell
+docker run -d --name expensehub-rabbitmq \
+  -p 5672:5672 -p 15672:15672 \
+  -v expensehub-rabbitmq-data:/var/lib/rabbitmq \
+  -e RABBITMQ_DEFAULT_USER="$RABBITMQ_USER" \
+  -e RABBITMQ_DEFAULT_PASS="$RABBITMQ_PASSWORD" \
+  rabbitmq:4-management
+```
+
+O broker guarda tudo em `/var/lib/rabbitmq` dentro do contêiner: as definições (a fila durável) e as mensagens persistentes que ainda não foram consumidas. O volume nomeado `expensehub-rabbitmq-data` monta esse caminho fora do contêiner, então os dados sobrevivem a `docker stop` e `docker start` e também a recriar o contêiner com o mesmo `-v`. Sem o volume (ou com um volume anônimo, que se perde ao remover o contêiner) a fila e as mensagens pendentes somem junto com o contêiner. As duas variáveis `RABBITMQ_DEFAULT_*` só valem quando o volume é criado; depois disso o usuário já está nos dados do volume. Não rode `docker volume rm` nem `docker rm -v` neste volume: eles apagam as mensagens. O painel de gerenciamento fica em `http://localhost:15672`. A tag `4-management` acompanha a versão 4 do RabbitMQ; a CP3-I05 fixa a versão no Compose.
+
+2. Web e worker, cada um num terminal, com as mesmas variáveis (`ConnectionStrings__ExpenseHub` absoluta, `RabbitMq__UserName`, `RabbitMq__Password` e a senha do Admin do web):
+
+```shell
+dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
+dotnet run --project ./sources/ExpenseHub.Worker/ExpenseHub.Worker.csproj
+```
+
+**Desfechos, duplicata e confirmação.** O processador (`ReportMessageProcessor`, na Api) devolve um desfecho, e a classe `ReportDelivery` decide a confirmação; o consumidor só executa a decisão.
+
+| Desfecho | Quando | O que o worker faz com a mensagem |
+|---|---|---|
+| `Completed` | o relatório foi calculado e `Completed` e o resultado foram gravados juntos | confirma |
+| `Duplicate` | o relatório já estava `Completed` ou `Failed`, ou outro worker o concluiu antes: nada é lido nem gravado | confirma |
+| `PermanentFailure` | o pedido gravado é incoerente (por exemplo, sem solicitante) ou o cálculo é impossível | grava `Failed` com `error.code` estável (`InvalidRequest` ou `ProcessingFailed`) e mensagem fixa, e confirma. Não volta |
+| `Discarded` | mensagem ilegível ou pedido inexistente | recusa sem devolver (não há fila de mensagens não processáveis) e registra |
+| `TransientFailure` | banco ocupado, trancado ou inacessível (o resultado não está gravado) | **não confirma**: espera `TransientRetryDelaySeconds` (5 s) e devolve a mensagem. Enquanto o banco estiver fora tenta de novo a cada 5 s, sem laço quente. Nunca vira `Failed` |
+
+A duplicata não depende da memória do worker: a prova é o estado gravado no banco, então reiniciar o worker não a elimina. Se o worker cair depois de receber e antes de confirmar, o broker devolve a mensagem; o cálculo pode se repetir, o efeito gravado não.
+
+**Retomada de `Processing`.** Se o worker parar no meio (pedido já `Processing`, mensagem sem confirmação), o broker devolve a mensagem e, na entrega seguinte, o processador vê `Processing`, recalcula e tenta concluir. A gravação final só vale se o estado ainda for `Processing`, então mesmo com dois workers o efeito gravado é um só. Não há limite de idade: quem decide é a entrega da mensagem.
+
+**Janela sem Transactional Outbox.** Salvar o pedido e publicar a mensagem são duas operações separadas. Uma queda entre as duas deixa o pedido `Pending` sem mensagem, e reiniciar o worker **não** recria uma mensagem que nunca existiu; um novo `POST` cria outro id. Um `503` com `id` também **não garante que a mensagem não chegou ao broker**: a confirmação pode ter se perdido (o broker gravou a mensagem e a conexão caiu antes da resposta), e nesse caso o worker ainda conclui o relatório. Por isso quem recebe `503` deve consultar o `id` retornado (`GET /api/reports/{id}`) antes de pedir outro. Transactional Outbox, retentativas completas e fila de mensagens não processáveis são opcionais e não foram feitos.
+
+**SQLite compartilhado.** Web e worker abrem o mesmo arquivo pelo mesmo método (`AddExpenseHubPersistence`), então têm a mesma configuração: em cada conexão rodam `PRAGMA busy_timeout = 5000` e, **depois dele**, `PRAGMA journal_mode = WAL` (a troca de modo precisa de um bloqueio, e a conexão já precisa saber quanto esperar por ele se o outro processo abrir o banco ao mesmo tempo), e a espera de uma gravação também é limitada em 5 s (`Default Timeout` da connection string, quando não definido). Com o WAL, quem lê não é bloqueado por quem grava. O modo fica gravado no arquivo, e aparecem `-wal` e `-shm` ao lado do banco (ignorados pelo `.gitignore`). O WAL exige que os dois processos estejam no mesmo computador e o arquivo num disco local, não numa pasta de rede.
+
+**Logs.** Cada etapa de um relatório registra uma linha com o `reportId`: publicação (confirmada, não confirmada ou com falha), mensagem recebida (e se é reentrega), início (ou retomada), conclusão, duplicata, falha definitiva, nova tentativa e confirmação. As linhas não trazem e-mail, token, senha, connection string nem texto de exceção (só o nome do tipo).
+
+**Estrutura e trade-off.** O worker referencia o projeto `ExpenseHub.Api` e é fino: só o host e o adaptador do RabbitMQ. Toda a regra (mensagem, processador, decisão de confirmação, calculadora e acesso ao banco) fica na Api e é testada sem broker. O custo é que a Api é um projeto web, então o worker herda o framework `Microsoft.AspNetCore.App` (a imagem do worker, na CP3-I05, usa a base `aspnet`). O worker não registra seed do Admin, controllers nem autenticação. Nada na Api precisou de `InternalsVisibleTo`.
 
 ## Como rodar
 
@@ -193,6 +279,8 @@ curl -X PUT http://localhost:5245/api/admin/users/<id>/roles -H "Authorization: 
 | `Microsoft.EntityFrameworkCore.Sqlite` | 10.0.12 | `ExpenseHub.Api` |
 | `Microsoft.EntityFrameworkCore.Design` | 10.0.12 | `ExpenseHub.Api` (somente tempo de design, `PrivateAssets=all`) |
 | `Microsoft.AspNetCore.Identity.EntityFrameworkCore` | 10.0.12 | `ExpenseHub.Api` (tabelas do Identity, I02) |
+| `DocumentFormat.OpenXml` | 3.5.1 (MIT) | `ExpenseHub.Api` (Excel dos relatórios, CP3-I01) |
+| `RabbitMQ.Client` | 7.2.2 (`Apache-2.0 OR MPL-2.0`; traz `System.IO.Pipelines` e `System.Threading.RateLimiting`, MIT) | `ExpenseHub.Api` (publicador); o `ExpenseHub.Worker` o recebe pela referência à Api (CP3-I03) |
 | `dotnet-ef` | 10.0.12 | ferramenta local em `dotnet-tools.json`, na raiz do repositório |
 
 **Configuração.** A connection string fica em `sources/ExpenseHub.Api/appsettings.json`, chave `ConnectionStrings:ExpenseHub`, com o valor `Data Source=expensehub.db`. É só o caminho de um arquivo, sem usuário nem senha. Um caminho relativo é ancorado na pasta do projeto da API, então o arquivo cai sempre em `sources/ExpenseHub.Api/expensehub.db`, seja com `dotnet run` ou com `dotnet ef`. Rode os comandos `dotnet ef` a partir da raiz do repositório, porque o caminho de `--project` é relativo à pasta atual.
@@ -253,24 +341,35 @@ sources/
                                   ReportCalculator (a regra de quais despesas entram, como consulta, e a soma em centavos),
                                   ReportRules e CreateReportRequest (validação), ReportResultSerializer (o resultado salvo),
                                   ReportExcelWriter (a planilha), IReportRepository, IReportPublisher (o broker fica atrás
-                                  dela; UnavailableReportPublisher nunca confirma) e os DTOs (ReportResponse e derivados)
+                                  dela; RabbitMqReportPublisher publica com confirmação e UnavailableReportPublisher nunca
+                                  confirma), ReportMessage (a mensagem, só com o id), ReportQueueTopology e RabbitMqOptions
+                                  (fila e configuração), ReportMessageProcessor e ReportDelivery (o tratamento da mensagem e a
+                                  decisão de confirmar), IReportProcessingStore (as transições condicionais do estado) e os DTOs
+                                  (ReportResponse e derivados)
     Identity/                     registro do Identity e do bearer, DTOs, AppRoles, o seed, UserAccountService
                                   (regras de cadastro e de roles) e a validação do SecurityStamp
     Persistence/
       ExpenseHubDbContext.cs
       ExpenseHubDbContextFactory.cs             usada só pelo dotnet ef
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
+      SqlitePragmas.cs e SqliteConnectionInterceptor.cs  espera por bloqueio e WAL, iguais no web e no worker
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
       Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken, AddReportRequests e snapshot (gerados)
-      Repositories/               ExpenseRepository e ReportRepository (EF Core) e SqliteConstraintErrors (classifica os erros do SQLite)
+      Repositories/               ExpenseRepository, ReportRepository e ReportProcessingStore (EF Core), SqliteConstraintErrors e
+                                  SqliteTransientErrors (classificam os erros do SQLite)
+  ExpenseHub.Worker/
+    Program.cs                    host genérico: banco, configuração do RabbitMQ e o processador (sem seed, controllers nem autenticação)
+    ReportConsumerService.cs      adaptador do RabbitMQ: recebe, chama o processador e executa a decisão de confirmação
+    appsettings.json              só o endereço do broker e o nome da fila, sem credenciais
   ExpenseHub.UnitTests/
     Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório,
                                   e do controller de despesas (contrato HTTP) e dos papéis dos endpoints de despesas e de administração de usuários, com fake do serviço
     Identity/                     testes do seed, do cadastro, das roles, das validações e do middleware do SecurityStamp,
                                   com fakes das stores e do gerenciador de usuários
-    Persistence/                  testes das conversões e da classificação dos erros do SQLite
-    Reports/                      testes da calculadora, das regras, do corpo da requisição, do resultado salvo, do serviço, do Excel,
+    Persistence/                  testes das conversões, da classificação dos erros do SQLite e dos comandos de WAL e espera por bloqueio
+    Reports/                      testes da mensagem, da fila, das opções, do processador (duplicata, retomada, falhas e logs) e da decisão de confirmação,
+                                  da calculadora, das regras, do corpo da requisição, do resultado salvo, do serviço, do Excel,
                                   do envelope, da matriz de role por escopo, do isolamento por role e dos atributos das rotas, e do
                                   controller de relatórios, com fakes do repositório, do publicador e do serviço
 ```
@@ -289,6 +388,7 @@ dotnet test ./sources/ExpenseHub.slnx
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
 - CP3-I01: a suíte passa de 611 para 788 testes aprovados. Os 177 novos são de relatórios: calculadora 24, resultado salvo 20, regras 25, corpo da requisição 22, solicitação 20, consulta 11, Excel pelo serviço 11, escritor do Excel 9, envelope 11, controller 16, autenticação das rotas 3 e publicador 5. A tradução da consulta para SQL, as restrições da tabela e o download real foram conferidos à mão contra o SQLite (veja a seção da CP3-I01 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório)).
 - CP3-I02: a suíte passa de 788 para 936 testes aprovados. Os 148 novos são: matriz de role por escopo 59 (a tabela escrita à mão das 32 combinações das cinco roles, mais a conferência de que nenhuma combinação foi esquecida), ordem e autorização no serviço 35, isolamento por role 36, consulta montada do pedido gravado 10, atributos das rotas 6 e controller 2. A ordem das respostas (`401`, `403` por role, `400`, `403` por escopo) e o isolamento entre contas de roles diferentes foram conferidos à mão contra a aplicação real e um SQLite temporário (veja a seção da CP3-I02 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento)).
+- CP3-I03: a suíte passa de 936 para 1086 testes aprovados. Os 150 novos, sem banco, rede nem RabbitMQ, com fakes escritos à mão do repositório, do estado dos pedidos e do publicador: mensagem 26 (só o `reportId`; corpo não confiável), fila e mensagem persistente 8, opções do broker 17, registro do publicador 9, processador 33 (resultado igual ao da calculadora, duplicata, reinício, `Processing` retomado, corrida entre workers, falha definitiva, falha transitória em cada ponto), logs por `reportId` sem segredos 9, decisão de confirmação 15 (nenhuma falha de gravação chega a confirmação), erros transitórios do SQLite 25 e comandos de WAL e espera 8. Mutações feitas e desfeitas: confirmar mesmo sem ter salvo quebrou 10 testes, e remover a checagem de duplicata quebrou 5. A fila real, a confirmação de publicação, o worker, a duplicata depois de reiniciar, o `Processing` interrompido por um `kill`, a falha transitória e o broker parado foram conferidos à mão contra um RabbitMQ 4.4.0 em contêiner e um SQLite temporário, com 65 conferências aprovadas (veja a seção da CP3-I03 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência)).
 
 Para rodar um teste ou uma classe:
 
@@ -317,7 +417,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I09: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #9 (execução #55): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I10: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A I10 não altera código, pacotes, workflow, script nem analisadores. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #10 (execução #60): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - CP3-I01: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 788 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. O único achado é o informativo `FIAP0002` (Gitleaks ignorado). Um primeiro passe do script deu 99 por `IDE1006` (campos `private static readonly` sem o prefixo `_`), corrigido antes da PR. Score oficial do workflow `code-quality` depois do merge (PR #12): 100/100 na execução #69.
-- CP3-I02: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 936 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. O score oficial do workflow entra aqui quando a PR existir.
+- CP3-I02: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 936 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Score oficial do workflow `code-quality` depois do merge (PR #13): 100/100 na execução #72.
+- CP3-I03: `dotnet build --no-incremental` com 0 erros e 0 avisos (três projetos: Api, Worker e testes), `dotnet test` com 1086 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Nenhuma credencial do broker está em arquivo versionado. O score oficial do workflow entra aqui quando a PR existir.
 - Nenhum aviso é suprimido no código da equipe (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`). Os 4 arquivos de migration gerados pelo `dotnet ef` (os três `.Designer.cs` e o `ExpenseHubDbContextModelSnapshot.cs`) trazem o `#pragma warning disable 612, 618` do gerador e são tratados como código gerado pelo `.editorconfig`.
 
 ## Solução de problemas
@@ -328,6 +429,12 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - `Format of the initialization string does not conform to specification`: o valor de `ConnectionStrings__ExpenseHub` está sem o prefixo `Data Source=`.
 - O arquivo `.db` não está onde se esperava: confira se a variável `ConnectionStrings__ExpenseHub` está definida no terminal; sem ela o arquivo fica em `sources/ExpenseHub.Api/expensehub.db`.
 - `Generating idempotent scripts for migrations is not currently supported for SQLite`: use `dotnet ef migrations script` sem `--idempotent`.
+- O worker não inicia e o log diz `The RabbitMq settings are missing or invalid: UserName, Password`: defina `RabbitMq__UserName` e `RabbitMq__Password` (variáveis de ambiente ou user-secrets); a lista traz só os nomes dos campos.
+- `Connection string 'ExpenseHub' is not configured` no worker: o worker não tem connection string própria. Defina `ConnectionStrings__ExpenseHub` com o caminho absoluto do mesmo arquivo que o web usa.
+- Os relatórios ficam `Pending` e o worker registra `was not found, so its message was discarded`: web e worker estão apontando para arquivos de banco diferentes (caminho relativo). Use o mesmo caminho absoluto nos dois.
+- Um relatório ficou `Pending` depois de um `503`: a mensagem pode nunca ter sido publicada (janela sem Transactional Outbox) e reiniciar o worker não a recria. Consulte o `id` retornado e, se continuar `Pending`, peça outro relatório.
+- O `POST /api/reports` responde `503` com o `id` e o log do web diz `could not be published`: o RabbitMQ não está acessível ou as credenciais estão ausentes; suba o broker e confira `RabbitMq__*` no web. Os relatórios `Pending` com mensagem na fila são concluídos assim que o worker estiver no ar.
+- `database is locked` ou o log do worker com `could not be saved now`: outro processo está com o banco bloqueado por mais de 5 s. A mensagem não é confirmada e volta sozinha; nada vira `Failed` por isso.
 - `'Seed:Admin:Password' is not configured`: defina a senha com `dotnet user-secrets set "Seed:Admin:Password" "<senha>" --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj` ou com a variável de ambiente `Seed__Admin__Password`.
 - `Could not create the initial Admin user: PasswordTooShort, ...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
 - Login do Admin devolve `401` mesmo com a senha certa: o Admin já existia de uma execução anterior com outra senha. O seed não altera um Admin existente. Apague o arquivo `.db` e rode `dotnet ef database update` de novo.

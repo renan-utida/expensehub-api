@@ -11,9 +11,9 @@ namespace ExpenseHub.Api.Reports;
 public static class ReportsServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the report service, its repository, the clock of the server and, until a real publisher is registered, a
-    /// publisher that never confirms. The registration of the publisher uses <c>TryAdd</c>, so the worker publisher of
-    /// CP3-I03 can be registered before or instead of it.
+    /// Registers the report service, its repository, the clock of the server and, when no real publisher is registered, a
+    /// publisher that never confirms. The registration of the publisher uses <c>TryAdd</c>, so the RabbitMQ publisher
+    /// (<c>AddExpenseHubMessaging</c>) is kept whether it is registered before or after this method.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The same service collection.</returns>

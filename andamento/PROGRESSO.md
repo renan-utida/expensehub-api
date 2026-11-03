@@ -4,7 +4,7 @@ Registro temporário de contexto e andamento do Checkpoint 3 (CP3). Esta pasta (
 
 ## Estado atual
 
-> CP3-00 (preparação) concluída e mergeada na `main` como PR #11 da equipe (merge commit `6d7f811`): pasta `andamento/`, `CLAUDE.md` do CP3, baseline (build 0 avisos e 0 erros, 611 testes, SDK 10.0.403, Docker 29.9.2) e documentação reorganizada (`CHECKPOINT-2.md`, `CHECKPOINT-3.md` e `README.md` como página de entrada). CP3-I01 concluída e mergeada na `main` como PR #12 da equipe (merge commit `48810e3`, SHA completo `48810e3f69def12fdc391d5d6e440af75f481836`), com score oficial do workflow `code-quality` de 100/100 na execução #69 (informado pelo Renan): rotas e DTOs de relatório, entidade e migration `AddReportRequests`, calculadora pura, resultado salvo, Excel com `DocumentFormat.OpenXml` 3.5.1 (MIT), publicador atrás de `IReportPublisher` (o POST responde 503 até a CP3-I03) e esqueleto do `.http`; 788 testes. CP3-I02 (autorização e isolamento) concluída na branch `cp3-i02`, aguardando a PR e o merge: matriz de role por escopo (`ReportAccess`), ordem das respostas (401, 403 por role, 400, 403 por escopo), consulta do worker montada do pedido gravado (`ReportQuery.From`) e testes de isolamento por role; build 0 avisos e 0 erros, 936 testes (148 novos), script de qualidade 100/100, HTTP real com 120 conferências. O texto da PR está em `andamento/PR-CP3-I02.md`. Nenhuma outra issue começou. Próximo passo: depois do merge da CP3-I02, planejar a CP3-I03 (RabbitMQ, worker e idempotência).
+> CP3-00 (preparação) concluída e mergeada na `main` como PR #11 da equipe (merge commit `6d7f811`): pasta `andamento/`, `CLAUDE.md` do CP3, baseline (build 0 avisos e 0 erros, 611 testes, SDK 10.0.403, Docker 29.9.2) e documentação reorganizada (`CHECKPOINT-2.md`, `CHECKPOINT-3.md` e `README.md` como página de entrada). CP3-I01 concluída e mergeada na `main` como PR #12 da equipe (merge commit `48810e3`, SHA completo `48810e3f69def12fdc391d5d6e440af75f481836`), com score oficial do workflow `code-quality` de 100/100 na execução #69 (informado pelo Renan): rotas e DTOs de relatório, entidade e migration `AddReportRequests`, calculadora pura, resultado salvo, Excel com `DocumentFormat.OpenXml` 3.5.1 (MIT), publicador atrás de `IReportPublisher` (o POST responde 503 até a CP3-I03) e esqueleto do `.http`; 788 testes. CP3-I02 (autorização e isolamento) concluída e mergeada na `main` como PR #13 da equipe (merge commit `6e47693`, SHA completo `6e476939514aa88710b5158ea3f92a9198d632fe`), com score oficial do workflow `code-quality` de 100/100 na execução #72 (informado pelo Renan): matriz de role por escopo (`ReportAccess`), ordem das respostas (401, 403 por role, 400, 403 por escopo), consulta do worker montada do pedido gravado (`ReportQuery.From`) e testes de isolamento por role; 936 testes. CP3-I03 (RabbitMQ, worker e idempotência) concluída na branch `cp3-i03`, aguardando a PR e o merge: `RabbitMQ.Client` 7.2.2, publicador com confirmação (fila `expensehub.reports` durável, mensagem persistente só com o `reportId`), projeto `ExpenseHub.Worker` fino, processador testável com idempotência no banco, decisão de confirmação em `ReportDelivery`, e SQLite compartilhado com `busy_timeout` e WAL. O texto da PR está em `andamento/PR-CP3-I03.md`. Nenhuma outra issue começou. Próximo passo: depois do merge da CP3-I03, planejar a CP3-I05 (imagens e Compose).
 
 ## Links
 
@@ -78,8 +78,8 @@ Decisões que ficam para o plano da issue (o agente propõe, o Renan aprova):
 | :- | :- | :- | :- | :- |
 | CP3-00 Preparação | Concluída | `cp3-00-preparacao` | PR #11 (merge `6d7f811`) | n/d |
 | CP3-I01 Contrato e resultado | Concluída | `cp3-i01` | PR #12 (merge `48810e3`) | 20 |
-| CP3-I02 Autorização e isolamento | Concluída na branch (aguardando PR) | `cp3-i02` | n/d | 15 |
-| CP3-I03 RabbitMQ, worker e idempotência | Pendente | `cp3-i03` | n/d | 20 |
+| CP3-I02 Autorização e isolamento | Concluída | `cp3-i02` | PR #13 (merge `6e47693`) | 15 |
+| CP3-I03 RabbitMQ, worker e idempotência | Concluída na branch (aguardando PR) | `cp3-i03` | n/d | 20 |
 | CP3-I04 Testes próprios | Pendente | `cp3-i04` | n/d | 15 |
 | CP3-I05 Publicação e execução reproduzível | Pendente | `cp3-i05` | n/d | 15 |
 | CP3-I06 Experimentos e diagnóstico | Pendente | `cp3-i06` | n/d | 10 |
@@ -349,7 +349,7 @@ Resultados: build 0 avisos e 0 erros; 788 testes aprovados (611 do CP2 e 177 nov
 
 ### CP3-I02: Autorização e isolamento (15)
 
-**Estado:** concluída na branch, aguardando PR e merge (texto da PR em `andamento/PR-CP3-I02.md`). **Branch:** `cp3-i02`. **Issue:** #12.
+**Estado:** concluída; PR #13 da equipe, merge commit `6e47693` (SHA completo `6e476939514aa88710b5158ea3f92a9198d632fe`); score oficial do workflow `code-quality` 100/100 na execução #72 (informado pelo Renan). **Branch:** `cp3-i02`. **Issue:** #12.
 
 - [x] Autenticação e permissão por perfil e escopo (5): `ReportAccessTests` (59, tabela escrita à mão das 32 combinações das cinco roles), `ReportServiceAuthorizationTests` (35), `ReportEndpointRolesTests` (6); duas mutações quebraram os testes (42 e 2) e foram desfeitas; HTTP real com 7 contas x `Mine` e `Global`
 - [x] Listagem, detalhe e Excel isolados por solicitante, inclusive Auditor (5): `ReportIsolationTests` (36, oito conjuntos de roles x lista, detalhe e Excel x quatro estados); HTTP real com oito contas cruzadas, `404` igual ao de um id inexistente
@@ -361,14 +361,16 @@ Resultados: build 0 avisos e 0 erros; 936 testes aprovados (788 da base e 148 no
 
 ### CP3-I03: RabbitMQ, worker e idempotência (20)
 
-**Estado:** pendente. **Branch:** `cp3-i03`. **Issue:** #13.
+**Estado:** concluída na branch, aguardando PR e merge (texto da PR em `andamento/PR-CP3-I03.md`). **Branch:** `cp3-i03`. **Issue:** #13.
 
-- [ ] Publicação confirmada, fila durável e mensagens persistentes (5)
-- [ ] Worker processa; consumo confirmado só depois de salvar (5)
-- [ ] Conclusão e resultado consistentes; falha definitiva registrada (5)
-- [ ] Duplicata reconhecida sem novo efeito, com proteção persistente (5)
+- [x] Publicação confirmada, fila durável e mensagens persistentes (5): `ReportQueueTopologyTests`, `ReportMessageTests`, `RabbitMqOptionsTests`, `MessagingRegistrationTests`; RabbitMQ real: `202` só depois da confirmação, fila durável (`durable` verdadeiro, `auto_delete` e `exclusive` falsos), mensagem persistente (`delivery_mode` 2) só com o `reportId`, broker parado dá `503` com o `id` e `Pending`
+- [x] Worker processa; consumo confirmado só depois de salvar (5): `ReportMessageProcessorTests`, `ReportDeliveryTests` (nenhum ponto de falha de gravação chega a ack); RabbitMQ real: com o `Processing` visível a mensagem está sem ack (`0 1 1`), o worker é morto e a mensagem volta (`1 0 0`)
+- [x] Conclusão e resultado consistentes; falha definitiva registrada (5): `Completed` e resultado numa só chamada (teste e `CHECK` do banco), resultado igual ao da calculadora, `Failed` com `InvalidRequest` e mensagem fixa; RabbitMQ real: exemplo da apostila (`Mine` 3 e 175,00; `Global` 4 e 375,00), falha definitiva confirmada uma só vez
+- [x] Duplicata reconhecida sem novo efeito, com proteção persistente (5): processador novo sobre o mesmo estado continua `Duplicate`; RabbitMQ real: worker reiniciado e mensagem republicada, linha do banco idêntica byte a byte
 
-Apoio: publicação sem confirmação testada (503, id persistido, `Pending`); decisão ack/nack numa classe testável (ponto 24); política de falha transitória e retomada de `Processing` documentadas; SQLite com WAL e espera de bloqueio; aprovação do pacote do cliente RabbitMQ (versão e licença) no plano.
+Apoio, tudo verificado: decisão ack/nack numa classe pura (`ReportDelivery`); política de falha transitória (espera de 5 s e devolve, sem limite e sem laço quente) e retomada de `Processing` (recalcula, não regrava o início); SQLite com `busy_timeout` antes do WAL (spike com dois processos abrindo um banco sem WAL, sem erro em nenhuma das duas ordens) e espera por bloqueio medida; pacote `RabbitMQ.Client` 7.2.2 (aprovado no plano); logs por `reportId` sem segredos; janela sem Transactional Outbox e `503` sem garantia de que a mensagem não chegou documentados; web e worker no mesmo arquivo de banco, por caminho absoluto em variável de ambiente (README e CHECKPOINT-3); `docker run` do RabbitMQ com volume nomeado e a explicação de onde o broker guarda os dados.
+
+Resultados: build 0 avisos e 0 erros nos três projetos; 1086 testes aprovados (936 da base e 150 novos); duas mutações (10 e 5 testes quebrados), desfeitas; script de qualidade 100/100 (achado informativo `FIAP0002`); spike em SQLite real (22 conferências, mais a medição da espera e a corrida de dois processos); validação real com RabbitMQ 4.4.0 em contêiner (65 conferências aprovadas em 7 cenários). Pendências: o contêiner `expensehub-i03-rabbitmq` ficou parado e o volume do projeto `expensehub-i03` continua no Docker (a limpeza é do Renan); imagens, Compose e a fixação da versão do RabbitMQ na CP3-I05; completar o `.http` e o dossiê na CP3-I06.
 
 ### CP3-I04: Testes próprios significativos (15)
 

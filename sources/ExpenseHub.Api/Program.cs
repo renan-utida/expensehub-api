@@ -21,6 +21,7 @@ internal static class Program
         builder.Services.AddExpenseHubIdentity();
         builder.Services.AddExpenseHubIdentitySeed(builder.Configuration);
         builder.Services.AddExpenseHubExpenses();
+        builder.Services.AddExpenseHubMessaging(builder.Configuration);
         builder.Services.AddExpenseHubReports();
 
         WebApplication app = builder.Build();
