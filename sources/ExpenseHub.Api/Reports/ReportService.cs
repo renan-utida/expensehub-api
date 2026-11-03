@@ -13,8 +13,8 @@ namespace ExpenseHub.Api.Reports;
 /// Rules of requesting a report, of following it, and of downloading its Excel file. The requester, the identifier, the state
 /// and the instants always come from the caller (the token) and the server clock, never from the client data. Reading is
 /// always limited to the requests of the caller: a request of someone else looks the same as one that does not exist.
-/// Reading never calculates anything: the result is the one that was saved. This class does not decide which role may ask
-/// for which scope; that rule belongs to the authorization issue (CP3-I02).
+/// Reading never calculates anything: the result is the one that was saved. Which role may ask for which scope is decided by
+/// <see cref="ReportAccess"/>; reading needs no role, only ownership.
 /// </summary>
 public partial class ReportService
 {
@@ -43,9 +43,11 @@ public partial class ReportService
     }
 
     /// <summary>
-    /// Registers a report request and publishes its message. The answers follow this order: invalid data (nothing is saved
-    /// and nothing is published), the storage fails (no request and no identifier exist), the request is saved, then the
+    /// Registers a report request and publishes its message. The answers follow this order: no role of the caller may request
+    /// a report (forbidden), invalid data (nothing is saved and nothing is published), the roles of the caller do not allow
+    /// the scope (forbidden), the storage fails (no request and no identifier exist), the request is saved, then the
     /// broker confirms the message (accepted) or does not (the request stays <c>Pending</c> and is not marked as failed).
+    /// The order is the one of the endpoint, so the rule does not depend on the attribute of the route alone.
     /// </summary>
     /// <param name="caller">The authenticated user, taken from the token. It becomes the requester.</param>
     /// <param name="details">The fields chosen by the client.</param>
@@ -56,11 +58,25 @@ public partial class ReportService
         ArgumentException.ThrowIfNullOrWhiteSpace(caller.UserId);
         ArgumentNullException.ThrowIfNull(details);
 
+        if (!ReportAccess.HasRequestRole(caller))
+        {
+            LogRoleRefused();
+
+            return ReportOperationResult.Forbidden();
+        }
+
         IReadOnlyList<ReportValidationError> errors = ReportRules.Validate(details);
 
         if (errors.Count > 0 || !ReportRules.TryParseScope(details.Scope, out ReportScope scope))
         {
             return ReportOperationResult.Invalid(errors);
+        }
+
+        if (!ReportAccess.CanRequest(caller, scope))
+        {
+            LogScopeRefused(scope);
+
+            return ReportOperationResult.Forbidden();
         }
 
         var report = new ReportRequest
@@ -165,6 +181,12 @@ public partial class ReportService
 
         return ReportExcelResult.Ready(ReportExcelWriter.FileNameFor(report.Id), ReportExcelWriter.Build(report, summary));
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A report request was refused: no role of the user may request a report.")]
+    private partial void LogRoleRefused();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A report request was refused: the roles of the user may not request the scope {Scope}.")]
+    private partial void LogScopeRefused(ReportScope scope);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Report {ReportId} registered and published.")]
     private partial void LogPublished(Guid reportId);

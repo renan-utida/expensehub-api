@@ -50,12 +50,12 @@ public sealed class ReportServiceRequestTests
     {
         (ReportService service, _, FakeReportPublisher publisher) = Create();
 
-        await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details());
+        await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), ReportTestData.Details());
 
         Assert.IsTrue(publisher.SavedAtLastPublish);
     }
 
-    /// <summary>The scope is saved as the client chose it.</summary>
+    /// <summary>The scope is saved as the client chose it. The user has both roles, so the choice is the client's; the roles are tested apart.</summary>
     /// <param name="scopeName">The name of the scope.</param>
     /// <param name="expected">The scope.</param>
     [TestMethod]
@@ -65,7 +65,7 @@ public sealed class ReportServiceRequestTests
     {
         (ReportService service, FakeReportRepository repository, _) = Create();
 
-        await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details(scopeName));
+        await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee", "Auditor"), ReportTestData.Details(scopeName));
 
         Assert.AreEqual(expected, repository.Reports.Single().Scope);
     }
@@ -76,7 +76,7 @@ public sealed class ReportServiceRequestTests
     {
         (ReportService service, FakeReportRepository repository, _) = Create();
 
-        await service.RequestAsync(ReportTestData.Caller("user-from-the-token"), ReportTestData.Details());
+        await service.RequestAsync(ReportTestData.Caller("user-from-the-token", "Employee"), ReportTestData.Details());
 
         Assert.AreEqual("user-from-the-token", repository.Reports.Single().RequesterId);
         Assert.IsFalse(typeof(ReportRequestDetails).GetProperties().Any(property => property.Name.Contains("Requester", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Owner", StringComparison.OrdinalIgnoreCase)));
@@ -87,7 +87,7 @@ public sealed class ReportServiceRequestTests
     public async Task RequestAsync_SameDataTwice_CreatesTwoReportsWithDifferentIdentifiers()
     {
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
-        ExpenseCaller caller = ReportTestData.Caller(ReportTestData.Requester);
+        ExpenseCaller caller = ReportTestData.Caller(ReportTestData.Requester, "Employee");
 
         ReportOperationResult first = await service.RequestAsync(caller, ReportTestData.Details());
         ReportOperationResult second = await service.RequestAsync(caller, ReportTestData.Details());
@@ -104,7 +104,7 @@ public sealed class ReportServiceRequestTests
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
         var details = new ReportRequestDetails(ReportTestData.To, ReportTestData.From, "Mine");
 
-        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), details);
+        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), details);
 
         Assert.AreEqual(ReportOperationStatus.ValidationFailed, result.Status);
         Assert.IsNull(result.Report);
@@ -119,7 +119,7 @@ public sealed class ReportServiceRequestTests
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
 
         ReportOperationResult result = await service.RequestAsync(
-            ReportTestData.Caller(ReportTestData.Requester),
+            ReportTestData.Caller(ReportTestData.Requester, "Employee"),
             new ReportRequestDetails(null, null, "Mine"));
 
         Assert.AreEqual(ReportOperationStatus.ValidationFailed, result.Status);
@@ -140,7 +140,7 @@ public sealed class ReportServiceRequestTests
     {
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
 
-        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details(scope));
+        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), ReportTestData.Details(scope));
 
         Assert.AreEqual(ReportOperationStatus.ValidationFailed, result.Status);
         Assert.AreEqual(ReportRules.ScopeField, result.Errors.Single().Field);
@@ -154,7 +154,7 @@ public sealed class ReportServiceRequestTests
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
         publisher.Result = ReportPublishResult.NotConfirmed;
 
-        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details());
+        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), ReportTestData.Details());
 
         Assert.AreEqual(ReportOperationStatus.NotPublished, result.Status);
         ReportRequest saved = repository.Reports.Single();
@@ -172,7 +172,7 @@ public sealed class ReportServiceRequestTests
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
         publisher.ThrowOnPublish = true;
 
-        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details());
+        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), ReportTestData.Details());
 
         Assert.AreEqual(ReportOperationStatus.NotPublished, result.Status);
         Assert.AreEqual(repository.Reports.Single().Id, result.Report!.Id);
@@ -186,7 +186,7 @@ public sealed class ReportServiceRequestTests
         (ReportService service, FakeReportRepository repository, FakeReportPublisher publisher) = Create();
         repository.FailOnAdd = true;
 
-        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester), ReportTestData.Details());
+        ReportOperationResult result = await service.RequestAsync(ReportTestData.Caller(ReportTestData.Requester, "Employee"), ReportTestData.Details());
 
         Assert.AreEqual(ReportOperationStatus.StorageUnavailable, result.Status);
         Assert.IsNull(result.Report);

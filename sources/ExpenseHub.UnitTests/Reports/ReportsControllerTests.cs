@@ -109,12 +109,29 @@ public sealed class ReportsControllerTests
         Assert.IsFalse(problem.Extensions.ContainsKey("id"));
     }
 
+    /// <summary>When the roles of the user do not allow the scope, the answer is 403 with no identifier and no result; it is not a 202, a 400 or a 503.</summary>
+    [TestMethod]
+    public async Task RequestAsync_Forbidden_Returns403WithoutAnIdentifier()
+    {
+        var service = new FakeReportService { RequestResult = ReportOperationResult.Forbidden() };
+
+        IActionResult result = await NewController(service, UserId, "Employee").RequestAsync(ValidBody("Global"));
+
+        ObjectResult objectResult = Assert.IsInstanceOfType<ObjectResult>(result);
+        Assert.AreEqual(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        ProblemDetails problem = Assert.IsInstanceOfType<ProblemDetails>(objectResult.Value);
+        Assert.AreEqual(StatusCodes.Status403Forbidden, problem.Status);
+        Assert.IsFalse(problem.Extensions.ContainsKey("id"));
+        Assert.IsNotNull(problem.Title);
+    }
+
     /// <summary>A request that was not published is never answered with 202.</summary>
     /// <param name="outcome">The outcome of the service.</param>
     [TestMethod]
     [DataRow(ReportOperationStatus.NotPublished)]
     [DataRow(ReportOperationStatus.StorageUnavailable)]
     [DataRow(ReportOperationStatus.ValidationFailed)]
+    [DataRow(ReportOperationStatus.Forbidden)]
     public async Task RequestAsync_AnythingButAccepted_IsNeverA202(ReportOperationStatus outcome)
     {
         var service = new FakeReportService();
@@ -122,6 +139,7 @@ public sealed class ReportsControllerTests
         {
             ReportOperationStatus.NotPublished => ReportOperationResult.NotPublished(ReportTestData.Report(UserId)),
             ReportOperationStatus.StorageUnavailable => ReportOperationResult.StorageUnavailable(),
+            ReportOperationStatus.Forbidden => ReportOperationResult.Forbidden(),
             _ => ReportOperationResult.Invalid([new ReportValidationError("Scope", "The scope is required.")]),
         };
 

@@ -20,6 +20,9 @@ public enum ReportOperationStatus
 
     /// <summary>The storage failed before the request was saved, so there is no request and no identifier.</summary>
     StorageUnavailable,
+
+    /// <summary>The roles of the user may not request a report, or may not request this scope. Nothing was saved and nothing was published.</summary>
+    Forbidden,
 }
 
 /// <summary>
@@ -55,4 +58,9 @@ public sealed record ReportOperationResult(
     /// <returns>The result.</returns>
     public static ReportOperationResult StorageUnavailable() =>
         new(ReportOperationStatus.StorageUnavailable, null, Array.Empty<ReportValidationError>());
+
+    /// <summary>Builds the result of a request that the roles of the user do not allow.</summary>
+    /// <returns>The result.</returns>
+    public static ReportOperationResult Forbidden() =>
+        new(ReportOperationStatus.Forbidden, null, Array.Empty<ReportValidationError>());
 }

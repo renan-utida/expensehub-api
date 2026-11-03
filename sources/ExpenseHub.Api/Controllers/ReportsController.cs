@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Expenses;
+using ExpenseHub.Api.Identity;
 using ExpenseHub.Api.Reports;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,14 +15,17 @@ namespace ExpenseHub.Api.Controllers;
 
 /// <summary>
 /// Asynchronous reports of expenses by period: requesting one, following its progress and downloading its Excel file.
-/// Every route needs an authenticated user, and the user only sees the reports he or she requested. The requester always
-/// comes from the token, never from the body. Which role may ask for which scope is decided by the authorization issue (CP3-I02).
+/// Every route needs an authenticated user, and the user only sees the reports he or she requested, even an <c>Auditor</c>.
+/// The requester always comes from the token, never from the body. Requesting needs the <c>Employee</c> or the
+/// <c>Auditor</c> role, and the scope must be allowed to the roles (<c>Mine</c> for <c>Employee</c>, <c>Global</c> for
+/// <c>Auditor</c>, see <see cref="ReportAccess"/>); listing, reading and downloading need no role, only ownership.
 /// </summary>
 [ApiController]
 [Route("api/reports")]
 [Authorize]
 public sealed class ReportsController : ControllerBase
 {
+    private const string ForbiddenTitle = "Your roles do not allow you to request a report of this scope.";
     private const string NotFoundTitle = "Report not found.";
     private const string NotCompletedTitle = "The report is not completed.";
     private const string NotPublishedTitle = "The report was registered, but it could not be sent for processing.";
@@ -44,12 +48,16 @@ public sealed class ReportsController : ControllerBase
     /// </summary>
     /// <param name="request">The first day, the last day and the scope.</param>
     /// <returns>
-    /// <c>202</c> with the <c>Location</c> of the report and its envelope; <c>400</c> for invalid dates or scope, with nothing
-    /// saved and nothing published; <c>401</c> without a token; <c>503</c> with the identifier of the saved report when the
-    /// broker did not confirm the message (the report stays pending), or <c>503</c> without an identifier when the report
-    /// could not be saved.
+    /// The answers follow a fixed order: <c>401</c> without a token; <c>403</c> when the user has neither the <c>Employee</c>
+    /// nor the <c>Auditor</c> role (the attribute of the route, which runs before the body is read, so it comes before any
+    /// <c>400</c>); <c>400</c> for invalid dates or scope, with nothing saved and nothing published; <c>403</c> when the roles
+    /// of the user do not allow the scope asked for (<c>Global</c> without <c>Auditor</c>, <c>Mine</c> without
+    /// <c>Employee</c>); then <c>202</c> with the <c>Location</c> of the report and its envelope, or <c>503</c> with the
+    /// identifier of the saved report when the broker did not confirm the message (the report stays pending), or <c>503</c>
+    /// without an identifier when the report could not be saved.
     /// </returns>
     [HttpPost]
+    [Authorize(Roles = AppRoles.ReportRequesters)]
     public async Task<IActionResult> RequestAsync([FromBody] CreateReportRequest request)
     {
         var details = new ReportRequestDetails(request.FromDate, request.ToDate, request.Scope);
@@ -69,6 +77,11 @@ public sealed class ReportsController : ControllerBase
                 }
 
                 return ValidationProblem(ModelState);
+
+            case ReportOperationStatus.Forbidden:
+                return Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: ForbiddenTitle);
 
             case ReportOperationStatus.NotPublished:
                 ProblemDetails notPublished = ProblemDetailsFactory.CreateProblemDetails(

@@ -1,4 +1,5 @@
 using System;
+using ExpenseHub.Api.Domain.Entities;
 using ExpenseHub.Api.Domain.Enums;
 
 namespace ExpenseHub.Api.Reports;
@@ -43,4 +44,19 @@ public sealed class ReportQuery
 
     /// <summary>Gets the last day of the period, inclusive.</summary>
     public DateOnly ToDate { get; }
+
+    /// <summary>
+    /// Builds the query of a report from the request that was saved. This is the only way the worker gets the scope, the
+    /// requester and the period: it never reads the roles of the user again and never trusts the content of the message,
+    /// which carries only the identifier. A <c>Mine</c> report therefore adds up the expenses of the requester that was
+    /// recorded when the request was accepted, and nobody else's.
+    /// </summary>
+    /// <param name="report">The saved request.</param>
+    /// <returns>The query, with the scope, the requester and the period of the saved request.</returns>
+    public static ReportQuery From(ReportRequest report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        return new ReportQuery(report.Scope, report.RequesterId, report.FromDate, report.ToDate);
+    }
 }
