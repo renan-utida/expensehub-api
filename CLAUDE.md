@@ -9,8 +9,7 @@ ExpenseHub is a FIAP C# project: a corporate expense-reimbursement REST API buil
 The current work is **CP3 (Checkpoint 3), "ExpenseHub em operação"**, due **2026-11-04 at 23:59 on Teams** (the apostila and the central issues say "04/10" by mistake; Teams says November 4). Renan does CP3 alone, in this same repository. CP3 adds asynchronous expense reports: the web app registers a request and publishes a message to RabbitMQ, a separate C# worker consumes it, calculates and persists the result, the user tracks progress and downloads an Excel (.xlsx) file. Everything must run from two published Docker images (web and worker) with Docker Compose.
 
 Where the specs live:
-- `andamento/PROGRESSO.md`: temporary working file with the distilled CP3 contract, the technical watch points, the status table and one section per issue. Read it fully before every issue and update it when you finish.
-- `andamento/requisitos/`: the CP3 apostila and slides (HTML, the authority when in doubt) and `issues-cp3.md`, the text of the central issues #11 to #18 exactly as the professor published them (each one repeats its part of the contract). Do not dump whole files: convert the HTML to text outside the repository (for example with `sed` into a scratch file) and read only the part about the issue in hand.
+- The CP3 contract is in the central issues #11 to #18 of the professor's repository (`Racass/checkpoint-csharpracass-expensehub`); `CHECKPOINT-3.md` records what was decided and proved, issue by issue.
 - `docs/` (Portuguese) is the CP2 spec and still binds the existing behavior. Read it when a change touches existing features:
   - `docs/REQUISITOS.md`: roles, entities, field validations, state machine, endpoints, HTTP status contract.
   - `docs/MATRIZ-AUTORIZACAO.md`: authorization matrix and mandatory negative cases.
@@ -40,7 +39,7 @@ The commands for the worker, RabbitMQ and Docker Compose are added to the README
 - Warnings are not errors, but full Code Quality score requires **zero warnings**. The CI script (`.github/workflows/build.yml` -> `scripts/Invoke-CodeQuality.ps1`) deducts per distinct `IDE*`/`CA*` ID and per FIAP rule. Notable FIAP rules to avoid: tracked `bin/obj/.vs`/binaries, secrets or connection strings with credentials in versioned config, plaintext passwords, `CountAsync() > 0` (use `AnyAsync`), `Thread.Sleep`, synchronous DB queries in controllers, entities bound directly as API input (use DTOs), DTOs without data-annotation validation, leftover `WeatherForecast` scaffolding, failing tests.
 - `.editorconfig` style highlights: file-scoped namespaces, braces always required, no `this.` qualification, `_camelCase` private fields, explicit accessibility modifiers, usings outside namespace with `System` first, explicit types for built-ins (`var` elsewhere). `**/Migrations/*.cs` is treated as generated code.
 - Unit tests (MSTest 4, `ExpenseHub.UnitTests`, method-level parallelization) must run without a database, network, RabbitMQ or Docker. Only unit tests count toward the grade. Never use EF Core InMemory or SQLite in-memory in unit tests (professor's guidance): data access sits behind repository interfaces and unit tests use fakes or mocks of them. The database is checked by the manual evidence documented in the README; the repository has no functional tests. The Excel file is built in memory and re-opened with the same library in tests; the broker is replaced by a hand-written fake publisher.
-- CP3 is graded by objective rubric units (see `andamento/PROGRESSO.md`). A unit only counts when behavior and evidence match the requirement. Quantity of tests and coverage percentage give no points.
+- CP3 is graded by objective rubric units (see the criteria table of each issue in `CHECKPOINT-3.md`). A unit only counts when behavior and evidence match the requirement. Quantity of tests and coverage percentage give no points.
 
 ## Architecture rules from the CP2 spec (still valid)
 
@@ -71,7 +70,7 @@ The commands for the worker, RabbitMQ and Docker Compose are added to the README
 
 The goal is few messages and no rework. Follow these steps for every issue.
 
-1. **Start.** Read `andamento/PROGRESSO.md` fully and the apostila part for the issue. Check `git branch --show-current` (it must be the issue branch named in the PROGRESSO table; if not, stop and tell the developer) and `git status` (clean, except files this issue will create).
+1. **Start.** Read `CHECKPOINT-3.md` and the text of the central issue. Check `git branch --show-current` (it must be the issue branch named in the status table of the README; if not, stop and tell the developer) and `git status` (clean, except files this issue will create).
 2. **Plan once.** In plan mode, produce a single plan that lists: the rubric units of the issue and how each one will be proven; files to create or change; new packages (name, version, license); the unit tests by name and the rule each one checks; the commands you will run; risks and open questions; documentation to update; and the suggested commit groups. Do not edit anything before the plan is approved.
 3. **Execute everything.** After approval, carry out the whole plan without asking for confirmation again. Run `dotnet build` and `dotnet test` yourself and fix failures yourself. Run the quality script after `git add -A` (staging only, to feed the script; never commit) and read the finding IDs, not only the score.
 4. **Stop and ask only when:** a package is needed that the plan did not approve; a protected file would have to change; the spec and the CP2 behavior conflict; a decision cannot be undone and could reasonably go either way; the build or tests still fail after three honest attempts; something needs a secret; or you find a CP2 defect that blocks the issue (describe it; fix it only if the issue cannot work without it, and say so).
@@ -87,15 +86,15 @@ The goal is few messages and no rework. Follow these steps for every issue.
 6. Decisions taken and deviations from the plan.
 7. Risks and pending items.
 8. Suggested commits: ready-to-run commands, one block per commit (`git add <paths>` then `git commit -m "..."`), English messages, conventional style, issue id in parentheses at the end of the first line. Because the index may be fully staged by step 3, start with `git reset` and say so.
-9. Pull request text: write it to `andamento/PR-CP3-INN.md` (Portuguese, with the checklist from `docs/PROCESSO-GITHUB.md` unticked) and only say the file name here.
-10. What you updated in `andamento/PROGRESSO.md`, `CHECKPOINT-3.md` and `README.md`.
+9. Pull request text: write it to a file outside the repository that the developer names (Portuguese, with the checklist from `docs/PROCESSO-GITHUB.md` unticked) and only say the file name here; if it cannot be written there, print it in the report.
+10. What you updated in `CHECKPOINT-3.md` and `README.md`.
 
 ## Organization of the documentation
 
 - `README.md` is the landing page: what the project is, a team table with one column per checkpoint (Renan: CP2 and CP3; Pedro: CP2 only), how to run the current version, endpoints, tests, a short section per checkpoint with a link to its record, and the requirement table of each issue with its status and PR.
 - `CHECKPOINT-2.md` is the frozen record of everything done in CP2 (Pedro's name stays there). Only fix links in it.
 - `CHECKPOINT-3.md` is the CP3 record, filled issue by issue like CP2 was: per-issue detail, decisions, evidence, and the E01 to E05 dossier. It names only Renan.
-- At the end of each issue update: the status table in the README, the section of the issue in `CHECKPOINT-3.md`, and `andamento/PROGRESSO.md`.
+- At the end of each issue update: the status table in the README and the section of the issue in `CHECKPOINT-3.md`.
 
 ## Git workflow
 
@@ -127,7 +126,6 @@ The goal is few messages and no rework. Follow these steps for every issue.
 - Every new persisted `DateTimeOffset` needs the `UtcDateTimeOffsetConverter` (UTC ticks), otherwise `OrderBy`, `Max` and `Where` fail on SQLite.
 - Never assign a literal to a field, variable, property or JSON key whose name contains password, passwd, pwd, senha, secret, token or api key, not even in unit tests, `.http` files or example Compose files: the quality script flags it as FIAP1002 in tracked files, which caps the score at 9. Build test credentials at runtime (for example `new string('a', 12)`) or read them from configuration.
 - Docker: images are tagged with the full commit SHA, never `latest`. Never run `docker compose down -v`, `docker volume rm`, `docker volume prune` or `docker system prune`, and never delete the database or a volume to make something pass. The developer works on Windows with Git Bash: put `MSYS_NO_PATHCONV=1` before `docker` commands that receive Linux paths, so Git Bash does not rewrite them.
-- Keep `andamento/PROGRESSO.md` current. That folder is temporary and is removed in CP3-I07, together with this paragraph and the references to `andamento/` in this file.
 
 ## Decisions (keep status-code logic in one place; document new CP3 decisions in CHECKPOINT-3.md; the CP2 reasoning lives in CHECKPOINT-2.md)
 
