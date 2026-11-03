@@ -1,0 +1,97 @@
+# Docker Compose do ExpenseHub (CP3-I05): as duas imagens publicadas (web e worker) e o RabbitMQ.
+#
+# Uso (da raiz do repositório; os valores vêm do arquivo .env, criado a partir do .env.example):
+#   docker compose pull
+#   docker compose up -d
+#   docker compose ps
+#   docker compose logs --tail 80 worker
+#   docker compose stop worker
+#   docker compose up -d worker
+#   docker compose up -d --force-recreate web worker
+#
+# Nunca use "docker compose down -v", "docker volume rm" nem "prune": eles apagam o banco, as chaves e as mensagens.
+# As imagens são identificadas pelo commit: IMAGE_TAG é o SHA completo, sem o valor dentro deste arquivo e nunca "latest".
+
+name: expensehub
+
+# O que web e worker precisam ter IGUAL. O SQLite só é compartilhado se os dois abrirem o mesmo arquivo, pelo mesmo caminho
+# absoluto, no mesmo volume (o WAL exige o mesmo host e disco local). Usuário e senha do broker vêm só do ambiente.
+x-expensehub-environment: &expensehub-environment
+  ConnectionStrings__ExpenseHub: "Data Source=/data/expensehub.db"
+  RabbitMq__Host: rabbitmq
+  RabbitMq__UserName: "${RABBITMQ_USER:?Defina RABBITMQ_USER no arquivo .env}"
+  RabbitMq__Password: "${RABBITMQ_PASSWORD:?Defina RABBITMQ_PASSWORD no arquivo .env}"
+
+services:
+  rabbitmq:
+    # Versão fixada: tag e digest da imagem que a CP3-I03 validou (RabbitMQ 4.4.0 com o painel de gerenciamento).
+    image: rabbitmq:4.4.0-management@sha256:af6f50d38098d8bd52fef7f3fa85015dd8b2bf6def58e995bf584ae9ba0f6407
+    # O nome do nó do RabbitMQ vem do hostname e nomeia a pasta de dados. Com o hostname do Docker (que muda a cada contêiner
+    # novo) recriar o contêiner perderia a fila e as mensagens; com este valor fixo os dados do volume são reencontrados.
+    hostname: expensehub-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:?Defina RABBITMQ_USER no arquivo .env}"
+      # Esta variável já é exigida, com mensagem de erro, na linha RabbitMq__Password acima, e o Compose interpola o arquivo
+      # inteiro. Repetir a verificação aqui faria o script de qualidade ler o texto da mensagem como valor literal.
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD}"
+    ports:
+      # Só o painel de gerenciamento é publicado, e só em localhost. O AMQP (5672) fica na rede interna do Compose.
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      # Definições (a fila durável) e mensagens persistentes. RABBITMQ_DEFAULT_* só valem quando este volume nasce.
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  web:
+    image: "ghcr.io/renan-utida/expensehub-web:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA completo do commit}"
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *expensehub-environment
+      # Só o web prepara o banco (aplica as migrations pendentes antes do seed do Admin). O worker nunca migra.
+      Database__MigrateOnStartup: "true"
+      # Chaves do Data Protection no volume, para os tokens continuarem válidos depois de recriar o contêiner.
+      DataProtection__KeysPath: /keys
+      Seed__Admin__Email: "${ADMIN_EMAIL:?Defina ADMIN_EMAIL no arquivo .env}"
+      Seed__Admin__Password: "${ADMIN_PASSWORD:?Defina ADMIN_PASSWORD no arquivo .env}"
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    volumes:
+      - expensehub-data:/data
+      - expensehub-keys:/keys
+    healthcheck:
+      # A imagem aspnet não tem curl nem wget; o bash abre a conexão sozinho. O /health só responde depois das migrations e do
+      # seed, porque o servidor é o último a iniciar. O "$$" é o "$" do shell dentro do contêiner.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    image: "ghcr.io/renan-utida/expensehub-worker:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA completo do commit}"
+    restart: unless-stopped
+    # Dá tempo de terminar a mensagem em andamento antes de parar.
+    stop_grace_period: 30s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      <<: *expensehub-environment
+    volumes:
+      - expensehub-data:/data
+
+volumes:
+  rabbitmq-data:
+  expensehub-data:
+  expensehub-keys:
