@@ -34,12 +34,16 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 | Data | Tema | Decisão | Issue |
 |---|---|---|---|
 | 02/11/2026 | Estrutura de projetos | O worker referencia `ExpenseHub.Api`. A lógica de relatório fica na Api e o worker é fino (host e adaptador do RabbitMQ). Ele não registra o seed do Admin, os controllers nem a autenticação | CP3-I03 |
-| 02/11/2026 | Biblioteca de Excel | `DocumentFormat.OpenXml` (MIT). Versão, licença e dependências a conferir no NuGet antes de adicionar o pacote | CP3-I01 |
+| 02/11/2026 | Biblioteca de Excel | `DocumentFormat.OpenXml` 3.5.1 (MIT), com `DocumentFormat.OpenXml.Framework` 3.5.1 e `System.IO.Packaging` 10.0.2 (ambos MIT), conferidos no NuGet | CP3-I01 |
 | 02/11/2026 | POST sem publicador real | Responde `503` até existir o publicador do RabbitMQ; nunca `202` sem confirmação. Os testes usam um fake do publicador | CP3-I01 |
 | 02/11/2026 | Identificador | `Guid`, como `Expense.Id`, igual nas rotas, na mensagem e nas respostas | CP3-I01 |
 | 02/11/2026 | Versão das imagens | O workflow publica a cada push na `main`, com tag igual ao SHA completo; o commit final gera as suas próprias imagens | CP3-I05 |
 | 02/11/2026 | Arquivo `.http` | Nasce na CP3-I01 e é completado na CP3-I06; as credenciais vêm de um arquivo de ambiente ignorado pelo git | CP3-I01 e CP3-I06 |
 | 02/11/2026 | Migrações no Compose | A decidir no plano da CP3-I05, com só duas imagens publicadas e sem apagar dados | CP3-I05 |
+| 02/11/2026 | Resultado salvo | Uma coluna `ResultJson` na linha do pedido, com centavos inteiros; `Completed` e resultado numa só gravação | CP3-I01 |
+| 02/11/2026 | Cálculo | `ReportCalculator.Select` (consulta com o período inclusivo e o escopo) e `Summarize` (centavos); projeção estreita no banco, sem agrupar no SQL | CP3-I01 |
+| 02/11/2026 | Entrada e respostas | `scope` só pelo nome exato; `503` com `id` quando o broker não confirma (continua `Pending`) e `503` sem `id` quando o banco falha | CP3-I01 |
+| 02/11/2026 | Autorização da CP3-I01 | Só autenticação e dono; a regra de escopo por papel fica para a CP3-I02 | CP3-I01 |
 
 ## Fora de escopo do CP3
 
@@ -63,19 +67,47 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 
 ## Detalhe da CP3-I01: Contrato e resultado do relatório
 
-Issue central: [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11). Branch: `cp3-i01`. Pontos: 20. Estado: Pendente.
+Issue central: [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11). Branch: `cp3-i01`. Pontos: 20. Estado: Concluída. O fluxo real até `Completed` e o `202` com o RabbitMQ dependem da CP3-I03; nesta issue o `202` é provado por teste com um publicador falso que confirma, e o `Completed` por um registro gravado direto no banco.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Entrada, período e solicitação persistida conforme o contrato | 4 | Pendente | A preencher ao concluir a issue |
-| Listagem, detalhe e estados observáveis | 4 | Pendente | A preencher ao concluir a issue |
-| Resumo por estado e totais corretos, inclusive conjunto vazio | 8 | Pendente | A preencher ao concluir a issue |
-| Resultado e instante de geração salvos; consulta sem recálculo | 2 | Pendente | A preencher ao concluir a issue |
-| Excel válido, fiel ao resultado salvo e com o contrato de download | 2 | Pendente | A preencher ao concluir a issue |
+| Entrada, período e solicitação persistida conforme o contrato | 4 | Atendido | `CreateReportRequestTests` (22): só três campos, todos obrigatórios, período invertido, `scope` numérico e data `2026-02-30` recusados na leitura do JSON, `ownerId` e `requesterId` do corpo ignorados. `ReportRulesTests` (25). `ReportServiceRequestTests` (20): salva `Pending` para o usuário do token com `Guid` novo e instante do servidor, publica só depois de salvar, entrada inválida não salva nem publica, publicação sem confirmação mantém `Pending` e devolve o id, banco fora não devolve id. `ReportsControllerTests` (16): `202` com `Location`, `400`, `503`. HTTP real: 11 corpos inválidos dão `400` e a tabela fica com 0 linhas |
+| Listagem, detalhe e estados observáveis | 4 | Atendido | `ReportResponseTests` (11): os quatro estados preenchem só os campos certos, chaves exatas do contrato, instantes terminando em `Z`. `ReportServiceQueryTests` (11): lista só do usuário, mais nova primeiro, alheio igual a inexistente. HTTP real: lista com os dois pedidos, detalhe `Pending`, `Completed` e `Failed`, `404` para alheio, inexistente e id que não é `Guid` |
+| Resumo por estado e totais corretos, inclusive conjunto vazio | 8 | Atendido | `ReportCalculatorTests` (24): exemplo da apostila (`Mine` 3 e 175,00; `Global` 4 e 375,00), limites inclusivos, filtro por `ExpenseDate` e nunca pela criação, vazio com os cinco estados em zero, soma exata em centavos, cálculo somente leitura. SQLite real: o SQL tem o `WHERE` do período e do dono com projeção de `Status` e `AmountCents`, e o resultado é igual ao de um oráculo independente |
+| Resultado e instante de geração salvos; consulta sem recálculo | 2 | Atendido | `ReportResultSerializerTests` (20): ida e volta, centavos inteiros, rejeita resultado incoerente. `ReportServiceQueryTests`: depois de alterar reembolsos, o detalhe devolve o resultado salvo e as leituras de reembolso ficam em zero. SQLite real: o `ResultJson` volta igual, e um `CHECK` impede `Completed` sem resultado |
+| Excel válido, fiel ao resultado salvo e com o contrato de download | 2 | Atendido | `ReportExcelWriterTests` (9): pacote ZIP real, `OpenXmlValidator` sem erros, cabeçalhos, cinco estados em ordem, células numéricas iguais ao resultado salvo (zeros incluídos). `ReportServiceExcelTests` (11). HTTP real: `200` com o `Content-Type` do xlsx e `attachment; filename=report-{id}.xlsx`, ZIP válido; `409` para `Pending` e `Failed`; `404` para alheio |
 
-Decisões e como validar: a preencher ao concluir a issue.
+Decisões:
+
+- **Calculadora em duas peças e uma só regra.** `ReportCalculator.Select` é a consulta (período inclusivo por `ExpenseDate` e escopo): o SQLite a aplica antes de carregar qualquer despesa e os testes a aplicam a uma lista em memória. `Summarize` soma em centavos inteiros e converte para `decimal` só na saída. O repositório lê só `Status` e `Amount`, sem rastrear.
+- **Resultado em uma coluna.** `ReportRequest.ResultJson` guarda os centavos inteiros e o instante de geração, lidos e escritos só por `ReportResultSerializer`, que recusa resultado sem os cinco estados, com valor negativo ou com totais que não são a soma. Uma linha e uma gravação: `Completed` e o resultado nascem juntos (CP3-I03). A tabela filha com cinco linhas foi descartada por ter mais peças e nenhum ganho.
+- **Tabela `ReportRequests`.** O estado é *concurrency token*, como no `Expense`, e os três instantes usam o `UtcDateTimeOffsetConverter`. Três `CHECK`: período em ordem, `Completed` com resultado e `Failed` com código de erro. Índice por solicitante e criação.
+- **Entrada.** `scope` é aceito só como o nome exato `Mine` ou `Global`; número, texto numérico, outra caixa ou vazio dão `400`. A comparação é por nome, nunca por `Enum.TryParse`, que aceitaria números. As datas são `DateOnly?` obrigatórias, para que uma data ausente nunca vire o primeiro dia do calendário.
+- **Respostas.** `202` só com confirmação do broker. Sem confirmação: `503` com o `id` do pedido salvo, que continua `Pending` e nunca vira `Failed`. Banco indisponível ao registrar: `503` sem `id` e sem publicar. Relatório alheio e inexistente: o mesmo `404`. Excel de relatório próprio que não está `Completed`: `409`.
+- **Instantes com `Z`.** O envelope usa `DateTime` UTC e não `DateTimeOffset`, que sairia com `+00:00`.
+- **Publicação.** `IReportPublisher` devolve confirmado ou não confirmado, e a exceção `ReportPublishException` conta como não confirmado. Sem publicador real, `UnavailableReportPublisher` nunca confirma, então o `POST` responde `503` e nunca finge `202`. A CP3-I03 o substitui (registro com `TryAdd`).
+- **Autorização desta issue.** Só autenticação e dono: listar, detalhar e baixar mostram apenas o que o próprio usuário pediu. A regra de escopo por papel é da CP3-I02, e até lá qualquer usuário autenticado pode pedir `Global`.
+- **Excel.** `DocumentFormat.OpenXml` 3.5.1 (MIT, com `DocumentFormat.OpenXml.Framework` e `System.IO.Packaging`, também MIT). Uma folha "Resumo": identificador, escopo, data inicial, data final e instante de geração, depois `Estado | Quantidade | Valor`, os cinco estados e `Total geral`, com formato `0.00` nos valores.
+
+O que foi medido (SQLite real, em um experimento descartável fora do repositório, e HTTP real contra a aplicação em um banco temporário):
+
+- Aplicar as 4 migrations a um arquivo novo cria `ReportRequests` com as colunas, o índice `IX_ReportRequests_RequesterId_CreatedAtUtc` e os três `CHECK`.
+- Com 11 despesas semeadas (o exemplo da apostila, os limites de 31/08 e 01/10, os cinco estados e o maior valor possível), `Mine` dá 6 despesas e 235,00, e `Global` dá 9 e 2.147.484.082,01, iguais a um oráculo feito com laços simples. O SQL gerado é `SELECT "e"."Status", "e"."AmountCents" FROM "Expenses" AS "e" WHERE "e"."ExpenseDate" >= @fromDate AND "e"."ExpenseDate" <= @toDate AND "e"."OwnerId" = @requesterId`, e `Global` não tem o filtro de dono. Nenhuma entidade fica rastreada e a tabela de despesas é idêntica antes e depois do cálculo.
+- O agrupamento no banco (`GroupBy` com `COUNT` e `SUM` do `Amount` convertido) também traduz e devolve valores corretos (`SUM("e"."AmountCents")`, que o EF converte de volta em reais). Não foi adotado: a produção usa a projeção estreita e `Summarize`, exatamente o caminho coberto pelos testes unitários.
+- A lista sai da mais nova para a mais antiga pela coluna de ticks UTC, os instantes voltam com deslocamento zero, e o resultado salvo volta com os mesmos totais e o mesmo instante.
+- Os três `CHECK` rejeitam `Completed` sem resultado, `Failed` sem código e período invertido; `AddAsync` transforma a gravação rejeitada, e também um banco que não abre, em `ReportStorageException`. O estado é *concurrency token*: a segunda transição de `Pending` para `Processing` falha.
+- HTTP real (duas contas `Employee`): `401` sem token nas quatro rotas; `400` para corpo vazio, data ausente, data inexistente, formato errado, período invertido, `scope` `0`, `"0"`, `1`, desconhecido e `mine`, e corpo que não é JSON, sem nenhuma linha gravada; `POST` válido dá `503` com o `id` e o pedido fica `Pending`; `requesterId`, `ownerId` e `status` no corpo são ignorados (o solicitante gravado é o do token e o estado é `Pending`); o outro usuário recebe lista vazia e `404` no detalhe e no Excel; com o relatório gravado como `Completed`, o detalhe traz o resultado com instantes em `Z` e o Excel dá `200`; `Failed` dá `409` no Excel. O log tem o `reportId` e não tem senha nem token.
+
+Como validar:
+
+```shell
+dotnet test ./sources/ExpenseHub.slnx
+dotnet ef database update --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api
+```
+
+Para ver as rotas rodando, use `sources/ExpenseHub.Api/ExpenseHub.Api.http` com um usuário `Employee`; as credenciais ficam em `http-client.env.json.user`, que o git ignora.
 
 ## Detalhe da CP3-I02: Autorização e isolamento
 

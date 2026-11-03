@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para a disciplina de C# da FIAP (turma 3ESPW) com ASP.NET Core (.NET 10), Entity Framework Core e SQLite. O projeto evolui por checkpoints: o Checkpoint 2 entregou a API de reembolsos, e o Checkpoint 3 a coloca em operação, com relatórios assíncronos, RabbitMQ, um worker C# e execução por imagens Docker.
 
-Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) reorganiza a documentação, e as issues CP3-I01 a CP3-I07 ainda não começaram. Os comandos do worker, do RabbitMQ e do Docker Compose entram nas CP3-I03 e CP3-I05.
+Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) está na `main` (PR #11 da equipe), a CP3-I01 (rotas de relatório, cálculo, resultado salvo e Excel) está concluída na branch `cp3-i01`, e as issues CP3-I02 a CP3-I07 ainda não começaram. Até a CP3-I03 não existe publicador do RabbitMQ, então `POST /api/reports` salva o pedido e responde `503`. Os comandos do worker, do RabbitMQ e do Docker Compose entram nas CP3-I03 e CP3-I05.
 
 ## Sumário
 
@@ -50,7 +50,7 @@ O Checkpoint 3, ExpenseHub em operação, adiciona relatórios de reembolso ass�
 
 | Issue | Título | Requisito | Pontos | Estado | PR | Detalhe |
 |---|---|---|---:|---|---|---|
-| CP3-I01 (central [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11)) | Contrato e resultado do relatório | Rotas `POST` e `GET /api/reports`, validação de período e escopo, resumo por estado com totais, resultado salvo sem recálculo e download `.xlsx` | 20 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório) |
+| CP3-I01 (central [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11)) | Contrato e resultado do relatório | Rotas `POST` e `GET /api/reports`, validação de período e escopo, resumo por estado com totais, resultado salvo sem recálculo e download `.xlsx` | 20 | Concluída | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório) |
 | CP3-I02 (central [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12)) | Autorização e isolamento | `Mine` para Employee e `Global` para Auditor; listagem, detalhe e Excel só do solicitante (`404` para alheios); solicitante e escopo definidos pelo servidor | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento) |
 | CP3-I03 (central [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13)) | RabbitMQ, worker e idempotência | Fila durável, mensagens persistentes e confirmação de publicação; worker separado, ack só depois de salvar, duplicata sem novo efeito e falha definitiva registrada | 20 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) |
 | CP3-I04 (central [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14)) | Testes próprios significativos | Testes unitários de cálculo, conjunto vazio, período, negação, isolamento, duplicata, resultado persistido e Excel | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i04-testes-próprios-significativos) |
@@ -77,8 +77,21 @@ O Checkpoint 3, ExpenseHub em operação, adiciona relatórios de reembolso ass�
 | GET | `/api/expenses` | `Employee`, `Approver`, `Finance` ou `Auditor`. Lista as despesas do escopo do perfil, da mais nova para a mais antiga: Employee as próprias, Approver as `Submitted`, Finance as `Approved` e `Paid`, Auditor todas; roles acumuladas somam os filtros. O Admin sozinho e quem não tem role recebem `403`; sem token: `401` | I05 |
 | GET | `/api/expenses/{id}` | Mesmas roles da listagem. `200` com a despesa; inexistente ou fora do escopo: `404`, com a mesma resposta nos dois casos, para não revelar que o recurso existe; `403` para quem não lê despesas; `401` sem token | I05 |
 | GET | `/api/expenses/{id}/history` | Mesmas roles da listagem, com a visibilidade da despesa. `200` com as entradas do histórico, da mais antiga para a mais nova (`id`, `expenseId`, `action`, `actorId`, `occurredAtUtc`, `previousStatus`, `newStatus`, `reason` e `changes`), só com identificadores internos e sem e-mail; inexistente ou fora do escopo: `404`, com a mesma resposta nos dois casos; `403` para quem não lê despesas; `401` sem token | I08 |
+| POST | `/api/reports` | Qualquer usuário autenticado (a regra por role é da CP3-I02). Solicita um relatório com `{"fromDate": "2026-09-01", "toDate": "2026-09-30", "scope": "Mine"}`: as datas são `yyyy-MM-dd`, inclusivas e comparadas com `expenseDate`; `scope` é exatamente `Mine` ou `Global`. O solicitante vem do token (`ownerId` e `requesterId` no corpo são ignorados). Salva o pedido como `Pending`, publica a mensagem e só responde `202`, com `Location` e o envelope, depois que o broker confirma. Sem confirmação: `503` com o `id` do pedido salvo (que continua `Pending`). Banco indisponível: `503` sem `id`. Datas ou escopo inválidos, ausentes ou inexistentes, e `scope` numérico: `400`, sem salvar nem publicar; sem token: `401`. Até a CP3-I03 não existe publicador real, então a resposta é sempre `503` | CP3-I01 |
+| GET | `/api/reports` | Autenticado. `200` com os envelopes dos relatórios do próprio usuário, do mais novo para o mais antigo; relatórios de outros usuários nunca aparecem; sem token: `401` | CP3-I01 |
+| GET | `/api/reports/{id}` | Autenticado. `200` com o envelope (`id`, `scope`, `fromDate`, `toDate`, `status`, `createdAt`, `startedAt`, `completedAt`, `result` e `error`, com instantes em UTC terminando em `Z`) e o resultado que foi salvo, sem recalcular; relatório inexistente ou de outro usuário: `404`, com a mesma resposta nos dois casos; sem token: `401` | CP3-I01 |
+| GET | `/api/reports/{id}/excel` | Autenticado. `200` com a planilha `.xlsx` (`Content-Type` `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` e `Content-Disposition` `attachment` com `report-{id}.xlsx`), montada do resultado salvo; relatório próprio que não está `Completed` (`Pending`, `Processing` ou `Failed`): `409`; inexistente ou de outro usuário: `404`; sem token: `401` | CP3-I01 |
 
 Esta tabela lista todos os endpoints implementados.
+
+### Relatórios de reembolso (CP3-I01)
+
+- O cálculo soma em centavos inteiros e devolve os cinco estados (`Draft`, `Submitted`, `Approved`, `Rejected`, `Paid`), cada um com `count` e `amount`, sempre presentes e com zero quando vazios; `totalCount` e `totalAmount` são a soma dos estados. O período filtra `ExpenseDate`, com os dois limites inclusivos, e nunca a data de criação. O escopo `Mine` soma só as despesas do solicitante; `Global` soma as de todos.
+- O resultado fica salvo na própria linha do pedido (coluna `ResultJson`, com centavos inteiros e o instante de geração). Consultar, listar e baixar o Excel leem esse resultado e não leem as despesas de novo.
+- Biblioteca do Excel: `DocumentFormat.OpenXml` 3.5.1, licença MIT (traz `DocumentFormat.OpenXml.Framework` e `System.IO.Packaging`, também MIT). A planilha tem uma folha "Resumo" com identificador, escopo, período, instante de geração e a tabela dos cinco estados com o total geral; quantidades e valores são células numéricas.
+- A migration `AddReportRequests` cria a tabela `ReportRequests`: rode `dotnet ef database update` depois de atualizar o código.
+- Nesta issue só autenticação e dono são exigidos: o papel que pode pedir cada escopo (`Employee` para `Mine`, `Auditor` para `Global`) entra na CP3-I02, e até lá qualquer usuário autenticado pode pedir os dois. A publicação fica atrás de `IReportPublisher`; enquanto não houver publicador real, o `POST` responde `503` e o pedido fica `Pending`.
+- Requisições de exemplo estão em `sources/ExpenseHub.Api/ExpenseHub.Api.http`; as credenciais ficam num arquivo local `http-client.env.json.user`, que o git ignora.
 
 ## Como rodar
 
@@ -209,16 +222,21 @@ sources/
   ExpenseHub.Api/
     Program.cs                    inicialização, pipeline e GET /health
     appsettings.json
-    Controllers/                  AuthController (POST /register e /login), AdminUsersController, ExpensesController
+    Controllers/                  AuthController (POST /register e /login), AdminUsersController, ExpensesController, ReportsController
     Domain/
-      Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
-      Enums/                      ExpenseStatus, ExpenseHistoryAction
+      Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord, ReportRequest
+      Enums/                      ExpenseStatus, ExpenseHistoryAction, ReportScope, ReportStatus
     Expenses/                     ExpenseService (criar, editar, enviar, aprovar, reprovar, pagar e consultar, inclusive o histórico),
                                   ExpenseRules (contrato de validação),
                                   ExpenseVisibility e ExpenseScope (o que cada perfil lê),
                                   ExpenseAccess (a matriz de acesso: role, dono e estado numa regra só),
                                   BrazilTime, IExpenseRepository, MoneyAmountAttribute, RejectionReasonAttribute e os DTOs
                                   (ExpenseRequest, RejectExpenseRequest, ExpenseResponse, ExpenseHistoryResponse e PaymentResponse)
+    Reports/                      ReportService (pedir, listar, consultar e baixar o Excel de um relatório do próprio usuário),
+                                  ReportCalculator (a regra de quais despesas entram, como consulta, e a soma em centavos),
+                                  ReportRules e CreateReportRequest (validação), ReportResultSerializer (o resultado salvo),
+                                  ReportExcelWriter (a planilha), IReportRepository, IReportPublisher (o broker fica atrás
+                                  dela; UnavailableReportPublisher nunca confirma) e os DTOs (ReportResponse e derivados)
     Identity/                     registro do Identity e do bearer, DTOs, AppRoles, o seed, UserAccountService
                                   (regras de cadastro e de roles) e a validação do SecurityStamp
     Persistence/
@@ -227,17 +245,19 @@ sources/
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
-      Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken e snapshot (gerados)
-      Repositories/               ExpenseRepository (EF Core) e SqliteConstraintErrors (classifica os erros do SQLite)
+      Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken, AddReportRequests e snapshot (gerados)
+      Repositories/               ExpenseRepository e ReportRepository (EF Core) e SqliteConstraintErrors (classifica os erros do SQLite)
   ExpenseHub.UnitTests/
     Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório,
                                   e do controller de despesas (contrato HTTP) e dos papéis dos endpoints de despesas e de administração de usuários, com fake do serviço
     Identity/                     testes do seed, do cadastro, das roles, das validações e do middleware do SecurityStamp,
                                   com fakes das stores e do gerenciador de usuários
     Persistence/                  testes das conversões e da classificação dos erros do SQLite
+    Reports/                      testes da calculadora, das regras, do corpo da requisição, do resultado salvo, do serviço, do Excel,
+                                  do envelope e do controller de relatórios, com fakes do repositório, do publicador e do serviço
 ```
 
-As entidades são classes simples, sem métodos nem regras de negócio. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`. As regras de despesa ficam em `ExpenseService` e `ExpenseRules`, que dependem de `IExpenseRepository` e de um `TimeProvider`; a implementação com EF Core é `ExpenseRepository`. O serviço nunca recebe `DbContext`. O código de erro do SQLite só aparece em `SqliteConstraintErrors`, uma função pura sobre números, testada sem banco, que o repositório usa para converter a violação do índice único em conflito.
+As entidades são classes simples, sem métodos nem regras de negócio. A regra do seed fica em `IdentitySeeder`, que depende da interface `IIdentitySeedStore`; a implementação com `UserManager` e `RoleManager` é `IdentitySeedStore`. As regras de cadastro e de roles ficam em `UserAccountService`, que depende de `IUserAccountStore`; a implementação com EF Core e Identity é `UserAccountStore`. As regras de despesa ficam em `ExpenseService` e `ExpenseRules`, que dependem de `IExpenseRepository` e de um `TimeProvider`; a implementação com EF Core é `ExpenseRepository`. As regras de relatório seguem o mesmo molde: `ReportService` depende de `IReportRepository`, de `IReportPublisher` e de um `TimeProvider`, e `ReportCalculator` é uma classe estática pura, sem EF Core. O serviço nunca recebe `DbContext`. O código de erro do SQLite só aparece em `SqliteConstraintErrors`, uma função pura sobre números, testada sem banco, que o repositório usa para converter a violação do índice único em conflito.
 
 ## Testes
 
@@ -249,6 +269,7 @@ dotnet test ./sources/ExpenseHub.slnx
 - Os testes da I01 chamam funções estáticas puras. Os do seed, de `UserAccountService`, de `ExpenseService`, do controller de despesas e do middleware do `SecurityStamp` usam fakes escritos à mão (das stores, do repositório, do serviço, do gerenciador de usuários e da fábrica de `ProblemDetails`) e um relógio fixo escrito à mão (`TimeProvider`). Nenhum usa tipos do EF Core, e nenhum usa Moq.
 - O pipeline real de `401` e `403`, o login com o `SignInManager`, a leitura do token pelo host e a gravação no banco dependem do host e do banco, então foram validados à mão (seções da I02 à I08 do [CHECKPOINT-2.md](CHECKPOINT-2.md)). O controller de despesas e o middleware do `SecurityStamp` têm testes unitários com fakes; o que a suíte deixa de fora está em [O que a suíte não cobre](CHECKPOINT-2.md#o-que-a-suíte-não-cobre).
 - Não usamos EF Core InMemory nem SQLite em memória nos testes unitários.
+- CP3-I01: a suíte passa de 611 para 788 testes aprovados. Os 177 novos são de relatórios: calculadora 24, resultado salvo 20, regras 25, corpo da requisição 22, solicitação 20, consulta 11, Excel pelo serviço 11, escritor do Excel 9, envelope 11, controller 16, autenticação das rotas 3 e publicador 5. A tradução da consulta para SQL, as restrições da tabela e o download real foram conferidos à mão contra o SQLite (veja a seção da CP3-I01 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório)).
 
 Para rodar um teste ou uma classe:
 
@@ -276,6 +297,7 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I08: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 563 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #8 (execução #46): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I09: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #9 (execução #55): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - I10: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A I10 não altera código, pacotes, workflow, script nem analisadores. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #10 (execução #60): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
+- CP3-I01: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 788 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. O único achado é o informativo `FIAP0002` (Gitleaks ignorado). Um primeiro passe do script deu 99 por `IDE1006` (campos `private static readonly` sem o prefixo `_`), corrigido antes da PR. O score oficial do workflow entra aqui quando a PR existir.
 - Nenhum aviso é suprimido no código da equipe (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`). Os 4 arquivos de migration gerados pelo `dotnet ef` (os três `.Designer.cs` e o `ExpenseHubDbContextModelSnapshot.cs`) trazem o `#pragma warning disable 612, 618` do gerador e são tratados como código gerado pelo `.editorconfig`.
 
 ## Solução de problemas
