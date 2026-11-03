@@ -37,6 +37,23 @@ public sealed class ReportResponseTests
         Assert.IsNull(envelope.Error);
     }
 
+    /// <summary>The state decides whether the envelope has a result: a report that is not completed shows none, even if a result happens to be saved with it.</summary>
+    /// <param name="status">The state of the report.</param>
+    [TestMethod]
+    [DataRow(ReportStatus.Pending)]
+    [DataRow(ReportStatus.Processing)]
+    [DataRow(ReportStatus.Failed)]
+    public void From_ReportNotCompletedWithAResultSaved_HasNoResult(ReportStatus status)
+    {
+        ReportRequest report = ReportTestData.Report(ReportTestData.Requester, status);
+        report.ResultJson = ReportResultSerializer.Serialize(ReportTestData.MineSummary());
+
+        ReportResponse envelope = ReportResponse.From(report);
+
+        Assert.AreEqual(status.ToString(), envelope.Status);
+        Assert.IsNull(envelope.Result);
+    }
+
     /// <summary>A processing report has the start instant and still no result.</summary>
     [TestMethod]
     public void From_ProcessingReport_HasTheStartInstantAndNoResult()

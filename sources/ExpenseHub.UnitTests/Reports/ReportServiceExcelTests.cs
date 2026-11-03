@@ -37,6 +37,11 @@ public sealed class ReportServiceExcelTests
         Assert.IsGreaterThan(0, result.Content.Length);
         Assert.AreEqual((byte)'P', result.Content.Span[0]);
         Assert.AreEqual((byte)'K', result.Content.Span[1]);
+
+        // The file is not only shaped like a package: it opens, names this report and ends with the saved grand total.
+        string[] cells = CellTexts(result.Content);
+        CollectionAssert.Contains(cells, report.Id.ToString());
+        Assert.AreEqual("175.00", cells[^1]);
     }
 
     /// <summary>An own report that is pending, processing or failed is a conflict, and no file or data is given.</summary>
@@ -51,6 +56,28 @@ public sealed class ReportServiceExcelTests
         ReportRequest report = status == ReportStatus.Failed
             ? ReportTestData.FailedReport(ReportTestData.Requester)
             : ReportTestData.Report(ReportTestData.Requester, status);
+        repository.Given(report);
+
+        ReportExcelResult result = await service.GetExcelAsync(ReportTestData.Caller(ReportTestData.Requester), report.Id);
+
+        Assert.AreEqual(ReportExcelStatus.NotCompleted, result.Status);
+        Assert.IsNull(result.FileName);
+        Assert.AreEqual(0, result.Content.Length);
+    }
+
+    /// <summary>The state decides, not the presence of a result: an own report that is not completed gets no file even if a result happens to be saved with it. The table only demands a result for a completed report; it does not forbid one on the others.</summary>
+    /// <param name="status">The state of the report.</param>
+    [TestMethod]
+    [DataRow(ReportStatus.Pending)]
+    [DataRow(ReportStatus.Processing)]
+    [DataRow(ReportStatus.Failed)]
+    public async Task GetExcelAsync_OwnReportNotCompleted_GivesNoFileEvenWithAResultSaved(ReportStatus status)
+    {
+        (ReportService service, FakeReportRepository repository) = Create();
+        ReportRequest report = status == ReportStatus.Failed
+            ? ReportTestData.FailedReport(ReportTestData.Requester)
+            : ReportTestData.Report(ReportTestData.Requester, status);
+        report.ResultJson = ReportResultSerializer.Serialize(ReportTestData.MineSummary());
         repository.Given(report);
 
         ReportExcelResult result = await service.GetExcelAsync(ReportTestData.Caller(ReportTestData.Requester), report.Id);
@@ -86,6 +113,8 @@ public sealed class ReportServiceExcelTests
         ReportExcelResult result = await service.GetExcelAsync(ReportTestData.Caller("auditor-1", "Auditor"), alien.Id);
 
         Assert.AreEqual(ReportExcelStatus.NotFound, result.Status);
+        Assert.IsNull(result.FileName);
+        Assert.AreEqual(0, result.Content.Length);
     }
 
     /// <summary>A report that does not exist is not found, the same answer as for one of another user.</summary>
@@ -97,6 +126,8 @@ public sealed class ReportServiceExcelTests
         ReportExcelResult result = await service.GetExcelAsync(ReportTestData.Caller(ReportTestData.Requester), Guid.NewGuid());
 
         Assert.AreEqual(ReportExcelStatus.NotFound, result.Status);
+        Assert.IsNull(result.FileName);
+        Assert.AreEqual(0, result.Content.Length);
     }
 
     /// <summary>The file is built from the saved result: expenses that change afterwards are not read and do not change the file.</summary>
