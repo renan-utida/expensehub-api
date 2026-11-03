@@ -7,8 +7,8 @@ namespace ExpenseHub.Api.Reports;
 
 /// <summary>
 /// The publisher used while no real broker publisher is registered. It never confirms, so a request is never accepted
-/// without a message that was really sent: the API answers <c>503</c> instead of pretending. The publisher of the
-/// worker (CP3-I03) replaces it.
+/// without a message that was really sent: the API answers <c>503</c> instead of pretending. The web application registers
+/// <see cref="RabbitMqReportPublisher"/> in its place.
 /// </summary>
 public sealed partial class UnavailableReportPublisher : IReportPublisher
 {
