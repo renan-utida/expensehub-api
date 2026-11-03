@@ -421,7 +421,7 @@ Sem puxar do registry (por exemplo, para testar uma alteração local): construi
 
 ## Detalhe da CP3-I06: Experimentos e diagnóstico
 
-Issue central: [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16). Branch: `cp3-i06`. Pontos: 10. Estado: Concluída na branch, aguardando a PR. O arquivo `.http` está completo, os cinco experimentos foram executados pelo Renan em 03/11/2026 no Docker dele, com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, e as saídas reais e o diagnóstico estão no [Dossiê](#dossiê-dos-experimentos-e01-a-e05). O commit final de entrega gera imagens próprias (outra tag); os experimentos não foram repetidos com elas.
+Issue central: [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16). Branch: `cp3-i06`. Pontos: 10. Estado: Concluída, mergeada na `main` como PR 17 da equipe (merge commit `a41b22071f65ef81b536dd9a6b9d1a28b3c3add2`), com score oficial do workflow `code-quality` de 100/100 na execução 84 (da PR) e execução 85 na `main` concluída com sucesso, e `publish-images` com sucesso na PR (execução 5) e na `main` (execução 6), tudo informado pelo Renan. O arquivo `.http` está completo, os cinco experimentos foram executados pelo Renan em 03/11/2026 no Docker dele, com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, e as saídas reais e o diagnóstico estão no [Dossiê](#dossiê-dos-experimentos-e01-a-e05). O commit final de entrega gera imagens próprias (outra tag); os experimentos não foram repetidos com elas.
 
 Critérios de aceite:
 
@@ -435,7 +435,7 @@ Critérios de aceite:
 
 Decisões:
 
-- **Versão dos experimentos.** São usadas as imagens publicadas do SHA completo `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (merge da CP3-I04, PR 16), com `IMAGE_TAG` igual a esse SHA. Esta branch só traz documentação e o arquivo `.http`; a CP3-I07 provará com `git diff --stat` que a diferença até o SHA final de entrega é só documentação.
+- **Versão dos experimentos.** São usadas as imagens publicadas do SHA completo `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (merge da CP3-I04, PR 16), com `IMAGE_TAG` igual a esse SHA. Esta branch só traz documentação e o arquivo `.http`; a [prova de que só a documentação mudou depois dos experimentos](#prova-de-que-só-a-documentação-mudou-depois-dos-experimentos), feita na CP3-I07, mostra que a diferença até a entrega é só documentação.
 - **Ambiente real.** Projeto Compose `expensehub` do `compose.yaml`, com os serviços reais `web`, `worker` e `rabbitmq`, rodando no Docker do Renan (Git Bash no Windows). Nenhum passo remove volume ou banco: não há `docker compose down`, nem `docker volume rm`, nem `prune`; a recriação de web e worker do E05 troca os contêineres e preserva os volumes.
 - **Senhas.** A do Admin não é digitada: o bloco 1 a gera com `openssl` (`Aa1!` mais 32 caracteres hexadecimais, o que cumpre a política padrão do ASP.NET Core Identity usada pelo projeto) e a grava no `.env` sem imprimir. Só usa letras, dígitos e `!`, porque `$` ou `#` seriam alterados pela interpolação do Compose e o Admin só é criado na primeira subida (sem remover volume não haveria como corrigir). A senha das contas de teste é digitada com `read -rs` e validada antes de seguir. Tokens e senhas ficam só em variáveis do shell, nunca em arquivo; o diretório temporário guarda apenas as planilhas baixadas.
 - **Dados mínimos e conhecidos.** Quatro contas e cinco despesas (tabela no Dossiê), para que os totais sejam conferíveis à mão: `Mine` da ana = 3 itens e 175,00; `Global` do Auditor = 4 itens e 375,00.
@@ -451,22 +451,96 @@ As evidências ficam no [Dossiê dos experimentos](#dossiê-dos-experimentos-e01
 
 ## Detalhe da CP3-I07: Qualidade objetiva das alterações
 
-Issue central: [17](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/17). Branch: `cp3-i07`. Pontos: 5. Estado: Pendente.
+Issue central: [17](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/17). Branch: `cp3-i07`. Pontos: 5. Estado: Concluída, PR 18 da equipe. A issue não muda código de produção, pacotes, migrations, workflows nem configuração de qualidade. Ela mede o CP3 contra o commit do CP2 (`2e74619a311b38dbcc959888c8f1358b6877e9a1`), documenta o resultado, remove a pasta temporária `andamento/` (e as regras que a citavam no `CLAUDE.md`) e preenche a seção [Entrega](#entrega).
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Sem novos warnings ou diagnósticos atribuíveis ao trabalho | 2 | Pendente | A preencher ao concluir a issue |
-| Naming e formatação seguem as regras existentes | 1 | Pendente | A preencher ao concluir a issue |
-| Analisadores e verificações não foram enfraquecidos | 1 | Pendente | A preencher ao concluir a issue |
-| Higiene da entrega: só fontes, sem binários nem arquivos locais | 1 | Pendente | A preencher ao concluir a issue |
+| Sem novos warnings ou diagnósticos atribuíveis ao trabalho | 2 | Atendido | Mesmos comandos nas duas árvores (tabela abaixo): `dotnet build --no-incremental` com 0 avisos e 0 erros no CP2 e na entrega, e o script de qualidade com a mesma lista de achados (só o informativo `FIAP0002`, Gitleaks ignorado), nenhum ID novo. A varredura do diff contra o CP2 não acha supressão no código da equipe; as únicas linhas são `#nullable disable` e `#pragma warning disable/restore 612, 618` na migration `AddReportRequests`, que o `dotnet ef` gera e que o `.editorconfig` trata como código gerado (`[**/Migrations/*.cs]`, `generated_code = true`); as quatro migrations do CP2 têm o mesmo cabeçalho. |
+| Naming e formatação seguem as regras existentes | 1 | Atendido | `dotnet format ./sources/ExpenseHub.slnx --verify-no-changes` termina sem alterações (saída 0) no CP2 e na entrega; categoria `style` do script em 20/20; build com `EnforceCodeStyleInBuild` sem `IDE1006` nem outro `IDE`. Conferência dos nomes dos 96 arquivos `.cs` adicionados desde o CP2 contra o padrão do CP2: nome do arquivo igual ao tipo declarado (96 de 96; no CP2, 110 de 111), namespace igual à pasta (94 de 96; as duas exceções são as migrations geradas sem namespace, como as sete do CP2), classes de teste terminando em `Tests` (32 de 32; no CP2, 29 de 29) e métodos de teste no padrão `Metodo_Condicao_Resultado` (321 de 321; no CP2, 288 de 288). As pastas novas (`Reports` e `Deployment` na Api e nos testes, e o projeto `ExpenseHub.Worker`) seguem a mesma organização das pastas do CP2. |
+| Analisadores e verificações não foram enfraquecidos | 1 | Atendido | `git diff --stat 2e74619a311b38dbcc959888c8f1358b6877e9a1 HEAD -- .editorconfig Directory.Build.props scripts docs .github/workflows/build.yml dotnet-tools.json` sai vazio (o workflow do professor, o script, os analisadores, o `Directory.Build.props` e as regras de estilo são idênticos aos do CP2). Nos `csproj`, a única mudança foi acrescentar `DocumentFormat.OpenXml` 3.5.1 e `RabbitMQ.Client` 7.2.2 na Api; o `ExpenseHub.Worker.csproj` novo herda o `Directory.Build.props` e não tem `NoWarn`, `TreatWarningsAsErrors` nem supressão, e os Dockerfiles só passam `-p:UseAppHost=false`. O workflow novo `publish-images.yml` é aditivo e não relaxa nada: o job que publica depende (`needs: test`) do job que roda restore, build e `dotnet test`. |
+| Higiene da entrega: só fontes, sem binários nem arquivos locais | 1 | Atendido | `git ls-files` não lista `bin/`, `obj/`, `.vs/`, `artifacts/`, bancos (`.db`, `.sqlite`, `-wal`, `-shm`), chaves (`.pem`, `.pfx`, `.key`), planilhas, `.dll`/`.exe`/`.pdb` nem `.env` (o único arquivo `.env*` rastreado é o `.env.example`, com os segredos em branco); nenhum arquivo rastreado passa de 500 KB (o maior é este `CHECKPOINT-3.md`) e todos os rastreados são texto (`git grep -I`). O `.gitignore` cobre `bin/`, `obj/`, `.vs/`, `*.env`, `*.db`, `*.db-wal`, `*.db-shm`, `*.sqlite*`, `artifacts/`, `*.user` e `*.log` (conferido com `git check-ignore` em um caminho de cada tipo). `git status` não mostra arquivo local. |
 
-Decisões e como validar: a preencher ao concluir a issue. Inclui a comparação com o commit do CP2.
+Comparação com o commit do CP2, medida em cópias limpas (CP2 exportado com `git archive`; entrega copiada só com os arquivos rastreados, sem `.env`):
+
+| Medida | CP2 (`2e74619`) | Entrega |
+|---|---|---|
+| Projetos compilados | `ExpenseHub.Api` e `ExpenseHub.UnitTests` | `ExpenseHub.Api`, `ExpenseHub.UnitTests` e `ExpenseHub.Worker` |
+| `dotnet build ./sources/ExpenseHub.slnx --no-incremental` | 0 avisos, 0 erros | 0 avisos, 0 erros |
+| `dotnet test ./sources/ExpenseHub.slnx` | 611 aprovados, 0 falhas | 1170 aprovados, 0 falhas |
+| `dotnet format ./sources/ExpenseHub.slnx --verify-no-changes` | sem alterações (saída 0) | sem alterações (saída 0) |
+| `pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks` | 100/100 (build, security, hygiene, style e best-practices em 20) | 100/100 (build, security, hygiene, style e best-practices em 20) |
+| Achados do script | `FIAP0002` (informativo) | `FIAP0002` (informativo) |
+
+Decisões e como validar:
+
+- **Cópias limpas.** As medições usam cópias só dos arquivos rastreados porque na pasta do Renan o `.env` real, ignorado pelo git e criado para os experimentos, faz o script local marcar 98 pelo `FIAP2102` (possível segredo em arquivo local). O CI não vê esse arquivo, e o score geral não é uma nota diferencial: o que conta aqui é a lista de achados comparada com a do CP2.
+- **O que não foi feito para "melhorar" a medição.** Nenhum analisador, severidade, regra de estilo, `NoWarn` ou arquivo foi removido ou alterado; o `.editorconfig`, o `Directory.Build.props`, o `scripts/`, o `docs/` e o `build.yml` seguem idênticos aos do CP2.
+- **Pasta `andamento/`.** Os arquivos de trabalho (estado, textos de PR e as fontes da especificação) foram removidos nesta issue, junto com as regras do `CLAUDE.md` que os citavam. A linha `andamento` do `.dockerignore` fica: é inofensiva e mantém a diferença até a entrega só em documentação.
+- **Prova de que só a documentação mudou depois dos experimentos:** veja a subseção abaixo.
+
+Comandos para repetir a comparação (a partir da raiz do repositório; `N:` e `M:` são pastas curtas só para as cópias):
+
+```shell
+git diff --stat 2e74619a311b38dbcc959888c8f1358b6877e9a1 HEAD -- .editorconfig Directory.Build.props scripts docs .github/workflows/build.yml dotnet-tools.json
+git archive 2e74619a311b38dbcc959888c8f1358b6877e9a1 | tar -x -C N:/    # CP2 numa pasta vazia; depois: git init && git add -A
+git ls-files -z | tar --null -T - -cf - | tar -xf - -C M:/              # entrega, só os rastreados; depois: git init && git add -A
+dotnet build ./sources/ExpenseHub.slnx --no-incremental                  # em cada pasta
+dotnet test ./sources/ExpenseHub.slnx
+dotnet format ./sources/ExpenseHub.slnx --verify-no-changes
+pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
+```
+
+### Prova de que só a documentação mudou depois dos experimentos
+
+Os experimentos rodaram com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (merge da CP3-I04), e o commit final de entrega gera imagens próprias, com outra tag. Para mostrar que a diferença entre os dois é só documentação, o `git diff` abaixo compara a entrega com esse SHA **por exclusão**: o caminho exclui os arquivos `.md`, o arquivo `.http` de requisições e a pasta de trabalho `andamento/` (removida nesta issue). Se a saída vier vazia, nenhum outro arquivo mudou: nem código, nem testes, nem Dockerfiles, nem `compose.yaml`, nem workflows, nem configuração.
+
+Comando executado na entrega (índice da branch `cp3-i07`, depois da remoção de `andamento/`); a saída é vazia:
+
+```shell
+git diff --cached --stat f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f -- . ':(exclude)*.md' ':(exclude)sources/ExpenseHub.Api/ExpenseHub.Api.http' ':(exclude)andamento'
+```
+
+Saída:
+
+```
+(vazia)
+```
+
+Caminhos que mudaram desde o SHA dos experimentos (`git diff --cached --name-status f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`):
+
+```
+M	CHECKPOINT-3.md
+M	CLAUDE.md
+M	README.md
+D	andamento/PR-CP3-00.md
+D	andamento/PR-CP3-I01.md
+D	andamento/PR-CP3-I02.md
+D	andamento/PR-CP3-I03.md
+D	andamento/PR-CP3-I04.md
+D	andamento/PR-CP3-I05.md
+D	andamento/PROGRESSO.md
+D	andamento/requisitos/apostila-cp3.html
+D	andamento/requisitos/issues-cp3.md
+D	andamento/requisitos/slides-cp3.html
+M	sources/ExpenseHub.Api/ExpenseHub.Api.http
+```
+
+Só documentação (`.md`), o arquivo `.http` e a remoção da pasta de trabalho `andamento/`. A linha `andamento` do `.dockerignore` continua lá e não conta como mudança. As linhas de cada `.md` não são contadas aqui porque mudam a cada commit.
+
+Para repetir depois do merge, com o SHA final de entrega (o merge commit da PR da CP3-I07 na `main`, informado no texto do Teams), a partir de um clone com a `main` atualizada:
+
+```shell
+git diff --stat f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f <SHA final completo> -- . ':(exclude)*.md' ':(exclude)sources/ExpenseHub.Api/ExpenseHub.Api.http' ':(exclude)andamento'
+git diff --name-status f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f <SHA final completo>
+```
+
+O primeiro deve sair vazio e o segundo deve listar os mesmos caminhos acima.
 
 ## Detalhe da CP3-EXTRA-LINKEDIN: Publicação individual no LinkedIn
 
-Issue central: [18](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/18). Sem branch nem PR. Pontos: +1 individual. Estado: Pendente.
+Issue central: [18](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/18). Sem branch nem PR. Pontos: +1 individual. Estado: Pendente (manual).
 
 Atividade opcional e manual: publicação própria no LinkedIn, com texto próprio, sobre a aplicação, e envio do link no Teams, identificando o autor.
 
@@ -496,7 +570,7 @@ Houve tentativas que falharam por causa da colagem no terminal e foram refeitas 
 | Branch e HEAD do repositório na execução | `cp3-i06`, HEAD `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f` (igual ao SHA das imagens, porque a branch ainda não tinha commits próprios) |
 | Data e hora da execução | 03/11/2026, de cerca de 14:40 a 15:35 em horário de Brasília (o arquivo de saídas informa "14:4x a 15:35"); os logs estão em UTC, e os contêineres subiram às 17:51:54Z (RabbitMQ), 17:52:00Z (web) e 17:52:06Z (worker) |
 
-**Versão dos experimentos e commit final.** Os experimentos rodaram com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`. O commit final de entrega gera imagens próprias: o workflow `publish-images` publica web e worker com a tag do SHA completo de cada commit da `main`, então as imagens finais têm outra tag e os experimentos não foram repetidos com elas. A branch `cp3-i06` só traz documentação e o `.http`, e a CP3-I07 provará com `git diff --stat` do SHA dos experimentos até o SHA final que a diferença é só documentação.
+**Versão dos experimentos e commit final.** Os experimentos rodaram com as imagens publicadas do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`. O commit final de entrega gera imagens próprias: o workflow `publish-images` publica web e worker com a tag do SHA completo de cada commit da `main`, então as imagens finais têm outra tag e os experimentos não foram repetidos com elas. A branch `cp3-i06` só traz documentação e o `.http`, e a [prova de que só a documentação mudou depois dos experimentos](#prova-de-que-só-a-documentação-mudou-depois-dos-experimentos), feita na CP3-I07, mostra do SHA dos experimentos até a entrega que a diferença é só documentação.
 
 ### Regras de sanitização
 
@@ -1592,8 +1666,14 @@ Então o experimento mostrou que o token **continuou válido**, e a configuraç�
 
 ## Entrega
 
-A preencher no fim do checkpoint:
+Dados da entrega do Checkpoint 3 (o texto de entrega no Teams repete estes dados e acrescenta os que só existem depois do merge):
 
-- SHA do commit do CP2 e SHA do commit final do CP3;
-- referências completas das duas imagens e a forma de acesso para a correção;
-- comando dos testes unitários e comandos para subir o ambiente.
+- **Commit do CP2:** `2e74619a311b38dbcc959888c8f1358b6877e9a1` (merge da PR 10 na `main`).
+- **Commit final do CP3:** é o merge commit da PR da CP3-I07 na `main`, e o SHA completo dele vai no texto de entrega do Teams, não neste arquivo. O repositório não pode registrar o próprio SHA final sem mudá-lo (qualquer edição que o citasse criaria outro commit com outro SHA), e esse merge commit só passa a existir depois do merge.
+- **Imagens** (publicadas pelo workflow `publish-images` para esse commit, com o SHA completo como tag, nunca `latest`):
+  - `ghcr.io/renan-utida/expensehub-web:<SHA final completo>`
+  - `ghcr.io/renan-utida/expensehub-worker:<SHA final completo>`
+- **Acesso:** os dois pacotes são públicos; `docker pull` sem login e sem credenciais. Os experimentos rodaram com as imagens do SHA `f18cadbc69fdd38a3cc55b817e4fcc91ee139e1f`, e a diferença até o commit final é só documentação (veja [a prova](#prova-de-que-só-a-documentação-mudou-depois-dos-experimentos)).
+- **Como subir:** [Rodar com Docker Compose (CP3-I05)](README.md#rodar-com-docker-compose-cp3-i05) no README, a partir do [`.env.example`](.env.example) (cópia para `.env` com `IMAGE_TAG` igual ao SHA final completo; os segredos ficam em branco no exemplo e são preenchidos só na máquina de quem roda).
+- **Testes unitários:** `dotnet test ./sources/ExpenseHub.slnx` (1170 aprovados, sem banco, rede, RabbitMQ nem Docker).
+- **Conferência depois do merge:** o `docker compose pull` com a tag do SHA final e a execução conferida são feitos pelo Renan depois do merge e ficam registrados no texto do Teams, não no repositório.
