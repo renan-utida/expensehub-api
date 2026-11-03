@@ -39,7 +39,7 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 | 02/11/2026 | Identificador | `Guid`, como `Expense.Id`, igual nas rotas, na mensagem e nas respostas | CP3-I01 |
 | 02/11/2026 | Versão das imagens | O workflow publica a cada push na `main`, com tag igual ao SHA completo; o commit final gera as suas próprias imagens | CP3-I05 |
 | 02/11/2026 | Arquivo `.http` | Nasce na CP3-I01 e é completado na CP3-I06; as credenciais vêm de um arquivo de ambiente ignorado pelo git | CP3-I01 e CP3-I06 |
-| 02/11/2026 | Migrações no Compose | A decidir no plano da CP3-I05, com só duas imagens publicadas e sem apagar dados | CP3-I05 |
+| 02/11/2026 | Migrações no Compose | Decidido em 03/11/2026 no plano da CP3-I05: uma chave `Database:MigrateOnStartup`, desligada por padrão e ligada só no Compose, faz o web aplicar as migrations pendentes antes do seed do Admin. Só duas imagens publicadas, nenhum dado apagado, e o comportamento do CP2 (`dotnet ef database update`) não muda | CP3-I05 |
 | 02/11/2026 | Resultado salvo | Uma coluna `ResultJson` na linha do pedido, com centavos inteiros; `Completed` e resultado numa só gravação | CP3-I01 |
 | 02/11/2026 | Cálculo | `ReportCalculator.Select` (consulta com o período inclusivo e o escopo) e `Summarize` (centavos); projeção estreita no banco, sem agrupar no SQL | CP3-I01 |
 | 02/11/2026 | Entrada e respostas | `scope` só pelo nome exato; `503` com `id` quando o broker não confirma (continua `Pending`) e `503` sem `id` quando o banco falha | CP3-I01 |
@@ -55,6 +55,14 @@ Registro do Checkpoint 3 (CP3) do ExpenseHub, feito por Renan Dias Utida (RM 558
 | 03/11/2026 | Retomada de `Processing` | Uma mensagem entregue de novo para um pedido `Processing` retoma: recalcula e tenta concluir, sem regravar o início; a gravação final só vale se o estado ainda for `Processing` | CP3-I03 |
 | 03/11/2026 | SQLite compartilhado | `PRAGMA busy_timeout` e depois `PRAGMA journal_mode = WAL` em cada conexão, mais `Default Timeout` de 5 s, no mesmo método de registro usado pelo web e pelo worker; os dois apontam para o mesmo arquivo, por caminho absoluto em variável de ambiente | CP3-I03 |
 | 03/11/2026 | Janela sem Outbox | Sem Transactional Outbox: uma queda entre gravar e publicar deixa `Pending` sem mensagem, e um `503` com `id` não garante que a mensagem não chegou ao broker. Quem recebe `503` consulta o `id` retornado | CP3-I03 |
+| 03/11/2026 | Inicialização do banco no Compose | Flag em vez de bundle do EF: zero serviços novos, sem `dotnet-ef` no build, sem executável autocontido por arquitetura dentro da imagem web. `MigrateAsync` só aplica o que falta e não apaga nada. O worker nunca migra e só sobe depois que o web está saudável, porque o `/health` só responde depois das migrations e do seed (o servidor é o último a iniciar). Custo: com a flag ligada o processo web tem o poder de alterar o esquema | CP3-I05 |
+| 03/11/2026 | Nomes e versão das imagens | `ghcr.io/renan-utida/expensehub-web` e `ghcr.io/renan-utida/expensehub-worker`, só com a tag do SHA completo do commit (nunca `latest`, nenhuma tag de branch). O dono sai de `GITHUB_REPOSITORY_OWNER` em minúsculas. A label `org.opencontainers.image.source` liga o pacote ao repositório | CP3-I05 |
+| 03/11/2026 | Bases das imagens | As duas usam as mesmas bases pelos mesmos `ARG`: SDK `10.0.403` para compilar e `aspnet:10.0.14` para executar (o worker usa `aspnet` porque herda `Microsoft.AspNetCore.App` da Api). Usuário não root da própria imagem (UID 1654) nas duas, e `/data` (e `/keys` no web) entregues a esse usuário para os volumes nascerem com a posse certa | CP3-I05 |
+| 03/11/2026 | Workflow de publicação | `.github/workflows/publish-images.yml`, novo (`build.yml` do professor intocado). Só Docker CLI e as ações de checkout e do .NET nas mesmas versões do `build.yml`. Job `test` (restore, build, test) e job `images` com `needs: test`; push na `main` sem filtro de caminho publica, e na PR os mesmos `docker build` rodam sem login nem push, para exercitar os Dockerfiles no GitHub antes do merge. `packages: write` só no job `images` | CP3-I05 |
+| 03/11/2026 | Compose | `compose.yaml` na raiz, com `name: expensehub`, imagens por `${IMAGE_TAG:?...}` (sem o SHA dentro do arquivo), RabbitMQ `4.4.0-management` fixado por tag e digest (os da CP3-I03) com `hostname` fixo, volume e healthcheck, e três volumes nomeados: `rabbitmq-data`, `expensehub-data` (`/data`, nos dois contêineres, no mesmo caminho absoluto) e `expensehub-keys` (`/keys`, só no web). Portas só em localhost e o AMQP não é publicado. Todas as variáveis obrigatórias usam `${VAR:?mensagem}`; a de `RABBITMQ_PASSWORD` fica na linha `RabbitMq__Password`, e a do broker usa `${RABBITMQ_PASSWORD}` simples, porque o script de qualidade leria `PASSWORD:?` como valor literal | CP3-I05 |
+| 03/11/2026 | Chaves do Data Protection | `DataProtection:KeysPath` (vazia por padrão, sem efeito): preenchida, as chaves vão para a pasta (volume `expensehub-keys` no Compose) com nome de aplicação fixo, e o token emitido antes de recriar o contêiner continua válido. Limite: as chaves ficam sem criptografia em repouso no volume | CP3-I05 |
+| 03/11/2026 | Evidência da versão em execução | `GIT_COMMIT` vira `ENV Build__Commit`, a label `org.opencontainers.image.revision` e uma linha de log na partida dos dois processos (`Image commit: <sha>`); o valor só é aceito se for hexadecimal de 7 a 64 caracteres, senão aparece `unknown`. O `/health` não muda | CP3-I05 |
+| 03/11/2026 | `publish` do worker | `dotnet publish` do worker falhava com NETSDK1152: o `appsettings.json` da Api (projeto web) chega ao destino de publicação pela referência e colide com o do worker. Um alvo no `.csproj` do worker remove só esse item da publicação; a checagem de duplicatas do SDK continua ligada e o worker publica o `appsettings.json` dele (sem connection string) | CP3-I05 |
 
 ## Fora de escopo do CP3
 
@@ -160,7 +168,7 @@ Para ver as rotas rodando, use `sources/ExpenseHub.Api/ExpenseHub.Api.http` com 
 
 ## Detalhe da CP3-I03: RabbitMQ, worker e idempotência
 
-Issue central: [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13). Branch: `cp3-i03`. Pontos: 20. Estado: Concluída na branch, aguardando a PR. O web publica no RabbitMQ com confirmação, o worker (`sources/ExpenseHub.Worker`) consome, calcula e grava, e a proteção contra duplicata está no banco. As imagens e o Compose são da CP3-I05.
+Issue central: [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13). Branch: `cp3-i03`. Pontos: 20. Estado: Concluída, mergeada na `main` como PR 14 da equipe (merge commit `78bca7d00a785bb37bcedc5b40bcd14adffa2535`), com score oficial do workflow `code-quality` de 100/100 na execução 75. O web publica no RabbitMQ com confirmação, o worker (`sources/ExpenseHub.Worker`) consome, calcula e grava, e a proteção contra duplicata está no banco. As imagens e o Compose são da CP3-I05.
 
 Critérios de aceite:
 
@@ -232,17 +240,69 @@ Decisões e como validar: a preencher ao concluir a issue. Inclui a tabela cená
 
 ## Detalhe da CP3-I05: Publicação e execução reproduzível
 
-Issue central: [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15). Branch: `cp3-i05`. Pontos: 15. Estado: Pendente.
+Issue central: [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15). Branch: `cp3-i05`. Pontos: 15. Estado: Concluída na branch, aguardando a PR. Os Dockerfiles, o workflow de publicação e o Compose estão prontos e foram exercitados aqui no Docker com imagens construídas localmente; o que só existe depois do merge na `main` (primeira execução do workflow, pacotes no GHCR e `docker compose pull` com a tag do SHA) está na lista "O que depende do merge", mais abaixo.
 
 Critérios de aceite:
 
 | Critério | Pontos | Situação | Evidência |
 |---|---:|---|---|
-| Duas imagens publicadas e identificadas pelo commit, com testes antes da publicação | 5 | Pendente | A preencher ao concluir a issue |
-| Compose executa as imagens publicadas e o RabbitMQ com configuração documentada | 5 | Pendente | A preencher ao concluir a issue |
-| Banco e armazenamento compatíveis, inicialização reproduzível e segredos externos | 5 | Pendente | A preencher ao concluir a issue |
+| Duas imagens publicadas e identificadas pelo commit, com testes antes da publicação | 5 | Pronto na branch; a publicação acontece no merge | `sources/ExpenseHub.Api/Dockerfile` e `sources/ExpenseHub.Worker/Dockerfile` (mesmas bases, usuário não root, commit na variável `Build__Commit` e na label `revision`); `.github/workflows/publish-images.yml` (job `images` com `needs: test`, tag `${GITHUB_SHA}` completa, sem `latest`, login e push só em push na `main`); `DeliveryFilesTests` (22) e quatro mutações que quebraram testes; as duas imagens construídas aqui (415 MB cada, label e variável iguais ao commit) |
+| Compose executa as imagens publicadas e o RabbitMQ com configuração documentada | 5 | Pronto na branch; `docker compose pull` depende do merge | `compose.yaml` com `${IMAGE_TAG:?...}`, RabbitMQ 4.4.0 por tag e digest, volume nomeado, hostname fixo e healthcheck; README "Rodar com Docker Compose"; subida real aqui com as imagens construídas com os mesmos nomes (71 conferências, nenhuma falha) |
+| Banco e armazenamento compatíveis, inicialização reproduzível e segredos externos | 5 | Atendido | Um volume `expensehub-data` em `/data` nos dois contêineres, com a mesma connection string absoluta (WAL entre dois contêineres, `-wal` e `-shm` vistos pelo worker); `Database:MigrateOnStartup` (migrations aplicadas na primeira partida, 4 pendentes, e 0 na segunda); chaves do Data Protection em `expensehub-keys` (o token anterior continuou valendo depois de recriar web e worker); `.env.example` com os segredos em branco; script de qualidade sem FIAP1002; logs dos três serviços sem as credenciais geradas, sem o token e sem a connection string |
 
-Decisões e como validar: a preencher ao concluir a issue.
+**O que foi entregue.**
+
+- **Imagens.** Dois Dockerfiles (contexto: a raiz do repositório). Compilam no SDK `10.0.403` e executam em `aspnet:10.0.14`, os mesmos nos dois, porque o worker herda `Microsoft.AspNetCore.App` da Api. Rodam como o usuário `app` (UID 1654), e `/data` (e `/keys`, no web) são criados e entregues a esse usuário na imagem, para o volume nascer com a posse certa e os dois processos poderem gravar no mesmo arquivo. O `.dockerignore` mantém `bin`, `obj`, bancos e arquivos `.env` fora do contexto.
+- **Identificação.** O commit entra por `ARG GIT_COMMIT` em três lugares: `ENV Build__Commit`, a label `org.opencontainers.image.revision` e uma linha de log na partida dos dois processos (`ExpenseHub web started. Image commit: <sha>.`, e `worker`). O valor só é aceito se for hexadecimal de 7 a 64 caracteres, senão aparece `unknown`. O `/health` não mudou.
+- **Workflow.** `publish-images.yml`: job `test` (restore, build e test) e job `images` com `needs: test`. Em push na `main`, sem filtro de caminho, constrói as duas imagens, confere pela label que carregam o commit, entra no GHCR com o `GITHUB_TOKEN` e envia `ghcr.io/renan-utida/expensehub-web:<SHA completo>` e `ghcr.io/renan-utida/expensehub-worker:<SHA completo>`. Escreve as referências e os digests no resumo da execução. Nas PRs para a `main` os mesmos builds rodam sem login e sem push. `packages: write` só no job `images`. O `build.yml` do professor não foi tocado.
+- **Compose.** `rabbitmq`, `web` e `worker`, com `depends_on` por `service_healthy` (o worker espera o broker e o web), `restart: unless-stopped`, portas só em localhost e AMQP sem porta no host. Variáveis obrigatórias com `${VAR:?mensagem}` (`IMAGE_TAG`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_PASSWORD`). O hostname do RabbitMQ é fixo porque o nome do nó nomeia a pasta de dados: sem isso recriar o contêiner perderia a fila.
+- **Banco.** A flag `Database:MigrateOnStartup` (desligada por padrão) faz o web aplicar as migrations antes do seed do Admin. O worker nunca migra e espera o web saudável.
+- **Chaves.** `DataProtection:KeysPath` (vazia por padrão, sem efeito) leva as chaves para o volume `expensehub-keys`.
+- **`.http`.** Ambiente `compose` em `http-client.env.json` (`http://localhost:8080`), sem tokens nem credenciais.
+
+**Decisões.** Estão na tabela "Decisões do CP3" (03/11/2026): flag em vez de bundle, nomes e tag das imagens, bases, workflow, Compose, chaves, evidência da versão e o ajuste do `publish` do worker. Três pontos merecem destaque:
+
+- **O `publish` do worker falhava** com NETSDK1152, porque o `appsettings.json` da Api chega à saída de publicação pela referência de projeto e colide com o do worker. O `build` convivia com isso, o `publish` não. Um alvo no `.csproj` do worker remove só esse item; a checagem de duplicatas do SDK continua ligada, e a imagem do worker traz o `appsettings.json` dele (só RabbitMQ, sem connection string), conferido dentro da imagem.
+- **`RABBITMQ_PASSWORD` no Compose.** O script de qualidade lê `...PASSWORD:?...` como `chave: valor` e acusaria FIAP1002 em qualquer linha cuja chave não tenha a palavra senha. A verificação com `:?` fica na linha `RabbitMq__Password`, e a do broker (`RABBITMQ_DEFAULT_PASS`) usa `${RABBITMQ_PASSWORD}` simples; como o Compose interpola o arquivo inteiro, a variável é obrigatória do mesmo jeito (testado com um `.env` vazio).
+- **Gatilho de PR no workflow.** É um acréscimo meu: a publicação só roda na `main`, e sem ele os Dockerfiles só seriam exercitados no GitHub depois do merge. Se não for desejado, basta apagar o bloco `pull_request`.
+
+**O que foi medido** (Docker 29.9.2 no Windows, projeto Compose `expensehub-i05`, volumes novos, credenciais geradas na hora e nunca impressas, imagens construídas com os mesmos nomes do Compose):
+
+- `docker build` das duas imagens: o do web passou de primeira; o do worker acusou o NETSDK1152 acima, foi corrigido e passou. Usuário `1654`, `/data` e `/keys` do `app`, `bash` presente e `curl` e `wget` ausentes (por isso o healthcheck do web usa `bash` e `/dev/tcp`), label e `Build__Commit` iguais ao commit, mesma primeira camada nas duas imagens.
+- Primeira subida: `rabbitmq` e `web` saudáveis, `worker` iniciado depois; 4 migrations aplicadas, seed do Admin, linha de versão nos dois logs, fila durável (`durable` verdadeiro, `auto_delete` e `exclusive` falsos), RabbitMQ 4.4.0.
+- Fluxo: `POST` `Mine` responde `202`, o worker (outro contêiner) leva o relatório a `Completed` com 3 despesas e 175,00; Excel válido; `Global` com 4 e 375,00. `/data` com `expensehub.db`, `-wal` e `-shm`, igual nos dois contêineres, e chaves em `/keys`.
+- E02 (worker parado): `202`, `Pending`, mensagem pronta na fila; `up -d worker` e o mesmo id vira `Completed`.
+- E05 (`up -d --force-recreate web worker`): contêineres novos, broker intacto; o token emitido antes continuou valendo; o resultado, o `startedAt` e o `completedAt` anteriores ficaram idênticos; label, variável e log de versão iguais ao commit; migrations não reaplicadas (0 pendentes); um relatório novo com o token antigo concluiu.
+- Broker recriado (`up -d --force-recreate rabbitmq`) com uma mensagem na fila: a fila durável e a mensagem sobreviveram (efeito do hostname fixo) e o mesmo id concluiu; o web voltou a publicar sem precisar de reinício.
+- Logs do web, do worker e do RabbitMQ: nenhuma ocorrência da senha do broker, da senha do Admin, do token nem de `Data Source`.
+- Ao final só `docker compose stop`: os contêineres parados e os três volumes do projeto `expensehub-i05` continuam no Docker.
+
+**O que depende do merge (não dá para provar antes).**
+
+1. A execução do workflow `publish-images` na `main` (o push só ocorre lá) e as duas tags com o SHA completo no GHCR.
+2. Tornar os dois pacotes públicos, na página de cada um no GitHub (Package settings, Change visibility, Public). Passo manual do Renan.
+3. `docker compose pull` com a tag do SHA e a conferência das referências, depois do passo 2.
+4. O último commit da `main` precisa ser o commit de que o workflow publicou as imagens (a tag é o SHA completo desse commit); depois dele nada muda. O dossiê da CP3-I06 informa o SHA usado nos experimentos.
+5. O número da PR e o score oficial do workflow `code-quality` desta issue entram aqui e no README quando existirem.
+
+**Como validar.**
+
+```shell
+dotnet build ./sources/ExpenseHub.slnx
+dotnet test ./sources/ExpenseHub.slnx
+cp .env.example .env     # preencher IMAGE_TAG, RABBITMQ_USER, RABBITMQ_PASSWORD, ADMIN_EMAIL e ADMIN_PASSWORD
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs --tail 80 worker
+docker compose stop worker
+docker compose up -d worker
+docker compose up -d --force-recreate web worker
+```
+
+Sem o registry (antes do merge): construir as duas imagens à mão com os comandos do README ("Construir as imagens à mão"), usar `IMAGE_TAG=local` no `.env` e pular o `docker compose pull`.
+
+**Limites.** Imagens `linux/amd64`; o WAL exige web e worker no mesmo host e disco local (volume nomeado, nunca pasta do Windows); as chaves do Data Protection ficam sem criptografia em repouso no volume; o `RABBITMQ_DEFAULT_*` só vale quando o volume do broker nasce; não há Transactional Outbox.
 
 ## Detalhe da CP3-I06: Experimentos e diagnóstico
 

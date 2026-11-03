@@ -14,4 +14,18 @@
     <ProjectReference Include="..\ExpenseHub.Api\ExpenseHub.Api.csproj" />
   </ItemGroup>
 
+  <!--
+    The web project is a content file source: its appsettings.json flows to the publish output through the project reference and
+    has the same relative path as the one of the worker, which the SDK refuses (NETSDK1152). The worker publishes its own file
+    (settings of the broker only, no connection string). The duplicate check stays on; only the file of the web project is removed.
+  -->
+  <Target Name="UseWorkerAppSettingsOnPublish" BeforeTargets="_HandleFileConflictsForPublish">
+    <PropertyGroup>
+      <WebProjectAppSettings>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\ExpenseHub.Api\appsettings.json'))</WebProjectAppSettings>
+    </PropertyGroup>
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="$(WebProjectAppSettings)" />
+    </ItemGroup>
+  </Target>
+
 </Project>

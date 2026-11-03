@@ -2,9 +2,12 @@
 
 # Requisições de apoio para validar a API pelo Visual Studio ou pelo VS Code.
 #
+# Ambientes: "dev" aponta para a API rodando com dotnet run (porta 5245) e "compose" para a API do Docker Compose
+# (porta 8080 por padrão; se mudou WEB_PORT no .env, ajuste o endereço no http-client.env.json).
+#
 # Credenciais: nada de e-mail ou senha fica neste arquivo. Crie, ao lado dele, o arquivo
 # http-client.env.json.user (ignorado pelo git pela regra *.user do .gitignore), no formato abaixo,
-# e escolha o ambiente "dev" na lista do editor:
+# e escolha o ambiente ("dev" ou "compose") na lista do editor. Repita o bloco para cada ambiente que for usar:
 #
 #   {
 #     "dev": {
@@ -14,6 +17,9 @@
 #       "auditorPassword": "<senha desse usuário>"
 #     }
 #   }
+#
+# No Compose esses usuários não existem no começo: o banco nasce só com o Admin (ADMIN_EMAIL e ADMIN_PASSWORD do .env).
+# Cadastre os usuários em POST /register e peça ao Admin para conceder as roles (README, "Cadastro e roles").
 #
 # Quem pode pedir cada escopo (CP3-I02): Employee pede Mine, Auditor pede Global, e quem tem as duas
 # roles pede os dois. Admin, Approver e Finance sozinhos não pedem nada (403). As roles são concedidas

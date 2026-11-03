@@ -4,7 +4,7 @@
 
 API REST corporativa de reembolso de despesas, desenvolvida para a disciplina de C# da FIAP (turma 3ESPW) com ASP.NET Core (.NET 10), Entity Framework Core e SQLite. O projeto evolui por checkpoints: o Checkpoint 2 entregou a API de reembolsos, e o Checkpoint 3 a coloca em operação, com relatórios assíncronos, RabbitMQ, um worker C# e execução por imagens Docker.
 
-Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) está na `main` (PR #11 da equipe), a CP3-I01 (rotas de relatório, cálculo, resultado salvo e Excel) está na `main` (PR #12 da equipe, workflow `code-quality` com 100/100), a CP3-I02 (matriz de role por escopo, ordem das respostas e isolamento da leitura) está na `main` (PR #13 da equipe, workflow `code-quality` com 100/100), a CP3-I03 (RabbitMQ, worker e idempotência) está concluída na branch `cp3-i03`, aguardando a PR, e as issues CP3-I04 a CP3-I07 ainda não começaram. Com o RabbitMQ e o worker no ar, `POST /api/reports` responde `202` e o relatório chega a `Completed`; os comandos para rodar os dois localmente estão em [Mensageria e worker](#mensageria-e-worker-cp3-i03), e os do Docker Compose entram na CP3-I05.
+Estado atual: o Checkpoint 2 está concluído (10 issues, 611 testes unitários e workflow `code-quality` com 100/100 na `main`). O Checkpoint 3 está em andamento: a preparação (CP3-00) está na `main` (PR #11 da equipe), a CP3-I01 (rotas de relatório, cálculo, resultado salvo e Excel) está na `main` (PR #12 da equipe, workflow `code-quality` com 100/100), a CP3-I02 (matriz de role por escopo, ordem das respostas e isolamento da leitura) está na `main` (PR #13 da equipe, workflow `code-quality` com 100/100), a CP3-I03 (RabbitMQ, worker e idempotência) está na `main` (PR #14 da equipe, workflow `code-quality` com 100/100), a CP3-I05 (imagens, workflow de publicação e Compose) está concluída na branch `cp3-i05`, aguardando a PR, e as issues CP3-I04, CP3-I06 e CP3-I07 ainda não começaram. Com o RabbitMQ e o worker no ar, `POST /api/reports` responde `202` e o relatório chega a `Completed`; os comandos para rodar os dois localmente estão em [Mensageria e worker](#mensageria-e-worker-cp3-i03), e o ambiente inteiro sobe com Docker Compose a partir das duas imagens publicadas, como está em [Rodar com Docker Compose](#rodar-com-docker-compose-cp3-i05) (as imagens só existem no registry depois que a PR da CP3-I05 for mergeada na `main` e o workflow `publish-images` terminar).
 
 ## Sumário
 
@@ -52,9 +52,9 @@ O Checkpoint 3, ExpenseHub em operação, adiciona relatórios de reembolso ass�
 |---|---|---|---:|---|---|---|
 | CP3-I01 (central [11](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/11)) | Contrato e resultado do relatório | Rotas `POST` e `GET /api/reports`, validação de período e escopo, resumo por estado com totais, resultado salvo sem recálculo e download `.xlsx` | 20 | Concluída | PR #12 | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório) |
 | CP3-I02 (central [12](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/12)) | Autorização e isolamento | `Mine` para Employee e `Global` para Auditor; listagem, detalhe e Excel só do solicitante (`404` para alheios); solicitante e escopo definidos pelo servidor | 15 | Concluída | PR #13 | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento) |
-| CP3-I03 (central [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13)) | RabbitMQ, worker e idempotência | Fila durável, mensagens persistentes e confirmação de publicação; worker separado, ack só depois de salvar, duplicata sem novo efeito e falha definitiva registrada | 20 | Concluída | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) |
+| CP3-I03 (central [13](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/13)) | RabbitMQ, worker e idempotência | Fila durável, mensagens persistentes e confirmação de publicação; worker separado, ack só depois de salvar, duplicata sem novo efeito e falha definitiva registrada | 20 | Concluída | PR #14 | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência) |
 | CP3-I04 (central [14](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/14)) | Testes próprios significativos | Testes unitários de cálculo, conjunto vazio, período, negação, isolamento, duplicata, resultado persistido e Excel | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i04-testes-próprios-significativos) |
-| CP3-I05 (central [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15)) | Publicação e execução reproduzível | Duas imagens (web e worker) com a tag do commit, Compose com RabbitMQ, banco compartilhado e instruções sem segredos | 15 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i05-publicação-e-execução-reproduzível) |
+| CP3-I05 (central [15](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/15)) | Publicação e execução reproduzível | Duas imagens (web e worker) com a tag do commit, Compose com RabbitMQ, banco compartilhado e instruções sem segredos | 15 | Concluída | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i05-publicação-e-execução-reproduzível) |
 | CP3-I06 (central [16](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/16)) | Experimentos e diagnóstico | E01 a E05 com evidências reais e diagnóstico da aceitação, da publicação e da janela sem Outbox | 10 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i06-experimentos-e-diagnóstico) |
 | CP3-I07 (central [17](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/17)) | Qualidade objetiva das alterações | Sem diagnósticos novos atribuíveis ao trabalho, convenções seguidas, analisadores preservados e entrega só com fontes | 5 | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-i07-qualidade-objetiva-das-alterações) |
 | CP3-EXTRA-LINKEDIN (central [18](https://github.com/Racass/checkpoint-csharpracass-expensehub/issues/18)) | Publicação individual no LinkedIn | Publicação própria no LinkedIn sobre a aplicação (opcional, manual, sem branch nem PR) | +1 individual | Pendente | n/d | [Detalhe](CHECKPOINT-3.md#detalhe-da-cp3-extra-linkedin-publicação-individual-no-linkedin) |
@@ -161,10 +161,10 @@ docker run -d --name expensehub-rabbitmq \
   -v expensehub-rabbitmq-data:/var/lib/rabbitmq \
   -e RABBITMQ_DEFAULT_USER="$RABBITMQ_USER" \
   -e RABBITMQ_DEFAULT_PASS="$RABBITMQ_PASSWORD" \
-  rabbitmq:4-management
+  rabbitmq:4.4.0-management
 ```
 
-O broker guarda tudo em `/var/lib/rabbitmq` dentro do contêiner: as definições (a fila durável) e as mensagens persistentes que ainda não foram consumidas. O volume nomeado `expensehub-rabbitmq-data` monta esse caminho fora do contêiner, então os dados sobrevivem a `docker stop` e `docker start` e também a recriar o contêiner com o mesmo `-v`. Sem o volume (ou com um volume anônimo, que se perde ao remover o contêiner) a fila e as mensagens pendentes somem junto com o contêiner. As duas variáveis `RABBITMQ_DEFAULT_*` só valem quando o volume é criado; depois disso o usuário já está nos dados do volume. Não rode `docker volume rm` nem `docker rm -v` neste volume: eles apagam as mensagens. O painel de gerenciamento fica em `http://localhost:15672`. A tag `4-management` acompanha a versão 4 do RabbitMQ; a CP3-I05 fixa a versão no Compose.
+O broker guarda tudo em `/var/lib/rabbitmq` dentro do contêiner: as definições (a fila durável) e as mensagens persistentes que ainda não foram consumidas. O volume nomeado `expensehub-rabbitmq-data` monta esse caminho fora do contêiner, então os dados sobrevivem a `docker stop` e `docker start` e também a recriar o contêiner com o mesmo `-v`. Sem o volume (ou com um volume anônimo, que se perde ao remover o contêiner) a fila e as mensagens pendentes somem junto com o contêiner. As duas variáveis `RABBITMQ_DEFAULT_*` só valem quando o volume é criado; depois disso o usuário já está nos dados do volume. Não rode `docker volume rm` nem `docker rm -v` neste volume: eles apagam as mensagens. O painel de gerenciamento fica em `http://localhost:15672`. A versão está fixada em `4.4.0-management`, a que a CP3-I03 validou e que o Compose também usa (veja [Rodar com Docker Compose](#rodar-com-docker-compose-cp3-i05)).
 
 2. Web e worker, cada um num terminal, com as mesmas variáveis (`ConnectionStrings__ExpenseHub` absoluta, `RabbitMq__UserName`, `RabbitMq__Password` e a senha do Admin do web):
 
@@ -193,7 +193,7 @@ A duplicata não depende da memória do worker: a prova é o estado gravado no b
 
 **Logs.** Cada etapa de um relatório registra uma linha com o `reportId`: publicação (confirmada, não confirmada ou com falha), mensagem recebida (e se é reentrega), início (ou retomada), conclusão, duplicata, falha definitiva, nova tentativa e confirmação. As linhas não trazem e-mail, token, senha, connection string nem texto de exceção (só o nome do tipo).
 
-**Estrutura e trade-off.** O worker referencia o projeto `ExpenseHub.Api` e é fino: só o host e o adaptador do RabbitMQ. Toda a regra (mensagem, processador, decisão de confirmação, calculadora e acesso ao banco) fica na Api e é testada sem broker. O custo é que a Api é um projeto web, então o worker herda o framework `Microsoft.AspNetCore.App` (a imagem do worker, na CP3-I05, usa a base `aspnet`). O worker não registra seed do Admin, controllers nem autenticação. Nada na Api precisou de `InternalsVisibleTo`.
+**Estrutura e trade-off.** O worker referencia o projeto `ExpenseHub.Api` e é fino: só o host e o adaptador do RabbitMQ. Toda a regra (mensagem, processador, decisão de confirmação, calculadora e acesso ao banco) fica na Api e é testada sem broker. O custo é que a Api é um projeto web, então o worker herda o framework `Microsoft.AspNetCore.App` (por isso a imagem do worker usa a base `aspnet`, veja [Rodar com Docker Compose](#rodar-com-docker-compose-cp3-i05)). O worker não registra seed do Admin, controllers nem autenticação. Nada na Api precisou de `InternalsVisibleTo`.
 
 ## Como rodar
 
@@ -270,6 +270,98 @@ curl -X PUT http://localhost:5245/api/admin/users/<id>/roles -H "Authorization: 
 - **Depois de alterar as roles de um usuário, ele precisa fazer login de novo.** O token que ele já tinha deixa de valer (`401`), e só o token novo traz as roles atualizadas. Isso vale também para o Admin que altera as próprias roles.
 - O Admin não pode remover a própria role Admin (`403`).
 
+### Rodar com Docker Compose (CP3-I05)
+
+O `compose.yaml`, na raiz, sobe o ExpenseHub inteiro a partir das **duas imagens publicadas** (web e worker) e do RabbitMQ, com o banco SQLite compartilhado e as chaves de autenticação em volumes nomeados. Pré-requisito: Docker (Docker Desktop no Windows). Não é preciso o SDK do .NET.
+
+**Imagens.** A tag é sempre o **SHA completo (40 caracteres) do commit** de que a imagem foi construída. Nunca `latest`.
+
+| Imagem | Referência |
+|---|---|
+| Web | `ghcr.io/renan-utida/expensehub-web:<SHA completo do commit>` |
+| Worker | `ghcr.io/renan-utida/expensehub-worker:<SHA completo do commit>` |
+
+Elas são publicadas no GitHub Container Registry pelo workflow [`publish-images`](.github/workflows/publish-images.yml) a cada push na `main`, **só depois que os testes passam**. Para a correção puxar as imagens sem credenciais, os dois pacotes precisam estar **públicos** (passo manual, descrito em "Como o workflow publica", mais abaixo). Se algum pacote estiver privado, o `docker pull` responde `denied`: faça `docker login ghcr.io` com um token de leitura próprio (`read:packages`), que nunca entra no repositório. O SHA a usar é o do último commit da `main`, o mesmo que vai no Teams.
+
+**Subir.** Rode a partir da raiz do repositório:
+
+```shell
+cp .env.example .env
+# edite o .env: IMAGE_TAG, RABBITMQ_USER, RABBITMQ_PASSWORD, ADMIN_EMAIL e ADMIN_PASSWORD
+docker compose pull
+docker compose up -d
+docker compose ps
+```
+
+O `.env` é ignorado pelo Git. O `.env.example` não tem nenhum valor secreto: os campos obrigatórios estão em branco, e o Compose para com uma mensagem clara se algum faltar (`${VAR:?mensagem}`).
+
+| Variável | Obrigatória | O que é |
+|---|---|---|
+| `IMAGE_TAG` | sim | SHA completo do commit das imagens. O SHA não fica dentro do `compose.yaml` |
+| `RABBITMQ_USER` e `RABBITMQ_PASSWORD` | sim | Usuário e senha do broker. Gere a senha, por exemplo, com `openssl rand -hex 16`. O RabbitMQ só lê os dois **quando o volume dele é criado**: mudá-los no `.env` depois não muda o usuário do broker (para trocar, use o painel de gerenciamento) |
+| `ADMIN_EMAIL` e `ADMIN_PASSWORD` | sim | Conta Admin inicial. A senha precisa atender à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo). O seed só cria a conta se ainda não existir nenhum Admin |
+| `WEB_PORT` | não (8080) | Porta do web em `localhost` |
+| `RABBITMQ_MANAGEMENT_PORT` | não (15672) | Porta do painel do RabbitMQ em `localhost` |
+
+Se um valor do `.env` tiver `$` ou `#`, coloque-o entre aspas simples. **Cuidado:** `docker compose config` imprime o conteúdo do `.env`, senhas incluídas; para só validar, use `docker compose config --quiet`.
+
+**O que sobe**
+
+| Serviço | Imagem | Volume | Porta no host |
+|---|---|---|---|
+| `rabbitmq` | `rabbitmq:4.4.0-management`, fixada por tag e digest (a versão que a CP3-I03 validou) | `rabbitmq-data` em `/var/lib/rabbitmq` (definições, fila durável e mensagens persistentes) | painel em `127.0.0.1:15672`; o AMQP fica só na rede do Compose |
+| `web` | `expensehub-web` | `expensehub-data` em `/data` (o banco) e `expensehub-keys` em `/keys` (as chaves do Data Protection) | API em `127.0.0.1:8080` |
+| `worker` | `expensehub-worker` | `expensehub-data` em `/data`, **o mesmo volume e o mesmo caminho** do web | nenhuma |
+
+A ordem é garantida por `depends_on` com `service_healthy`: o web espera o broker saudável e o worker espera o broker e o web. Para conferir que subiu: `curl http://localhost:8080/health` responde `{"status":"ok"}`, e o painel do RabbitMQ abre em `http://localhost:15672` com o usuário do `.env`. A API é usada como no [Cadastro e roles](#cadastro-e-roles) e no [Usando o login](#usando-o-login), trocando a porta `5245` por `8080`; o arquivo `.http` tem o ambiente `compose` para isso.
+
+**Banco, volume e WAL.** Web e worker abrem o **mesmo arquivo**, `/data/expensehub.db`, por caminho absoluto: o `ConnectionStrings__ExpenseHub` é escrito uma única vez no `compose.yaml` (um bloco com âncora YAML que os dois serviços usam), então não há como divergirem. O SQLite roda com WAL e espera de bloqueio (CP3-I03), o que exige os dois processos no **mesmo host e em disco local**: por isso o banco fica num volume nomeado do Docker, nunca numa pasta do Windows montada no contêiner nem num compartilhamento de rede. As duas imagens usam o mesmo usuário não root (`app`, UID 1654), e `/data` é criado e entregue a esse usuário na imagem, para o volume nascer com a posse certa.
+
+**Inicialização do banco.** O banco não é criado pela imagem nem por um serviço extra. A chave `Database:MigrateOnStartup` (variável `Database__MigrateOnStartup`) faz o **web** aplicar as migrations pendentes na partida, antes do seed do Admin. Ela vem **desligada** em `appsettings.json` (o comportamento do CP2 não muda: localmente o banco continua sendo criado por `dotnet ef database update`) e o Compose a liga só no web. Num volume novo cria o arquivo e as tabelas; num volume que já tem dados aplica só o que falta e não apaga nada. O worker nunca migra, e só inicia depois que o `/health` do web responde, o que só acontece depois das migrations e do seed.
+
+**Chaves de autenticação.** Os tokens `Bearer` são protegidos pelo Data Protection. Com `DataProtection__KeysPath=/keys` (volume `expensehub-keys`) as chaves sobrevivem à recriação do contêiner, e um token emitido antes continua valendo depois (dentro da validade de uma hora). Sem a chave de configuração nada muda e o ASP.NET usa a pasta padrão, que no contêiner se perde. As chaves ficam em arquivos XML **sem criptografia em repouso** no volume (aviso padrão do ASP.NET no Linux): quem tem acesso ao volume consegue forjar tokens, e por isso elas nunca são versionadas.
+
+**Segredos.** Nenhum arquivo versionado tem usuário, senha ou token. O usuário e a senha do RabbitMQ e a senha do Admin entram só por variáveis de ambiente (o `.env` local), e o `compose.yaml` só as referencia. As imagens não trazem nenhum segredo.
+
+**Parar, inspecionar e recriar**
+
+```shell
+docker compose ps
+docker compose logs --tail 80 worker
+docker compose stop worker                      # só o worker: as mensagens esperam na fila
+docker compose up -d worker                     # o mesmo relatório conclui quando o worker volta
+docker compose up -d --force-recreate web worker  # recria web e worker, os dados e as chaves ficam nos volumes
+docker compose stop                             # para tudo, sem apagar nada
+```
+
+Os contêineres usam `restart: unless-stopped`: o que foi parado com `stop` continua parado. **Nunca use `docker compose down -v`, `docker volume rm`, `docker volume prune` nem `docker system prune`:** eles apagam o banco, as chaves e as mensagens do broker. Apagar volume não prova persistência e não conserta nada.
+
+**Qual versão está rodando.** Publicar a imagem não prova que o ambiente a executou. Cada imagem grava o commit de que foi construída em três lugares: a variável `Build__Commit`, a label `org.opencontainers.image.revision` e uma linha de log na partida (`ExpenseHub web started. Image commit: <sha>.`, e `worker`). Para conferir (os comandos de `docker inspect` pedem só campos específicos, porque o `Env` completo de um contêiner traz as credenciais):
+
+```shell
+docker compose images
+docker inspect --format '{{.Config.Image}}' $(docker compose ps -q web)
+docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' $(docker compose ps -q web)
+docker compose exec web printenv Build__Commit
+docker compose logs web | grep "Image commit"
+docker compose logs worker | grep "Image commit"
+```
+
+O valor só é aceito se for hexadecimal de 7 a 64 caracteres; qualquer outra coisa aparece como `unknown`. O `/health` não muda.
+
+**Construir as imagens à mão (sem o registry).** Os Dockerfiles ficam em `sources/ExpenseHub.Api/Dockerfile` e `sources/ExpenseHub.Worker/Dockerfile`, com a **raiz do repositório** como contexto. As duas imagens usam as mesmas bases: `mcr.microsoft.com/dotnet/sdk:10.0.403` para compilar e `mcr.microsoft.com/dotnet/aspnet:10.0.14` para executar (o worker usa a base `aspnet` porque herda o framework web da Api). Uma imagem construída assim só serve para testar localmente; ela **não comprova** a entrega, que são as imagens publicadas pelo workflow.
+
+```shell
+docker build -f sources/ExpenseHub.Api/Dockerfile --build-arg GIT_COMMIT="$(git rev-parse HEAD)" -t ghcr.io/renan-utida/expensehub-web:local .
+docker build -f sources/ExpenseHub.Worker/Dockerfile --build-arg GIT_COMMIT="$(git rev-parse HEAD)" -t ghcr.io/renan-utida/expensehub-worker:local .
+```
+
+Depois ponha `IMAGE_TAG=local` no `.env` e rode `docker compose up -d` (sem `docker compose pull`, que tentaria baixar essa tag do registry).
+
+**Como o workflow publica.** O `publish-images.yml` tem dois jobs. O job `test` roda `dotnet restore`, `dotnet build` e `dotnet test`. O job `images` só começa se `test` passar (`needs: test`): constrói as duas imagens com `GIT_COMMIT` igual ao `GITHUB_SHA`, confere pela label que as duas carregam o commit e, num push na `main`, entra no GHCR com o `GITHUB_TOKEN` e envia as duas tags (`:<SHA completo>`, sem `latest`). Nas PRs para a `main` os mesmos builds rodam sem login e sem push, só para exercitar os Dockerfiles antes do merge. O pacote criado pelo workflow nasce **privado**: para a correção puxar sem credenciais, é preciso torná-lo público na página dele no GitHub (Package settings, Change visibility, Public). O último commit da `main` precisa ser o commit de que o workflow publicou as imagens: depois dele, nada muda.
+
+**Limites conhecidos.** As imagens são `linux/amd64` (construídas no `ubuntu-latest`); em Apple Silicon rodam emuladas. O WAL exige web e worker no mesmo host. Não há Transactional Outbox (veja [a janela sem Outbox](#mensageria-e-worker-cp3-i03)).
+
 ## Banco de dados
 
 **Provider:** SQLite, escolhido por ser um arquivo local que dispensa servidor.
@@ -295,7 +387,7 @@ $env:ConnectionStrings__ExpenseHub = "Data Source=C:\temp\expensehub.db"
 export ConnectionStrings__ExpenseHub="Data Source=/tmp/expensehub.db"
 ```
 
-**Criação e atualização.** O banco não é criado na inicialização da aplicação: só `dotnet ef database update` o cria ou atualiza. Para recriar do zero, apague o arquivo `.db` e rode o comando de novo. Para gerar uma nova migration:
+**Criação e atualização.** Por padrão o banco não é criado na inicialização da aplicação: só `dotnet ef database update` o cria ou atualiza. A única exceção é a chave `Database:MigrateOnStartup`, desligada por padrão e ligada só pelo Compose, que faz o web aplicar as migrations pendentes na partida, sem apagar dados (veja [Rodar com Docker Compose](#rodar-com-docker-compose-cp3-i05)). Para recriar do zero, apague o arquivo `.db` e rode o comando de novo. Para gerar uma nova migration:
 
 ```shell
 dotnet ef migrations add NomeDaMigration --project ./sources/ExpenseHub.Api --startup-project ./sources/ExpenseHub.Api --output-dir Persistence/Migrations
@@ -317,7 +409,10 @@ Estrutura de pastas:
 
 ```text
 dotnet-tools.json                 ferramentas locais (dotnet-ef)
-.github/workflows/                workflow code-quality
+compose.yaml                      Docker Compose: as duas imagens publicadas, o RabbitMQ e os volumes (CP3-I05)
+.env.example                      exemplo das variáveis do Compose, sem valores secretos (o .env local é ignorado pelo Git)
+.dockerignore                     o que fica fora do contexto de build das imagens
+.github/workflows/                workflow code-quality (do professor) e publish-images (testes e publicação das imagens)
 docs/                             especificação da disciplina
 scripts/                          pipeline de qualidade local
 tests/                            testes do próprio script de qualidade (vêm do template)
@@ -326,6 +421,9 @@ sources/
   ExpenseHub.Api/
     Program.cs                    inicialização, pipeline e GET /health
     appsettings.json
+    Dockerfile                    imagem do web (contexto: a raiz do repositório)
+    Deployment/                   o que os contêineres precisam: a linha de log com o commit da imagem (RunningVersion,
+                                  VersionLogHostedService), o local das chaves do Data Protection e os registros no DI
     Controllers/                  AuthController (POST /register e /login), AdminUsersController, ExpensesController, ReportsController
     Domain/
       Entities/                   Expense, ExpenseCategory, ExpenseHistory, PaymentRecord, ReportRequest
@@ -353,16 +451,20 @@ sources/
       ExpenseHubDbContextFactory.cs             usada só pelo dotnet ef
       PersistenceServiceCollectionExtensions.cs registro no DI e connection string
       SqlitePragmas.cs e SqliteConnectionInterceptor.cs  espera por bloqueio e WAL, iguais no web e no worker
+      DatabaseMigrationHostedService.cs, IDatabaseMigrator.cs e EfDatabaseMigrator.cs  aplicam as migrations na partida do web, só com Database:MigrateOnStartup ligada
       Configurations/             mapeamento de cada entidade
       Converters/                 conversões de valor e de instante
       Migrations/                 InitialCreate, AddIdentity, ExpenseStatusConcurrencyToken, AddReportRequests e snapshot (gerados)
       Repositories/               ExpenseRepository, ReportRepository e ReportProcessingStore (EF Core), SqliteConstraintErrors e
                                   SqliteTransientErrors (classificam os erros do SQLite)
   ExpenseHub.Worker/
+    Dockerfile                    imagem do worker (base aspnet; contexto: a raiz do repositório)
     Program.cs                    host genérico: banco, configuração do RabbitMQ e o processador (sem seed, controllers nem autenticação)
     ReportConsumerService.cs      adaptador do RabbitMQ: recebe, chama o processador e executa a decisão de confirmação
     appsettings.json              só o endereço do broker e o nome da fila, sem credenciais
   ExpenseHub.UnitTests/
+    Deployment/                   testes da linha de versão, da chave de migração, do local das chaves e das regras dos arquivos de entrega
+                                  (Dockerfiles, Compose, .env.example e workflow, lidos como texto), com um migrador falso
     Expenses/                     testes das regras de despesa, do serviço e dos DTOs, com fake do repositório,
                                   e do controller de despesas (contrato HTTP) e dos papéis dos endpoints de despesas e de administração de usuários, com fake do serviço
     Identity/                     testes do seed, do cadastro, das roles, das validações e do middleware do SecurityStamp,
@@ -389,6 +491,7 @@ dotnet test ./sources/ExpenseHub.slnx
 - CP3-I01: a suíte passa de 611 para 788 testes aprovados. Os 177 novos são de relatórios: calculadora 24, resultado salvo 20, regras 25, corpo da requisição 22, solicitação 20, consulta 11, Excel pelo serviço 11, escritor do Excel 9, envelope 11, controller 16, autenticação das rotas 3 e publicador 5. A tradução da consulta para SQL, as restrições da tabela e o download real foram conferidos à mão contra o SQLite (veja a seção da CP3-I01 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i01-contrato-e-resultado-do-relatório)).
 - CP3-I02: a suíte passa de 788 para 936 testes aprovados. Os 148 novos são: matriz de role por escopo 59 (a tabela escrita à mão das 32 combinações das cinco roles, mais a conferência de que nenhuma combinação foi esquecida), ordem e autorização no serviço 35, isolamento por role 36, consulta montada do pedido gravado 10, atributos das rotas 6 e controller 2. A ordem das respostas (`401`, `403` por role, `400`, `403` por escopo) e o isolamento entre contas de roles diferentes foram conferidos à mão contra a aplicação real e um SQLite temporário (veja a seção da CP3-I02 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i02-autorização-e-isolamento)).
 - CP3-I03: a suíte passa de 936 para 1086 testes aprovados. Os 150 novos, sem banco, rede nem RabbitMQ, com fakes escritos à mão do repositório, do estado dos pedidos e do publicador: mensagem 26 (só o `reportId`; corpo não confiável), fila e mensagem persistente 8, opções do broker 17, registro do publicador 9, processador 33 (resultado igual ao da calculadora, duplicata, reinício, `Processing` retomado, corrida entre workers, falha definitiva, falha transitória em cada ponto), logs por `reportId` sem segredos 9, decisão de confirmação 15 (nenhuma falha de gravação chega a confirmação), erros transitórios do SQLite 25 e comandos de WAL e espera 8. Mutações feitas e desfeitas: confirmar mesmo sem ter salvo quebrou 10 testes, e remover a checagem de duplicata quebrou 5. A fila real, a confirmação de publicação, o worker, a duplicata depois de reiniciar, o `Processing` interrompido por um `kill`, a falha transitória e o broker parado foram conferidos à mão contra um RabbitMQ 4.4.0 em contêiner e um SQLite temporário, com 65 conferências aprovadas (veja a seção da CP3-I03 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i03-rabbitmq-worker-e-idempotência)).
+- CP3-I05: a suíte passa de 1086 para 1149 testes aprovados. Os 63 novos, sem banco, rede, RabbitMQ nem Docker: linha de versão no log 8 e normalização do commit 16 (só hexadecimal de 7 a 64 caracteres; o resto vira `unknown`), chave de migração na partida 10 (desligada por padrão, falha não engolida), local das chaves do Data Protection 7 (sem a chave de configuração nada muda) e regras dos arquivos de entrega 22, lidas como texto (imagens por `${IMAGE_TAG}` e nunca `latest`, RabbitMQ fixado por versão e digest, mesmo volume e mesma connection string absoluta em web e worker, credenciais só como variáveis, mesmas bases e usuário não root nos dois Dockerfiles, imagens publicadas só depois dos testes e só em push na `main`). Mutações feitas e desfeitas: ignorar a chave de migração, trocar a tag do Compose por `latest`, tirar `needs: test` do workflow e tirar a validação do commit quebraram 11 testes. As imagens, o Compose e a recriação de web e worker foram conferidos à mão no Docker, com 71 conferências aprovadas (veja a seção da CP3-I05 no [CHECKPOINT-3.md](CHECKPOINT-3.md#detalhe-da-cp3-i05-publicação-e-execução-reproduzível)).
 
 Para rodar um teste ou uma classe:
 
@@ -418,7 +521,8 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - I10: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 611 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. A I10 não altera código, pacotes, workflow, script nem analisadores. A execução do workflow da branch passou com 100/100 e Gitleaks em cada push. Score oficial na PR #10 (execução #60): **100/100**, com Gitleaks 8.30.1, sem bloqueantes e sem achados.
 - CP3-I01: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 788 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`. O único achado é o informativo `FIAP0002` (Gitleaks ignorado). Um primeiro passe do script deu 99 por `IDE1006` (campos `private static readonly` sem o prefixo `_`), corrigido antes da PR. Score oficial do workflow `code-quality` depois do merge (PR #12): 100/100 na execução #69.
 - CP3-I02: `dotnet build --no-incremental` com 0 erros e 0 avisos, `dotnet test` com 936 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Score oficial do workflow `code-quality` depois do merge (PR #13): 100/100 na execução #72.
-- CP3-I03: `dotnet build --no-incremental` com 0 erros e 0 avisos (três projetos: Api, Worker e testes), `dotnet test` com 1086 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Nenhuma credencial do broker está em arquivo versionado. O score oficial do workflow entra aqui quando a PR existir.
+- CP3-I03: `dotnet build --no-incremental` com 0 erros e 0 avisos (três projetos: Api, Worker e testes), `dotnet test` com 1086 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Nenhuma credencial do broker está em arquivo versionado. Score oficial do workflow `code-quality` depois do merge (PR #14): 100/100 na execução #75.
+- CP3-I05: `dotnet build --no-incremental` com 0 erros e 0 avisos (três projetos), `dotnet test` com 1149 testes aprovados e score local **100/100** (20 em cada categoria, sem bloqueantes), com `-SkipGitleaks`; o único achado é o informativo `FIAP0002`. Nenhum arquivo versionado novo (Dockerfiles, `compose.yaml`, `.env.example`, workflow) tem usuário, senha ou token: o `.env.example` deixa os segredos em branco e o Compose só os referencia por variável. O Gitleaks só roda no workflow do professor. O score oficial entra aqui quando a PR existir.
 - Nenhum aviso é suprimido no código da equipe (sem `#pragma warning disable`, `[SuppressMessage]` nem `NoWarn`). Os 4 arquivos de migration gerados pelo `dotnet ef` (os três `.Designer.cs` e o `ExpenseHubDbContextModelSnapshot.cs`) trazem o `#pragma warning disable 612, 618` do gerador e são tratados como código gerado pelo `.editorconfig`.
 
 ## Solução de problemas
@@ -435,6 +539,12 @@ pwsh ./scripts/Invoke-CodeQuality.ps1 -SkipGitleaks
 - Um relatório ficou `Pending` depois de um `503`: a mensagem pode nunca ter sido publicada (janela sem Transactional Outbox) e reiniciar o worker não a recria. Consulte o `id` retornado e, se continuar `Pending`, peça outro relatório.
 - O `POST /api/reports` responde `503` com o `id` e o log do web diz `could not be published`: o RabbitMQ não está acessível ou as credenciais estão ausentes; suba o broker e confira `RabbitMq__*` no web. Os relatórios `Pending` com mensagem na fila são concluídos assim que o worker estiver no ar.
 - `database is locked` ou o log do worker com `could not be saved now`: outro processo está com o banco bloqueado por mais de 5 s. A mensagem não é confirmada e volta sozinha; nada vira `Failed` por isso.
+- Docker Compose para com `required variable IMAGE_TAG is missing a value` (ou outra variável obrigatória): o `.env` não existe ou está com o valor em branco. Copie o `.env.example` para `.env` e preencha `IMAGE_TAG` (SHA completo do commit), `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
+- `docker compose pull` responde `denied` ou `unauthorized`: o pacote da imagem no GHCR está privado. Quem publica precisa torná-lo público (Package settings, Change visibility); para uso próprio, `docker login ghcr.io` com um token de leitura (`read:packages`). Se responde `not found`, a tag não existe: confira que `IMAGE_TAG` é o SHA **completo** de um commit da `main` cujo workflow `publish-images` terminou.
+- No Compose o `web` não fica `healthy` e reinicia: veja `docker compose logs web`. As causas comuns são `ADMIN_PASSWORD` fora da política do Identity (`PasswordTooShort`) e o broker ainda subindo. O worker só inicia depois do web saudável.
+- No Compose trocar `RABBITMQ_USER` ou `RABBITMQ_PASSWORD` no `.env` depois do primeiro `up` e o web ou o worker passam a registrar falha de autenticação no broker: o RabbitMQ só lê esses valores quando o volume dele é criado. Volte aos valores originais, ou troque a senha do usuário pelo painel de gerenciamento e use a nova no `.env`. Não apague o volume.
+- Os relatórios ficam `Pending` no Compose com o worker no ar e o log dele sem erros: confira que web e worker usam o mesmo volume (`docker compose exec worker ls /data` precisa listar `expensehub.db`) e que `ConnectionStrings__ExpenseHub` é o mesmo nos dois (é, pelo `compose.yaml`; o problema aparece se ele for sobrescrito à mão em só um serviço).
+- A porta `8080` (ou `15672`) já está em uso: defina `WEB_PORT` (ou `RABBITMQ_MANAGEMENT_PORT`) no `.env` e ajuste o endereço no ambiente `compose` do `http-client.env.json`.
 - `'Seed:Admin:Password' is not configured`: defina a senha com `dotnet user-secrets set "Seed:Admin:Password" "<senha>" --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj` ou com a variável de ambiente `Seed__Admin__Password`.
 - `Could not create the initial Admin user: PasswordTooShort, ...`: a senha não atende à política do Identity (pelo menos 6 caracteres, com maiúscula, minúscula, número e símbolo).
 - Login do Admin devolve `401` mesmo com a senha certa: o Admin já existia de uma execução anterior com outra senha. O seed não altera um Admin existente. Apague o arquivo `.db` e rode `dotnet ef database update` de novo.

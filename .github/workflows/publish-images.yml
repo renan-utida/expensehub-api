@@ -1,0 +1,130 @@
+name: publish-images
+
+# CP3-I05: roda os testes e, só depois que eles passam, constrói as duas imagens (web e worker) e as publica no GHCR com a tag
+# igual ao SHA COMPLETO do commit. Nunca usa "latest".
+#
+# - push na main: testes, build das duas imagens, login e push das duas tags (sem filtro de caminho).
+# - pull_request para a main: testes e build das duas imagens, SEM login e SEM push. Serve para exercitar os Dockerfiles no
+#   GitHub antes do merge, já que a publicação só acontece na main.
+#
+# Só a CLI do Docker e as ações de checkout e do .NET (as mesmas versões do build.yml): os comandos são os mesmos do README.
+# O pacote criado no GHCR nasce privado. Para o corretor puxar sem credenciais, torne os dois pacotes públicos na página
+# deles no GitHub (Package settings, Change visibility).
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore ./sources/ExpenseHub.slnx
+
+      - name: Build
+        run: dotnet build ./sources/ExpenseHub.slnx --no-restore
+
+      - name: Test
+        run: dotnet test ./sources/ExpenseHub.slnx --no-build
+
+  images:
+    name: Build and publish the images
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Name the images
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "WEB_IMAGE=${REGISTRY}/${owner}/expensehub-web:${GITHUB_SHA}" >> "${GITHUB_ENV}"
+          echo "WORKER_IMAGE=${REGISTRY}/${owner}/expensehub-worker:${GITHUB_SHA}" >> "${GITHUB_ENV}"
+
+      - name: Build the web image
+        shell: bash
+        run: |
+          docker build \
+            --file sources/ExpenseHub.Api/Dockerfile \
+            --build-arg GIT_COMMIT="${GITHUB_SHA}" \
+            --build-arg SOURCE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "${WEB_IMAGE}" \
+            .
+
+      - name: Build the worker image
+        shell: bash
+        run: |
+          docker build \
+            --file sources/ExpenseHub.Worker/Dockerfile \
+            --build-arg GIT_COMMIT="${GITHUB_SHA}" \
+            --build-arg SOURCE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "${WORKER_IMAGE}" \
+            .
+
+      - name: Check that both images carry the commit
+        shell: bash
+        run: |
+          for image in "${WEB_IMAGE}" "${WORKER_IMAGE}"; do
+            revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${image}")"
+            if [ "${revision}" != "${GITHUB_SHA}" ]; then
+              echo "The image ${image} does not carry the commit ${GITHUB_SHA}."
+              exit 1
+            fi
+          done
+
+      - name: Log in to the registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: echo "${GITHUB_TOKEN}" | docker login "${REGISTRY}" --username "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Push the images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          docker push "${WEB_IMAGE}"
+          docker push "${WORKER_IMAGE}"
+
+      - name: Write the references in the summary
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          {
+            echo "### Images published for commit ${GITHUB_SHA}"
+            echo
+            echo "- web: \`${WEB_IMAGE}\`"
+            echo "- worker: \`${WORKER_IMAGE}\`"
+            echo
+            echo "Digests:"
+            echo
+            docker image inspect --format '- `{{ index .RepoDigests 0 }}`' "${WEB_IMAGE}"
+            docker image inspect --format '- `{{ index .RepoDigests 0 }}`' "${WORKER_IMAGE}"
+          } >> "${GITHUB_STEP_SUMMARY}"

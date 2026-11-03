@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using ExpenseHub.Api.Deployment;
 using ExpenseHub.Api.Persistence;
 using ExpenseHub.Api.Reports;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,7 @@ internal static class Program
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
+        builder.Services.AddExpenseHubBuildInfo(builder.Configuration, "worker");
         builder.Services.AddExpenseHubPersistence(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddExpenseHubRabbitMqOptions(builder.Configuration);
         builder.Services.AddExpenseHubReportProcessing();
